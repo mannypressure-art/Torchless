@@ -207,8 +207,8 @@
     return parts.length === 0 ? "(none of the listed)" : parts.join(", ");
   }
   var BLEManager = class {
-    constructor(central, clock2) {
-      this.central = central;
+    constructor(central2, clock2) {
+      this.central = central2;
       this.clock = clock2;
       // Bluetooth / scanning
       this.btMessage = null;
@@ -246,7 +246,7 @@
       this.lastRX = /* @__PURE__ */ new Map();
       this.logCap = 2e4;
       this.droppedLogLines = 0;
-      central.delegate = this;
+      central2.delegate = this;
     }
     changed() {
       this.onChange?.();
@@ -2059,9 +2059,9 @@
   var RigController = _RigController;
 
   // src/rig/web-central.ts
-  var FEE7 = 65255;
+  var FEE7 = "0000fee7-0000-1000-8000-00805f9b34fb";
   var PRIMARY = "f56598fa-3ffa-41a7-9726-3fc69baeca1d";
-  var OPTIONAL = [6154, 6159, FEE7, PRIMARY];
+  var OPTIONAL = [FEE7, PRIMARY, "0000180a-0000-1000-8000-00805f9b34fb", "0000180f-0000-1000-8000-00805f9b34fb"];
   var err = (e) => ({ localizedDescription: e instanceof Error ? e.message : String(e) });
   function shortUUID(u) {
     const m = u.toLowerCase().match(/^0000([0-9a-f]{4})-0000-1000-8000-00805f9b34fb$/);
@@ -2176,6 +2176,8 @@
     constructor() {
       this.state = "unknown";
       this.delegate = null;
+      /** Told when the chooser closes without a rig picked, with the browser's reason. */
+      this.onChooserClosed = null;
       this.known = /* @__PURE__ */ new Map();
       this.wanted = /* @__PURE__ */ new Set();
       this.cancelled = /* @__PURE__ */ new Set();
@@ -2211,12 +2213,12 @@
     /** Opens the browser's chooser. Must run inside a tap. */
     scanForPeripherals(serviceUUIDs) {
       const bt = navigator.bluetooth;
-      const options = serviceUUIDs === null ? { acceptAllDevices: true, optionalServices: OPTIONAL } : { filters: [{ services: [FEE7] }, { services: [PRIMARY] }], optionalServices: OPTIONAL };
+      const options = serviceUUIDs === null ? { acceptAllDevices: true, optionalServices: OPTIONAL } : { filters: [{ services: [FEE7] }], optionalServices: OPTIONAL };
       bt.requestDevice(options).then((device) => {
         const p = this.wrap(device);
         this.delegate?.didDiscover(this, p, { localName: device.name ?? void 0, serviceUUIDs: ["FEE7"] }, -50);
       }).catch((e) => {
-        console.info("Presh: chooser closed", e);
+        this.onChooserClosed?.(e instanceof Error ? `${e.name}: ${e.message}` : String(e));
       });
     }
     stopScan() {
@@ -2274,9 +2276,10 @@
   };
 
   // src/web/test-page.ts
-  var BUILD = "test-3.0";
+  var BUILD = "test-3.1";
   var clock = new RealClock();
-  var ble = new BLEManager(new WebCentral(), clock);
+  var central = new WebCentral();
+  var ble = new BLEManager(central, clock);
   var rig = new RigController(clock, new LocalStore("presh."));
   rig.attach(ble);
   ble.log(`Presh web ${BUILD} started. ${navigator.userAgent}`);
@@ -2290,10 +2293,17 @@
   window.addEventListener("pageshow", () => {
     if (document.visibilityState === "visible") rig.appBecameActive();
   });
-  $("connect").onclick = () => {
+  function openChooser(all) {
     connectAfterPick = true;
     ble.devices = [];
+    ble.showAll = all;
     ble.startScan();
+  }
+  $("connect").onclick = () => openChooser(false);
+  $("connectAll").onclick = () => openChooser(true);
+  central.onChooserClosed = (why) => {
+    ble.log(`Chooser closed without a rig: ${why}`);
+    ble.stopScan();
   };
   $("disconnect").onclick = () => rig.askDisconnect();
   $("heat").onclick = () => rig.heatIt();

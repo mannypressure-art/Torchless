@@ -7,9 +7,10 @@ import { BLEManager } from "../rig/ble-manager";
 import { RigController, LightModes } from "../rig/rig-controller";
 import { WebCentral } from "../rig/web-central";
 
-const BUILD = "test-3.0";
+const BUILD = "test-3.1";
 const clock = new RealClock();
-const ble = new BLEManager(new WebCentral(), clock);
+const central = new WebCentral();
+const ble = new BLEManager(central, clock);
 const rig = new RigController(clock, new LocalStore("presh."));
 rig.attach(ble);
 ble.log(`Presh web ${BUILD} started. ${navigator.userAgent}`);
@@ -24,10 +25,17 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pagehide", () => rig.appMovedToBackground());
 window.addEventListener("pageshow", () => { if (document.visibilityState === "visible") rig.appBecameActive(); });
 
-$("connect").onclick = () => {
+function openChooser(all: boolean) {
   connectAfterPick = true;
   ble.devices = [];
+  ble.showAll = all;
   ble.startScan();   // opens the browser's chooser; must stay inside this tap
+}
+$("connect").onclick = () => openChooser(false);
+$("connectAll").onclick = () => openChooser(true);
+central.onChooserClosed = (why) => {
+  ble.log(`Chooser closed without a rig: ${why}`);
+  ble.stopScan();
 };
 $("disconnect").onclick = () => rig.askDisconnect();
 $("heat").onclick = () => rig.heatIt();

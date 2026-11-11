@@ -13,9 +13,10 @@ import {
   Central, CentralDelegate, CentralState, Characteristic, Peripheral, PeripheralDelegate, Props, Service, BleError,
 } from "./central";
 
-const FEE7 = 0xfee7;
+// Full lowercase UUID strings, the same form the official web app uses (some browsers mishandle numbers).
+const FEE7 = "0000fee7-0000-1000-8000-00805f9b34fb";
 const PRIMARY = "f56598fa-3ffa-41a7-9726-3fc69baeca1d";
-const OPTIONAL = [0x180a, 0x180f, FEE7, PRIMARY];
+const OPTIONAL = [FEE7, PRIMARY, "0000180a-0000-1000-8000-00805f9b34fb", "0000180f-0000-1000-8000-00805f9b34fb"];
 
 const err = (e: unknown): BleError => ({ localizedDescription: e instanceof Error ? e.message : String(e) });
 
@@ -132,6 +133,8 @@ export class WebPeripheral implements Peripheral {
 export class WebCentral implements Central {
   state: CentralState = "unknown";
   delegate: CentralDelegate | null = null;
+  /** Told when the chooser closes without a rig picked, with the browser's reason. */
+  onChooserClosed: ((why: string) => void) | null = null;
   private known = new Map<string, WebPeripheral>();
   private wanted = new Set<WebPeripheral>();
   private cancelled = new Set<WebPeripheral>();
@@ -166,13 +169,13 @@ export class WebCentral implements Central {
     const bt = (navigator as any).bluetooth;
     const options = serviceUUIDs === null
       ? { acceptAllDevices: true, optionalServices: OPTIONAL }
-      : { filters: [{ services: [FEE7] }, { services: [PRIMARY] }], optionalServices: OPTIONAL };
+      : { filters: [{ services: [FEE7] }], optionalServices: OPTIONAL };
     bt.requestDevice(options).then((device: any) => {
       const p = this.wrap(device);
       this.delegate?.didDiscover(this, p, { localName: device.name ?? undefined, serviceUUIDs: ["FEE7"] }, -50);
     }).catch((e: unknown) => {
       // The chooser was closed without a pick, or the browser refused.
-      console.info("Presh: chooser closed", e);
+      this.onChooserClosed?.(e instanceof Error ? `${e.name}: ${e.message}` : String(e));
     });
   }
 
