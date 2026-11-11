@@ -9,7 +9,7 @@ import { RigController, LightModes, HeatProfile, RigLimits } from "../rig/rig-co
 import { WebCentral } from "../rig/web-central";
 import { chargingOf } from "../rig/frames";
 
-const BUILD = "app-4a.2";
+const BUILD = "app-4a.3";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -28,6 +28,18 @@ const prefs = {
 if (prefs.get("age21") === "yes") $("age").hidden = true;
 $("ageYes").onclick = () => { prefs.set("age21", "yes"); $("age").hidden = true; };
 $("ageNo").onclick = () => { $("ageMsg").hidden = false; };
+
+// MARK: Full-screen tip. Bluefy ignores the manifest, so point people at its own
+// Full-screen Mode once. Shown only with Web Bluetooth and an address bar showing.
+
+function checkFsTip() {
+  const hasBt = !!(navigator as unknown as { bluetooth?: unknown }).bluetooth;
+  const barShowing = window.innerHeight < screen.height - 60;
+  $("fsTip").hidden = !(hasBt && barShowing && prefs.get("fsTip") !== "done");
+}
+$("fsGotIt").onclick = () => { prefs.set("fsTip", "done"); $("fsTip").hidden = true; };
+checkFsTip();
+window.addEventListener("resize", checkFsTip);
 
 // MARK: Look (Dark / Bright / Auto)
 

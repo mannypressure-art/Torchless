@@ -2277,7 +2277,7 @@
   };
 
   // src/web/app.ts
-  var BUILD = "app-4a.2";
+  var BUILD = "app-4a.3";
   var clock = new RealClock();
   var central = new WebCentral();
   var ble = new BLEManager(central, clock);
@@ -2308,6 +2308,17 @@
   $("ageNo").onclick = () => {
     $("ageMsg").hidden = false;
   };
+  function checkFsTip() {
+    const hasBt2 = !!navigator.bluetooth;
+    const barShowing = window.innerHeight < screen.height - 60;
+    $("fsTip").hidden = !(hasBt2 && barShowing && prefs.get("fsTip") !== "done");
+  }
+  $("fsGotIt").onclick = () => {
+    prefs.set("fsTip", "done");
+    $("fsTip").hidden = true;
+  };
+  checkFsTip();
+  window.addEventListener("resize", checkFsTip);
   function applyLook(v) {
     if (v === "dark" || v === "light") document.documentElement.dataset.theme = v;
     else delete document.documentElement.dataset.theme;
