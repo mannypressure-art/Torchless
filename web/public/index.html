@@ -4,80 +4,361 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>Torchless rig test</title>
+<meta name="theme-color" content="#060708">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Torchless</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root { --bg: #0d0f12; --card: #171a1f; --ink: #f2f3f5; --quiet: #9aa1ab; --line: #2a2f37; --hot: #ff5a3c; --go: #2fbf71; --warn: #f2b134; }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 -apple-system, system-ui, sans-serif; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
-  h1 { font-size: 20px; margin: 0 0 4px; }
-  .note { color: var(--warn); font-size: 14px; margin: 0 0 12px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
-  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .quiet { color: var(--quiet); font-size: 14px; }
-  .big { font-size: 40px; font-weight: 700; }
-  .state { font-weight: 700; }
-  .state.hot { color: var(--hot); }
-  button, select { font: inherit; color: var(--ink); background: #232830; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-height: 48px; }
-  button:disabled { opacity: .35; }
-  #heat { background: var(--hot); border-color: var(--hot); color: #fff; font-weight: 700; flex: 1; }
-  #cut { background: #fff; color: #000; font-weight: 700; flex: 1; }
-  .preset.on { border-color: var(--go); color: var(--go); }
-  .banner { border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
-  #msg { background: #3a2a10; color: var(--warn); }
-  #away, #bt { background: #10283a; color: #9fd3ff; }
-  pre { white-space: pre-wrap; word-break: break-all; font-size: 11px; color: var(--quiet); max-height: 40vh; overflow: auto; margin: 8px 0 0; }
+  :root {
+    --bgTop: #0D1114; --bg: #060708; --cardTop: #101317; --cardBottom: #0A0C0E; --edge: #1D232A;
+    --ink: #F4F6F8; --dim: #8D96A3; --sub: #AAB2BD; --live: #19E3FF; --gold: #E8B24A;
+    --faceTop: #11161B; --faceBottom: #040506; --bezel: #15191D; --bezelEdge: #2C333B;
+    --tickMinor: #4A525C; --tickMajor: #C9D1DB; --needleIdle: #C9D1DB; --selFill: #0B2F38;
+    --warn: #FF8A3D; --warnFill: #24130A; --noteFill: #1A1508; --bar: #0A0C0E;
+    --liveFill: #19E3FF; --liveInk: #031015; --goldFill: #E8B24A; --goldInk: #1A1004;
+    --cond: "Barlow Condensed", "SF Pro Display", -apple-system, system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    color-scheme: dark;
+  }
+  :root[data-theme="light"] {
+    --bgTop: #FFFFFF; --bg: #EEF0F2; --cardTop: #FFFFFF; --cardBottom: #F6F7F8; --edge: #D9DDE2;
+    --ink: #0C1014; --dim: #5B6570; --sub: #4A525C; --live: #007F96; --gold: #8F610A;
+    --faceTop: #FFFFFF; --faceBottom: #E9EDF0; --bezel: #DFE3E8; --bezelEdge: #B9C0C9;
+    --tickMinor: #9AA3AF; --tickMajor: #1A2026; --needleIdle: #1A2026; --selFill: #D9F8FD;
+    --warn: #B04A08; --warnFill: #FFF1E6; --noteFill: #FFF7E3; --bar: #FFFFFF;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bgTop: #FFFFFF; --bg: #EEF0F2; --cardTop: #FFFFFF; --cardBottom: #F6F7F8; --edge: #D9DDE2;
+      --ink: #0C1014; --dim: #5B6570; --sub: #4A525C; --live: #007F96; --gold: #8F610A;
+      --faceTop: #FFFFFF; --faceBottom: #E9EDF0; --bezel: #DFE3E8; --bezelEdge: #B9C0C9;
+      --tickMinor: #9AA3AF; --tickMajor: #1A2026; --needleIdle: #1A2026; --selFill: #D9F8FD;
+      --warn: #B04A08; --warnFill: #FFF1E6; --noteFill: #FFF7E3; --bar: #FFFFFF;
+      color-scheme: light;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; }
+  body {
+    background: linear-gradient(var(--bgTop), var(--bg) 320px) var(--bg); background-color: var(--bg);
+    color: var(--ink); font: 16px/1.35 -apple-system, system-ui, sans-serif; min-height: 100vh;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  button:disabled { cursor: default; }
+  .wrap { max-width: 480px; margin: 0 auto; padding: calc(8px + env(safe-area-inset-top)) 16px calc(96px + env(safe-area-inset-bottom)); }
+  .tag { font: 600 10px/1 var(--mono); letter-spacing: 1.8px; color: var(--dim); text-transform: uppercase; }
+  .cond { font-family: var(--cond); font-weight: 600; }
+  .panel { background: linear-gradient(var(--cardTop), var(--cardBottom)); border: 1px solid var(--edge); border-radius: 20px; }
+  .stack > * + * { margin-top: 14px; }
+
+  /* Header */
+  .head { display: flex; align-items: center; gap: 11px; min-height: 52px; }
+  .mark { width: 36px; height: 36px; flex: none; }
+  .brand { font: 600 24px/1 var(--cond); letter-spacing: 2px; }
+  .linkRow { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); }
+  .dot.live { background: var(--live); box-shadow: 0 0 6px var(--live); }
+  .bat { margin-left: auto; text-align: right; }
+  .bat b { display: block; font: 600 20px/1 var(--cond); }
+
+  /* Notices */
+  .notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 18px; }
+  .notice.warn { background: var(--warnFill); border: 1px solid var(--warn); }
+  .notice.warn .tag { color: var(--warn); }
+  .notice.note { background: var(--noteFill); border: 1px solid color-mix(in srgb, var(--gold) 70%, transparent); align-items: center; }
+  .notice.note .tag { color: var(--gold); }
+  .notice p { margin: 4px 0 0; font: 600 19px/1.15 var(--cond); }
+  .notice .icon { font-size: 22px; line-height: 1; }
+  .gotIt { margin-left: auto; flex: none; min-height: 44px; padding: 0 12px; border: 1px solid var(--gold); border-radius: 11px; color: var(--gold); font: 700 15px/1 var(--cond); letter-spacing: 1.5px; }
+  .btmsg { color: var(--warn); font: 600 18px/1.2 var(--cond); }
+
+  /* Gauge card */
+  .gaugeCard { position: relative; height: 300px; border-radius: 30px; overflow: hidden; display: grid; place-items: center; }
+  #gauge { width: 252px; height: 252px; overflow: visible; }
+  .bezelEdge { fill: var(--bezelEdge); } .bezel { fill: var(--bezel); }
+  .tickMinor { stroke: var(--tickMinor); stroke-width: 1; } .tickMajor { stroke: var(--tickMajor); stroke-width: 2; }
+  .gLabel { fill: var(--dim); font: 500 10.5px var(--mono); text-anchor: middle; }
+  #gArc { fill: none; stroke: var(--live); stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 4px var(--live)); }
+  #gMarker path { fill: var(--gold); }
+  #gNeedle rect { fill: var(--needleIdle); transition: fill .3s; }
+  body.heating #gNeedle rect { fill: var(--live); filter: drop-shadow(0 0 6px var(--live)); }
+  #gNeedle { transition: transform .45s ease-out; }
+  .hub text { fill: var(--goldFill); font: 700 15px var(--cond); text-anchor: middle; }
+  .readout { position: absolute; left: 50%; top: calc(50% + 62px); transform: translate(-50%, -50%); text-align: center; width: 160px; pointer-events: none; }
+  #gTemp { font: 600 44px/1 var(--cond); }
+  body.heating #gTemp { color: var(--live); }
+  #gStatus { margin-top: 4px; font: 500 9.5px/1.2 var(--mono); letter-spacing: 2px; color: var(--dim); white-space: nowrap; }
+  body.heating #gStatus { color: var(--gold); }
+  .corner { position: absolute; }
+  .corner b { display: block; font: 600 24px/1.05 var(--cond); margin-top: 3px; white-space: nowrap; }
+  .tl { top: 16px; left: 16px; } .tr { top: 16px; right: 16px; text-align: right; }
+  .bl { bottom: 16px; left: 16px; } .br { bottom: 16px; right: 16px; text-align: right; }
+  #cTarget { color: var(--gold); }
+
+  /* Presets */
+  .row { display: flex; align-items: center; gap: 8px; }
+  .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 8px; }
+  .key { min-height: 56px; border-radius: 12px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); text-align: center; }
+  .key small { display: block; font: 500 9.5px var(--mono); color: var(--dim); }
+  .key span { font: 600 24px/1.1 var(--cond); }
+  .key.on { background: var(--selFill); border-color: var(--live); }
+  .key.on small { color: var(--live); }
+  .key:disabled { opacity: .45; }
+  .edit { margin-left: auto; min-height: 32px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--gold) 60%, transparent); border-radius: 8px; color: var(--gold); font: 700 10px var(--mono); letter-spacing: 1.5px; }
+  .edit:disabled { opacity: .4; }
+
+  /* Heat */
+  .bigBtn { width: 100%; min-height: 84px; border-radius: 20px; font: 700 38px/1 var(--cond); letter-spacing: 5px; display: flex; align-items: center; justify-content: center; gap: 12px; }
+  #heat { color: var(--liveInk); background: linear-gradient(#5FF0FF, var(--liveFill), #10B9D0); box-shadow: 0 0 16px color-mix(in srgb, var(--liveFill) 35%, transparent); }
+  #heat:disabled { opacity: .4; box-shadow: none; }
+  #cut { color: var(--goldInk); background: linear-gradient(#FFD27A, var(--goldFill), #C98F25); box-shadow: 0 0 16px color-mix(in srgb, var(--goldFill) 35%, transparent); flex: 1; }
+  #extend { width: 92px; flex: none; min-height: 84px; text-align: center; }
+  #extend b { display: block; font: 700 30px/1 var(--cond); color: var(--live); margin-bottom: 4px; }
+  #extend:disabled { opacity: .4; }
+  .hint { text-align: center; color: var(--sub); font: 500 11px var(--mono); min-height: 14px; margin-top: 6px; }
+
+  /* Strips */
+  .strip { display: flex; align-items: center; gap: 14px; padding: 0 16px; min-height: 84px; width: 100%; text-align: left; }
+  .strip b { display: block; font: 600 24px/1.1 var(--cond); margin: 5px 0 3px; }
+  .strip small { font: 500 10.5px var(--mono); color: var(--sub); }
+  .chev { margin-left: auto; color: var(--dim); font-size: 20px; }
+
+  /* Tab bar */
+  .tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 4px; background: var(--bar); border-top: 1px solid var(--edge); padding: 6px 12px calc(6px + env(safe-area-inset-bottom)); z-index: 5; }
+  .tabs button { flex: 1; max-width: 140px; min-height: 52px; border-radius: 12px; font: 600 15px var(--cond); letter-spacing: 2px; color: var(--dim); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .tabs button svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+  .tabs button.on { color: var(--live); }
+
+  /* Link screen */
+  #linkScreen { min-height: 100vh; display: flex; flex-direction: column; padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom)); max-width: 480px; margin: 0 auto; }
+  .hero { margin: auto 0; text-align: center; }
+  .hero .mark { width: 96px; height: 96px; }
+  .hero h1 { font: 600 44px/1 var(--cond); letter-spacing: 3px; margin: 18px 0 6px; }
+  .hero p { color: var(--sub); margin: 0 auto; max-width: 300px; }
+  #linkIt { margin-top: 28px; }
+  .ghost { width: 100%; min-height: 52px; border: 1px solid var(--edge); border-radius: 14px; margin-top: 10px; color: var(--sub); font: 600 18px var(--cond); letter-spacing: 1px; }
+  .small { color: var(--dim); font-size: 13px; text-align: center; margin-top: 14px; }
+
+  /* Lights */
+  .orbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0 18px; }
+  .orbBtn { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 2px; border-radius: 14px; border: 1px solid transparent; }
+  .orbBtn.on { border-color: var(--live); background: var(--selFill); }
+  .orbBtn:disabled { opacity: .45; }
+  .orb { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(128,128,128,.45); }
+  .orbName { font: 600 13px/1.1 var(--cond); text-align: center; color: var(--sub); }
+  input[type=range] { width: 100%; accent-color: var(--live); height: 32px; }
+  .pad { padding: 16px; }
+  h2 { font: 600 30px/1 var(--cond); letter-spacing: 2px; margin: 8px 0 0; }
+  .switchRow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+  .switchRow input { width: 24px; height: 24px; accent-color: var(--live); }
+
+  /* Rig */
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--edge); }
+  .kv:last-child { border-bottom: 0; }
+  .kv span { color: var(--dim); } .kv b { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+  .seg button { min-height: 44px; border-radius: 10px; border: 1px solid var(--edge); font: 600 17px var(--cond); letter-spacing: 1px; color: var(--sub); }
+  .seg button.on { border-color: var(--live); color: var(--live); background: var(--selFill); }
+  .btn2 { min-height: 48px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--edge); font: 600 18px var(--cond); letter-spacing: 1px; }
+  .btn2:disabled { opacity: .4; }
+  a.btn2 { display: inline-flex; align-items: center; color: var(--ink); text-decoration: none; }
+
+  /* Sheets */
+  .sheet { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.55); display: flex; align-items: flex-end; justify-content: center; }
+  .sheet[hidden] { display: none; }
+  .sheetBody { width: 100%; max-width: 480px; background: var(--cardTop); border: 1px solid var(--edge); border-radius: 24px 24px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); }
+  .sheetBody h3 { font: 600 30px/1 var(--cond); letter-spacing: 2px; margin: 0 0 14px; }
+  .field { margin-bottom: 16px; }
+  .field .row { justify-content: space-between; }
+  .field b { font: 600 28px var(--cond); color: var(--gold); }
+  .step { width: 48px; min-height: 44px; border: 1px solid var(--edge); border-radius: 10px; font: 600 20px var(--cond); }
+  select { width: 100%; min-height: 48px; font: 600 18px var(--cond); color: var(--ink); background: var(--cardBottom); border: 1px solid var(--edge); border-radius: 12px; padding: 0 12px; margin-top: 8px; }
+  .age { position: fixed; inset: 0; z-index: 20; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+  .age[hidden] { display: none; }
+  .age h1 { font: 600 40px/1 var(--cond); letter-spacing: 3px; margin: 18px 0 10px; }
+  .age p { color: var(--sub); max-width: 320px; margin: 0 auto 24px; }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) { #gNeedle { transition: none; } }
 </style>
 </head>
 <body>
-  <h1>Torchless rig test</h1>
-  <p class="note">Test build. Keep this page open and the phone unlocked during a dab. If the page closes, the rig finishes the dab on its own timer.</p>
-  <div id="bt" class="banner" hidden></div>
-  <div id="msg" class="banner" hidden></div>
-  <div id="away" class="banner" hidden></div>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <symbol id="markSym" viewBox="0 0 36 36">
+      <circle cx="18" cy="18" r="17.5" fill="#0B0D10" stroke="#2C333B"/>
+      <path d="M 18 5 A 13 13 0 1 1 6.7 11.5" fill="none" stroke="#E8B24A" stroke-width="1.6" stroke-linecap="round" transform="rotate(30 18 18)"/>
+      <text x="18" y="24.5" text-anchor="middle" font-family="Barlow Condensed, -apple-system, sans-serif" font-weight="700" font-size="17" fill="#E8B24A">T</text>
+    </symbol>
+    <radialGradient id="faceGrad" cx="50%" cy="38%" r="70%">
+      <stop offset="0" style="stop-color:var(--faceTop)"/><stop offset="1" style="stop-color:var(--faceBottom)"/>
+    </radialGradient>
+    <radialGradient id="hubGrad" cx="35%" cy="30%" r="70%">
+      <stop offset="0" stop-color="#4B525B"/><stop offset=".6" stop-color="#1A1E23"/><stop offset="1" stop-color="#0B0D10"/>
+    </radialGradient>
+  </defs>
+</svg>
 
-  <div class="card">
-    <div class="row"><button id="connect">Connect to rig</button><button id="disconnect">Disconnect</button></div>
-    <div class="row" style="margin-top:8px"><button id="connectAll">Can't find it? Show all devices</button></div>
-    <div id="conn" class="quiet" style="margin-top:8px"></div>
-    <div id="fresh" class="quiet"></div>
+<div id="age" class="age">
+  <div>
+    <svg class="mark" style="width:72px;height:72px"><use href="#markSym"/></svg>
+    <h1>TORCHLESS</h1>
+    <p>Torchless is for adults 21 and older where cannabis use is legal.</p>
+    <button id="ageYes" class="bigBtn" style="background:var(--goldFill);color:var(--goldInk);font-size:30px;min-height:64px">I'M 21 OR OLDER</button>
+    <button id="ageNo" class="ghost">I'm not</button>
+    <p id="ageMsg" hidden style="margin-top:16px">Sorry, Torchless is only for adults 21 and older.</p>
+  </div>
+</div>
+
+<!-- Link it -->
+<section id="linkScreen">
+  <div class="hero">
+    <svg class="mark"><use href="#markSym"/></svg>
+    <h1>TORCHLESS</h1>
+    <p>Find your rig. Turn it on, keep it close, then tap LINK IT and pick it from the list.</p>
+    <div id="btMsg" class="btmsg" style="margin-top:16px" hidden></div>
+    <button id="linkIt" class="bigBtn" style="color:var(--liveInk);background:linear-gradient(#5FF0FF,var(--liveFill),#10B9D0)">LINK IT</button>
+    <button id="linkAll" class="ghost">Can't find it? Show all devices</button>
+    <div id="linkState" class="small"></div>
+    <div class="small">On iPhone, open this page in Bluefy. Keep the page open during a dab.</div>
+  </div>
+</section>
+
+<div id="main" hidden>
+  <div class="wrap">
+    <header class="head">
+      <svg class="mark"><use href="#markSym"/></svg>
+      <div>
+        <div class="brand">TORCHLESS</div>
+        <div class="linkRow"><span id="linkDot" class="dot"></span><span id="linkTag" class="tag" style="font-size:9.5px"></span></div>
+      </div>
+      <div class="bat"><b id="battery"></b><span id="batteryTag" class="tag" style="font-size:8.5px"></span></div>
+    </header>
+
+    <div class="stack" style="margin-top:8px">
+      <div id="notice" class="notice warn" hidden>
+        <span class="icon" style="color:var(--warn)">⚠</span>
+        <div><span id="noticeTag" class="tag"></span><p id="noticeText"></p></div>
+      </div>
+      <div id="away" class="notice note" hidden>
+        <span class="icon" style="color:var(--gold)">✓</span>
+        <div><span class="tag">WHILE YOU WERE AWAY</span><p id="awayText"></p></div>
+        <button id="gotIt" class="gotIt">GOT IT</button>
+      </div>
+      <div id="btMsg2" class="btmsg" hidden></div>
+    </div>
+
+    <!-- Home -->
+    <section data-panel="home" class="stack" style="margin-top:14px">
+      <div class="gaugeCard panel">
+        <svg id="gauge" viewBox="0 0 260 260">
+          <circle cx="130" cy="130" r="138" class="bezelEdge"/>
+          <circle cx="130" cy="130" r="137" class="bezel"/>
+          <circle cx="130" cy="130" r="130" fill="url(#faceGrad)"/>
+          <path id="gArc" d=""/>
+          <g id="gMarker" style="display:none"><path d="M123 4 L137 4 L130 16 Z"/></g>
+          <g id="gNeedle" transform="rotate(225 130 130)"><rect x="128" y="23" width="4" height="114" rx="2"/></g>
+          <g class="hub"><circle cx="130" cy="130" r="20" fill="url(#hubGrad)"/><text x="130" y="135.5">T</text></g>
+        </svg>
+        <div class="readout"><div id="gTemp">---</div><div id="gStatus"></div></div>
+        <div class="corner tl"><span class="tag" style="font-size:9px">TARGET</span><b id="cTarget">---</b></div>
+        <div class="corner tr"><span class="tag" style="font-size:9px">HOLD</span><b id="cHold">--</b></div>
+        <div class="corner bl"><span class="tag" style="font-size:9px">PROFILE</span><b id="cProfile">--</b></div>
+        <div class="corner br"><span class="tag" style="font-size:9px">TIME LEFT</span><b id="cLeft">--</b></div>
+      </div>
+
+      <div>
+        <div class="row"><span id="presetTag" class="tag" style="font-size:9.5px">PRESETS</span><button id="editBtn" class="edit" hidden>EDIT</button></div>
+        <div class="presets">
+          <button id="p1" class="key"><small>1</small><span id="p1t">—</span></button>
+          <button id="p2" class="key"><small>2</small><span id="p2t">—</span></button>
+          <button id="p3" class="key"><small>3</small><span id="p3t">—</span></button>
+          <button id="p4" class="key"><small>4</small><span id="p4t">—</span></button>
+          <button id="p5" class="key"><small>5</small><span id="p5t">—</span></button>
+        </div>
+      </div>
+
+      <div>
+        <div id="heatRow"><button id="heat" class="bigBtn" disabled>🔥 HEAT IT</button></div>
+        <div id="cutRow" class="row" style="gap:10px" hidden>
+          <button id="cut" class="bigBtn">■ CUT IT</button>
+          <button id="extend" class="panel"><b>+10s</b><span class="tag" style="font-size:8.5px">MORE TIME</span></button>
+        </div>
+        <div id="heatHint" class="hint"></div>
+      </div>
+
+      <button class="strip panel" data-tab="lights">
+        <span class="orb" style="width:40px;height:40px;background:conic-gradient(#3CF2D0,#19E3FF,#6A7BFF,#B66BFF,#3CF2D0)"></span>
+        <div><span class="tag" style="font-size:9px">LIGHTS</span><b>Rig lights</b><small>Colors, brightness, light show</small></div>
+        <span class="chev">›</span>
+      </button>
+    </section>
+
+    <!-- Lights -->
+    <section data-panel="lights" hidden style="margin-top:14px">
+      <h2>LIGHTS</h2>
+      <div class="tag" style="margin-top:6px">NOW · <span id="lightNow">--</span></div>
+      <div class="panel pad" style="margin-top:14px">
+        <div class="row" style="justify-content:space-between"><span class="tag">BRIGHTNESS</span><b id="brightV" class="cond" style="font-size:22px">--</b></div>
+        <input id="bright" type="range" min="0" max="100" step="1">
+      </div>
+      <div class="panel pad" style="margin-top:14px">
+        <label class="switchRow"><span><b class="cond" style="font-size:22px">Light show during dabs</b><br><small style="color:var(--sub)">Changes color as the dab counts down, then puts your light back.</small></span><input id="showOn" type="checkbox"></label>
+      </div>
+      <div id="lightGrid" style="margin-top:18px"></div>
+    </section>
+
+    <!-- Rig -->
+    <section data-panel="rig" hidden style="margin-top:14px" class="stack">
+      <h2>RIG</h2>
+      <div class="panel pad"><div id="rigInfo"></div></div>
+      <div class="row"><button id="disconnect" class="btn2">Disconnect</button></div>
+      <div class="panel pad">
+        <span class="tag">LOOK</span>
+        <div class="seg"><button data-look="dark">DARK</button><button data-look="light">BRIGHT</button><button data-look="auto">AUTO</button></div>
+      </div>
+      <div class="panel pad">
+        <span class="tag">SHOP TOOLS</span>
+        <p style="color:var(--sub);margin:8px 0 12px">For testing. The log helps when something acts up.</p>
+        <div class="row" style="flex-wrap:wrap"><button id="copyLog" class="btn2">Copy log</button><button id="saveLog" class="btn2">Save log</button><a class="btn2" href="test/">Test page</a></div>
+        <div class="small" style="text-align:left">Build <span id="build"></span>. Not affiliated with Dr. Dabber.</div>
+      </div>
+    </section>
   </div>
 
-  <div class="card">
-    <div class="big" id="temp">--</div>
-    <div class="row"><span id="state" class="state"></span><span id="left" class="quiet"></span></div>
-    <div class="quiet"><span id="preset"></span> · <span id="lightNow"></span> · <span id="battery"></span></div>
-  </div>
+  <nav class="tabs">
+    <button data-tab="home"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 13 L16 9"/></svg>HOME</button>
+    <button data-tab="lights"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>LIGHTS</button>
+    <button data-tab="rig"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="18" rx="3"/><path d="M12 7v4"/></svg>RIG</button>
+  </nav>
+</div>
 
-  <div class="card">
-    <div class="row"><button id="heat">HEAT IT</button><button id="cut">CUT IT</button></div>
-    <div class="row" style="margin-top:8px"><button id="extend">+10 s</button></div>
-  </div>
-
-  <div class="card">
-    <div class="quiet">Presets (only while idle)</div>
-    <div class="row" style="margin-top:8px">
-      <button id="p1" class="preset"></button><button id="p2" class="preset"></button><button id="p3" class="preset"></button>
-      <button id="p4" class="preset"></button><button id="p5" class="preset"></button>
+<!-- Preset editor -->
+<div id="editor" class="sheet" hidden>
+  <div class="sheetBody">
+    <h3 id="edTitle">Preset</h3>
+    <div class="field">
+      <div class="row"><span class="tag">TEMPERATURE</span><b id="edTempV"></b></div>
+      <div class="row"><button class="step" data-step="t-5">−</button><input id="edTemp" type="range" step="5"><button class="step" data-step="t5">+</button></div>
+    </div>
+    <div class="field">
+      <div class="row"><span class="tag">HOLD</span><b id="edHoldV"></b></div>
+      <div class="row"><button class="step" data-step="h-5">−</button><input id="edHold" type="range" step="1"><button class="step" data-step="h5">+</button></div>
+    </div>
+    <div class="field">
+      <span class="tag">HEAT PROFILE</span>
+      <select id="edProfile"></select>
+      <div id="edProfileNote" class="small" style="text-align:left" hidden>This preset uses a custom profile from the rig. Leave it on Custom to keep it.</div>
+    </div>
+    <div class="row" style="gap:10px">
+      <button id="edCancel" class="btn2" style="flex:1">Cancel</button>
+      <button id="edSave" class="btn2" style="flex:1;background:var(--goldFill);color:var(--goldInk);border-color:var(--goldFill)">SAVE</button>
     </div>
   </div>
+</div>
 
-  <div class="card">
-    <div class="quiet">Ride the dial (while heating, 5 °F a tap)</div>
-    <div class="row" style="margin-top:8px">
-      <button id="dialDown">−5</button><span id="dialTarget"></span><button id="dialUp">+5</button>
-      <select id="dialMode"><option value="live">Mode A: live slot</option><option value="active">Mode B: active preset</option></select>
-    </div>
-    <div id="dialWhy" class="quiet" style="margin-top:8px"></div>
-  </div>
-
-  <div class="card">
-    <div class="row"><select id="light"></select><button id="setLight">Set light</button></div>
-  </div>
-
-  <div class="card">
-    <div class="row"><button id="copyLog">Copy log</button><button id="saveLog">Save log</button></div>
-    <pre id="log"></pre>
-  </div>
-  <script src="app.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

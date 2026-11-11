@@ -47,6 +47,7 @@
 
   // src/rig/frames.ts
   var hapticsOf = (s) => s.hapticsByte === 170;
+  var chargingOf = (s) => s.chargingByte === 170;
   var hex2 = (n) => n.toString(16).toUpperCase().padStart(2, "0");
   var hexString = (b) => Array.from(b, hex2).join(" ");
   function u16(b, i) {
@@ -1136,11 +1137,11 @@
         this.changed();
         return;
       }
-      const wasHeating = this.prevOn || this.startPendingAt !== null;
+      const wasHeating2 = this.prevOn || this.startPendingAt !== null;
       if (this.prevOn && this.sessionStartDate !== null) {
         this.log(`SESSION END duration=${(this.now() - this.sessionStartDate).toFixed(0)} peak=${this.sessionPeakF} (link lost)`);
       }
-      if (wasHeating) {
+      if (wasHeating2) {
         this.linkLostAt = this.now();
         this.log("AWAY: lost the rig mid-dab. The rig finishes the dab on its own timer. When the link is back, the app makes sure heat is off.");
       }
@@ -2275,16 +2276,50 @@
     }
   };
 
-  // src/web/test-page.ts
-  var BUILD = "test-3.1";
+  // src/web/app.ts
+  var BUILD = "app-4a.1";
   var clock = new RealClock();
   var central = new WebCentral();
   var ble = new BLEManager(central, clock);
   var rig = new RigController(clock, new LocalStore("presh."));
   rig.attach(ble);
-  ble.log(`Presh web ${BUILD} started. ${navigator.userAgent}`);
+  ble.log(`Torchless web ${BUILD} started. ${navigator.userAgent}`);
   var $ = (id) => document.getElementById(id);
-  var connectAfterPick = false;
+  var prefs = {
+    get(k) {
+      try {
+        return localStorage.getItem("torchless." + k);
+      } catch {
+        return null;
+      }
+    },
+    set(k, v) {
+      try {
+        localStorage.setItem("torchless." + k, v);
+      } catch {
+      }
+    }
+  };
+  if (prefs.get("age21") === "yes") $("age").hidden = true;
+  $("ageYes").onclick = () => {
+    prefs.set("age21", "yes");
+    $("age").hidden = true;
+  };
+  $("ageNo").onclick = () => {
+    $("ageMsg").hidden = false;
+  };
+  function applyLook(v) {
+    if (v === "dark" || v === "light") document.documentElement.dataset.theme = v;
+    else delete document.documentElement.dataset.theme;
+    document.querySelectorAll("[data-look]").forEach((b) => b.classList.toggle("on", b.dataset.look === v));
+  }
+  applyLook(prefs.get("look") ?? "auto");
+  document.querySelectorAll("[data-look]").forEach((b) => {
+    b.onclick = () => {
+      prefs.set("look", b.dataset.look);
+      applyLook(b.dataset.look);
+    };
+  });
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") rig.appMovedToBackground();
     else rig.appBecameActive();
@@ -2293,37 +2328,164 @@
   window.addEventListener("pageshow", () => {
     if (document.visibilityState === "visible") rig.appBecameActive();
   });
+  var wake = null;
+  async function keepAwake(on) {
+    const wl = navigator.wakeLock;
+    if (!wl) return;
+    try {
+      if (on && !wake) wake = await wl.request("screen");
+      if (!on && wake) {
+        const w = wake;
+        wake = null;
+        await w.release();
+      }
+    } catch {
+      wake = null;
+    }
+  }
+  var tab = "home";
+  function showTab(t) {
+    tab = t;
+    document.querySelectorAll("[data-panel]").forEach((el) => {
+      el.hidden = el.dataset.panel !== t;
+    });
+    document.querySelectorAll("[data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
+    window.scrollTo(0, 0);
+    schedule();
+  }
+  document.querySelectorAll("[data-tab]").forEach((b) => {
+    b.onclick = () => showTab(b.dataset.tab);
+  });
+  var connectAfterPick = false;
   function openChooser(all) {
     connectAfterPick = true;
     ble.devices = [];
     ble.showAll = all;
     ble.startScan();
   }
-  $("connect").onclick = () => openChooser(false);
-  $("connectAll").onclick = () => openChooser(true);
+  $("linkIt").onclick = () => openChooser(false);
+  $("linkAll").onclick = () => openChooser(true);
   central.onChooserClosed = (why) => {
     ble.log(`Chooser closed without a rig: ${why}`);
     ble.stopScan();
+    connectAfterPick = false;
+    schedule();
   };
-  $("disconnect").onclick = () => rig.askDisconnect();
   $("heat").onclick = () => rig.heatIt();
   $("cut").onclick = () => rig.cutIt();
   $("extend").onclick = () => rig.extendTen();
-  $("dialDown").onclick = () => rig.dialNudge(-RigController.dialStep);
-  $("dialUp").onclick = () => rig.dialNudge(RigController.dialStep);
-  $("dialMode").onchange = (e) => {
-    rig.dialMode = e.target.value === "active" ? "active" : "live";
-    render();
+  $("gotIt").onclick = () => {
+    rig.awayNote = null;
+    schedule();
   };
   for (let n = 1; n <= 5; n++) $(`p${n}`).onclick = () => rig.selectPreset(n);
-  var lightSel = $("light");
-  for (const m of LightModes.all) {
+  var profileSel = $("edProfile");
+  for (const pr of HeatProfile.writable) {
     const o = document.createElement("option");
-    o.value = String(m.id);
-    o.textContent = m.name;
-    lightSel.appendChild(o);
+    o.value = String(pr.id);
+    o.textContent = pr.name;
+    profileSel.appendChild(o);
   }
-  $("setLight").onclick = () => rig.setLightMode(Number(lightSel.value));
+  var editing = 0;
+  var edTemp = $("edTemp");
+  var edHold = $("edHold");
+  edTemp.min = String(RigLimits.tempF[0]);
+  edTemp.max = String(RigLimits.tempF[1]);
+  edHold.min = String(RigLimits.hold[0]);
+  edHold.max = String(RigLimits.hold[1]);
+  function edLabels() {
+    $("edTempV").textContent = `${edTemp.value}\xB0F`;
+    $("edHoldV").textContent = `${edHold.value}s`;
+  }
+  edTemp.oninput = edLabels;
+  edHold.oninput = edLabels;
+  $("editBtn").onclick = () => {
+    const n = rig.live?.preset ?? 0;
+    if (n < 1 || n > 5) return;
+    editing = n;
+    const p = rig.presets[n];
+    edTemp.value = String(p.tempF ?? 450);
+    edHold.value = String(p.hold ?? 30);
+    profileSel.querySelector('option[value="241"]')?.remove();
+    if (p.profile === 241) {
+      const o = document.createElement("option");
+      o.value = "241";
+      o.textContent = "Custom (keep as is)";
+      profileSel.prepend(o);
+    }
+    profileSel.value = String(p.profile !== void 0 && (HeatProfile.isWritable(p.profile) || p.profile === 241) ? p.profile : 161);
+    $("edProfileNote").hidden = p.profile !== 241;
+    $("edTitle").textContent = `Preset ${n}`;
+    edLabels();
+    $("editor").hidden = false;
+  };
+  $("edCancel").onclick = () => {
+    $("editor").hidden = true;
+  };
+  $("edSave").onclick = () => {
+    rig.savePreset(editing, Number(edTemp.value), Number(edHold.value), Number(profileSel.value));
+    $("editor").hidden = true;
+  };
+  document.querySelectorAll("[data-step]").forEach((b) => {
+    b.onclick = () => {
+      const input = b.dataset.step.startsWith("t") ? edTemp : edHold;
+      const d = Number(b.dataset.step.slice(1));
+      input.value = String(Math.min(Number(input.max), Math.max(Number(input.min), Number(input.value) + d)));
+      edLabels();
+    };
+  });
+  var LIGHT_COLORS = {
+    2: "#9B5CFF",
+    3: "#2F6BFF",
+    4: "#19E3FF",
+    5: "#34E07A",
+    6: "#FFE14A",
+    7: "#FF9A2F",
+    8: "#FF3B3B",
+    9: "#FF6FC8"
+  };
+  function orbStyle(m) {
+    if (LIGHT_COLORS[m]) return `background:${LIGHT_COLORS[m]}`;
+    if (m === 0) return "background:#20252B";
+    if (m === 1) return "background:radial-gradient(circle at 40% 35%, #8fd9ff, #2a4a66)";
+    return "background:conic-gradient(#3CF2D0, #19E3FF, #6A7BFF, #B66BFF, #3CF2D0)";
+  }
+  var groups = [
+    ["Low key", LightModes.basic],
+    ["Solid", LightModes.solid],
+    ["Themes", LightModes.themes],
+    ["Seasonal", LightModes.seasonal]
+  ];
+  var lightGrid = $("lightGrid");
+  for (const [title, modes] of groups) {
+    const h = document.createElement("div");
+    h.className = "tag";
+    h.textContent = title.toUpperCase();
+    lightGrid.appendChild(h);
+    const g = document.createElement("div");
+    g.className = "orbs";
+    for (const m of modes) {
+      const b = document.createElement("button");
+      b.className = "orbBtn";
+      b.dataset.mode = String(m.id);
+      b.innerHTML = `<span class="orb" style="${orbStyle(m.id)}"></span><span class="orbName"></span>`;
+      b.querySelector(".orbName").textContent = m.name;
+      b.onclick = () => rig.setLightMode(m.id);
+      g.appendChild(b);
+    }
+    lightGrid.appendChild(g);
+  }
+  var bright = $("bright");
+  var brightTouchedAt = 0;
+  bright.oninput = () => {
+    brightTouchedAt = Date.now();
+    $("brightV").textContent = `${bright.value}%`;
+    rig.setBrightness(Number(bright.value));
+  };
+  $("showOn").onchange = (e) => {
+    rig.showEnabled = e.target.checked;
+  };
+  $("disconnect").onclick = () => rig.askDisconnect();
   $("copyLog").onclick = async () => {
     try {
       await navigator.clipboard.writeText(ble.exportText(BUILD));
@@ -2340,9 +2502,54 @@
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     const d = /* @__PURE__ */ new Date();
-    a.download = `Presh-web-log-${d.toISOString().slice(0, 19).replace(/[:T]/g, "-")}.txt`;
+    a.download = `Torchless-log-${d.toISOString().slice(0, 19).replace(/[:T]/g, "-")}.txt`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5e3);
+  };
+  $("build").textContent = BUILD;
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var C = 130;
+  var R = 122;
+  var ang = (f) => (135 + 270 * f) * Math.PI / 180;
+  var pt = (f, r) => [C + Math.cos(ang(f)) * r, C + Math.sin(ang(f)) * r];
+  function arcPath(f0, f1, r) {
+    const [x0, y0] = pt(f0, r);
+    const [x1, y1] = pt(f1, r);
+    const large = (f1 - f0) * 270 > 180 ? 1 : 0;
+    return `M${x0.toFixed(2)} ${y0.toFixed(2)} A${r} ${r} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`;
+  }
+  function buildGauge() {
+    const svg = $("gauge");
+    const ticks = document.createElementNS(SVGNS, "g");
+    for (let i = 0; i <= 25; i++) {
+      const f = i / 25;
+      const major = i % 5 === 0;
+      const [x0, y0] = pt(f, R * (major ? 0.84 : 0.885));
+      const [x1, y1] = pt(f, R * 0.95);
+      const l = document.createElementNS(SVGNS, "line");
+      l.setAttribute("x1", x0.toFixed(2));
+      l.setAttribute("y1", y0.toFixed(2));
+      l.setAttribute("x2", x1.toFixed(2));
+      l.setAttribute("y2", y1.toFixed(2));
+      l.setAttribute("class", major ? "tickMajor" : "tickMinor");
+      ticks.appendChild(l);
+    }
+    svg.insertBefore(ticks, svg.querySelector("#gArc"));
+    for (let i = 0; i < 6; i++) {
+      const [x, y] = pt(i / 5, R * 0.69);
+      const t = document.createElementNS(SVGNS, "text");
+      t.setAttribute("x", x.toFixed(1));
+      t.setAttribute("y", (y + 4).toFixed(1));
+      t.setAttribute("class", "gLabel");
+      t.id = `gL${i}`;
+      svg.insertBefore(t, svg.querySelector("#gNeedle"));
+    }
+  }
+  buildGauge();
+  var clamp01 = (v) => Math.min(Math.max(v, 0), 1);
+  var clockText = (s) => {
+    const v = Math.max(s, 0);
+    return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, "0")}`;
   };
   function setText(id, t) {
     const el = $(id);
@@ -2351,50 +2558,134 @@
   function enable(id, on) {
     $(id).disabled = !on;
   }
+  function show(id, on) {
+    const el = $(id);
+    if (el.hidden === on) el.hidden = !on;
+  }
   var queued = false;
+  var wasHeating = false;
   function render() {
     queued = false;
     if (connectAfterPick && ble.devices.length > 0) {
       connectAfterPick = false;
       ble.connect(ble.devices[0]);
     }
-    setText("bt", ble.btMessage ?? "");
-    $("bt").hidden = !ble.btMessage;
-    setText("conn", ble.connectionText);
     const s = rig.live;
+    const linked = ble.isConnected;
     const heating = rig.sessionOn;
-    setText("temp", rig.liveTempF !== null ? `${rig.liveTempF} \xB0F` : "--");
-    setText("state", !s ? "No status yet" : heating ? "HEATING" : rig.startPendingAt !== null ? "Starting..." : "Idle");
-    $("state").className = heating ? "state hot" : "state";
-    setText("left", s && heating ? `${s.sessionTimeRemaining} s left${s.sessionExtend > 0 ? ` (+${s.sessionExtend * 10} s)` : ""}` : "");
-    setText("preset", s ? `Preset ${s.preset}` : "");
-    setText("lightNow", s ? `${LightModes.name(s.lightMode)}, brightness ${s.brightness}` : "");
-    setText("battery", s ? `Battery ${s.battery}%` : "");
-    setText("fresh", ble.isConnected && !rig.linkFresh ? "Status is stale. Wait for the rig." : "");
+    if (heating !== wasHeating) {
+      wasHeating = heating;
+      void keepAwake(heating);
+    }
+    const onLink = !linked && !ble.reconnecting;
+    show("linkScreen", onLink);
+    show("main", !onLink);
+    setText("linkState", connectAfterPick || ble.connectionText === "Scanning" ? "Pick your rig in the list that opened." : ble.connectionText);
+    setText("btMsg", ble.btMessage ?? "");
+    show("btMsg", !!ble.btMessage);
+    show("btMsg2", !!ble.btMessage);
+    setText("btMsg2", ble.btMessage ?? "");
+    const linkText = linked ? rig.linkFresh ? "SWITCH 2 \xB7 LINKED" : "LINKED \xB7 WAITING ON THE RIG" : ble.reconnecting ? "GETTING THE RIG BACK\u2026" : "NOT LINKED";
+    setText("linkTag", linkText);
+    $("linkDot").classList.toggle("live", linked && rig.linkFresh);
+    setText("battery", s ? `${s.battery}%` : "");
+    setText("batteryTag", s ? chargingOf(s) ? "CHARGING" : "BATTERY" : "");
+    const m = rig.message;
+    show("notice", !!m);
+    if (m) {
+      setText("noticeTag", m.startsWith("Heat came back on") ? "SAFETY CUT" : "HEADS UP");
+      setText("noticeText", m);
+    }
+    show("away", !!rig.awayNote);
+    setText("awayText", rig.awayNote ?? "");
+    const celsius = s?.unitByte === 12;
+    const lo = celsius ? 100 : 200, hi = celsius ? 350 : 700, room = celsius ? 21 : 70;
+    const labels2 = celsius ? [100, 150, 200, 250, 300, 350] : [200, 300, 400, 500, 600, 700];
+    labels2.forEach((v, i) => setText(`gL${i}`, String(v)));
+    let frac = 0, targetFrac = null, targetText = "---", status = linked ? "WAITING ON THE RIG" : "NOT LINKED";
+    let profileText = "--";
+    if (s) {
+      frac = clamp01((s.tempRaw - lo) / (hi - lo));
+      if (s.preset >= 0 && s.preset <= 5) {
+        const ps = rig.presets[s.preset];
+        const t = celsius ? ps.tempC : ps.tempF;
+        if (t !== void 0) {
+          targetText = `${t}\xB0`;
+          targetFrac = clamp01((t - lo) / (hi - lo));
+        }
+        if (ps.profile !== void 0) profileText = HeatProfile.name(ps.profile);
+      }
+      status = !rig.linkFresh ? "WAITING ON THE RIG" : heating ? `HEATING \xB7 ${clockText(s.sessionTimeRemaining)} LEFT` : s.tempRaw > room + 50 ? "COOLING \xB7 HEAT OFF" : "COOL \xB7 READY";
+    }
+    document.body.classList.toggle("heating", heating);
+    setText("gTemp", s ? `${s.tempRaw}\xB0` : "---");
+    setText("gStatus", status);
+    $("gNeedle").setAttribute("transform", `rotate(${(225 + 270 * frac).toFixed(1)} ${C} ${C})`);
+    if (heating && frac > 2e-3) {
+      $("gArc").setAttribute("d", arcPath(0, frac, R * 0.985));
+    } else $("gArc").setAttribute("d", "");
+    if (targetFrac !== null) {
+      $("gMarker").setAttribute("transform", `rotate(${(225 + 270 * targetFrac).toFixed(1)} ${C} ${C})`);
+      $("gMarker").style.display = "";
+    } else $("gMarker").style.display = "none";
+    setText("cTarget", targetText);
+    const hold = rig.heldHoldSeconds;
+    setText("cHold", hold !== void 0 ? `${hold}s` : "--");
+    setText("cProfile", profileText);
+    setText("cLeft", heating && s ? clockText(s.sessionTimeRemaining) : "--");
+    const locked = !rig.canControl || heating;
+    setText("presetTag", heating ? "PRESETS \xB7 LOCKED WHILE HEATING" : "PRESETS");
     for (let n = 1; n <= 5; n++) {
       const p = rig.presets[n];
-      const btn = $(`p${n}`);
-      setText(`p${n}`, `${n}: ${p.tempF ?? "?"}\xB0F ${p.hold ?? "?"}s`);
-      btn.className = s && s.preset === n ? "preset on" : "preset";
-      enable(`p${n}`, rig.canControl && !heating);
+      const t = celsius ? p.tempC : p.tempF;
+      setText(`p${n}t`, t !== void 0 ? `${t}\xB0` : "\u2014");
+      $(`p${n}`).classList.toggle("on", s?.preset === n);
+      enable(`p${n}`, !locked);
     }
+    const sel = s?.preset ?? 0;
+    show("editBtn", sel >= 1 && sel <= 5);
+    setText("editBtn", `EDIT ${sel}`);
+    enable("editBtn", !locked);
+    if (heating && !$("editor").hidden) $("editor").hidden = true;
+    show("heatRow", !heating);
+    show("cutRow", heating);
     enable("heat", rig.canHeat);
-    enable("cut", ble.isConnected);
     enable("extend", rig.canExtend);
-    const dialWhy = rig.dialDisabledReason;
-    enable("dialDown", dialWhy === null);
-    enable("dialUp", dialWhy === null);
-    setText("dialTarget", rig.dialCurrent !== null ? `Target ${rig.dialCurrent} \xB0F` : "");
-    setText("dialWhy", dialWhy ?? `${rig.dialReadout}. ${rig.dialNumbers}`);
-    enable("setLight", rig.canControl);
-    enable("disconnect", ble.isConnected || ble.reconnecting);
-    setText("disconnect", rig.disconnectWaiting ? "Disconnect now" : "Disconnect");
-    setText("msg", rig.message ?? "");
-    $("msg").hidden = !rig.message;
-    setText("away", rig.awayNote ?? "");
-    $("away").hidden = !rig.awayNote;
-    const lines = ble.logLines.filter((l) => !l.includes("CURVE")).slice(-150);
-    setText("log", lines.join("\n"));
+    setText("heatHint", !linked ? "" : !rig.linkFresh ? "Waiting on the rig\u2026" : rig.startPendingAt !== null ? "Starting\u2026" : "");
+    if (tab === "lights") {
+      const cur = s?.lightMode ?? -1;
+      lightGrid.querySelectorAll(".orbBtn").forEach((b) => {
+        b.classList.toggle("on", Number(b.dataset.mode) === cur);
+        b.disabled = !rig.canControl;
+      });
+      setText("lightNow", s ? `${LightModes.name(s.lightMode)} \xB7 ${s.brightness}%` : "--");
+      if (s && Date.now() - brightTouchedAt > 1500 && document.activeElement !== bright) {
+        bright.value = String(s.brightness);
+        setText("brightV", `${s.brightness}%`);
+      }
+      bright.disabled = !rig.canControl;
+      $("showOn").checked = rig.showEnabled;
+    }
+    if (tab === "rig") {
+      const info = ble.deviceInfo;
+      const rows = [
+        ["Name", ble.peripheralName || "--"],
+        ["Model", info["Model number (2A24)"] ?? "--"],
+        ["Firmware", info["Software revision (2A28)"] ?? "--"],
+        ["Units", s ? celsius ? "\xB0C" : "\xB0F" : "--"],
+        ["Battery", s ? `${s.battery}%${chargingOf(s) ? ", charging" : ""}` : "--"],
+        ["Link", ble.connectionText]
+      ];
+      const html = rows.map(([k]) => `<div class="kv"><span>${k}</span><b></b></div>`).join("");
+      const box = $("rigInfo");
+      if (box.childElementCount !== rows.length) box.innerHTML = html;
+      rows.forEach(([, v], i) => {
+        const b = box.children[i].querySelector("b");
+        if (b.textContent !== v) b.textContent = v;
+      });
+      enable("disconnect", linked || ble.reconnecting);
+      setText("disconnect", rig.disconnectWaiting ? "Disconnect now" : "Disconnect");
+    }
   }
   function schedule() {
     if (!queued) {
@@ -2405,5 +2696,6 @@
   ble.onChange = schedule;
   rig.onChange = schedule;
   setInterval(schedule, 500);
+  showTab("home");
   render();
 })();
