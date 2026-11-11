@@ -1,0 +1,16 @@
+{
+  "name": "presh-web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Presh web app: rig control over Web Bluetooth, plus the shared bench.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "bench": "tsc -p tsconfig.json && node dist/bench/run.js",
+    "page": "esbuild src/web/test-page.ts --bundle --format=iife --target=safari15,chrome100 --outfile=public/app.js"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "esbuild": "0.24.0"
+  }
+}

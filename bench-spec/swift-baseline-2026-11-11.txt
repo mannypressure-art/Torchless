@@ -1,0 +1,31 @@
+PASS leave and come back before the dab ends: nothing extra is sent
+PASS basic: connect, HEAT IT, CUT IT
+PASS Bluetooth switched off mid-dab, then back on
+PASS ride the dial, mode B: the active preset moves mid-dab and is put back after
+PASS Disconnect tapped mid-dab: waits for the dab, then disconnects
+PASS Disconnect tapped twice mid-dab: drops the link now, rig finishes alone
+PASS +10s during the flash: no false alarm
+PASS a preset outside 250-650 F is not started
+PASS HEAT IT right after saving a preset heats once the save is out
+PASS idle rig does not flood the log
+PASS leave the app idle: lets go of the rig, grabs it again on return
+PASS HEAT IT stuck behind 8 s of preset writes is dropped, not sent late
+PASS leave the app mid-dab: dab finishes, heat confirmed off, app lets go, reconnects on return
+PASS leave the app; countdown ends but the rig keeps saying heating
+PASS link drops mid-dab, comes back after the dab ended
+PASS link drops mid-dab, comes back while still heating
+PASS link drops while idle and never comes back: gives up cleanly
+PASS link drops while idle: tries, then the user taps Disconnect to stop trying
+PASS light changes mid-dab and in the last seconds
+PASS natural end with light show and flash
+PASS rig reports settings the app does not know: CUT IT still works
+PASS app was closed mid-show: lights are put back at the next connect
+PASS save a preset, pick it, heat, ride the dial, temps put back
+PASS race: rig stops, reports off, then a light write in flight restarts it
+PASS race: rig stops just before a light write lands (no off status seen)
+PASS dab started and ended at the rig while the app just watches
+PASS rig button stops the dab during the flash (random moment)
+PASS rig button: start, app light change, stop, start again: nothing is cut
+PASS dab started at the rig with the light show on: app runs the show, never cuts
+PASS the rig misses the first Stop: the app sends it again
+30 of 30 scenarios passed

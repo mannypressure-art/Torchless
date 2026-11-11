@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Torchless rig test</title>
+<style>
+  :root { --bg: #0d0f12; --card: #171a1f; --ink: #f2f3f5; --quiet: #9aa1ab; --line: #2a2f37; --hot: #ff5a3c; --go: #2fbf71; --warn: #f2b134; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.4 -apple-system, system-ui, sans-serif; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .note { color: var(--warn); font-size: 14px; margin: 0 0 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .quiet { color: var(--quiet); font-size: 14px; }
+  .big { font-size: 40px; font-weight: 700; }
+  .state { font-weight: 700; }
+  .state.hot { color: var(--hot); }
+  button, select { font: inherit; color: var(--ink); background: #232830; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; min-height: 48px; }
+  button:disabled { opacity: .35; }
+  #heat { background: var(--hot); border-color: var(--hot); color: #fff; font-weight: 700; flex: 1; }
+  #cut { background: #fff; color: #000; font-weight: 700; flex: 1; }
+  .preset.on { border-color: var(--go); color: var(--go); }
+  .banner { border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+  #msg { background: #3a2a10; color: var(--warn); }
+  #away, #bt { background: #10283a; color: #9fd3ff; }
+  pre { white-space: pre-wrap; word-break: break-all; font-size: 11px; color: var(--quiet); max-height: 40vh; overflow: auto; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+  <h1>Torchless rig test</h1>
+  <p class="note">Test build. Keep this page open and the phone unlocked during a dab. If the page closes, the rig finishes the dab on its own timer.</p>
+  <div id="bt" class="banner" hidden></div>
+  <div id="msg" class="banner" hidden></div>
+  <div id="away" class="banner" hidden></div>
+
+  <div class="card">
+    <div class="row"><button id="connect">Connect to rig</button><button id="disconnect">Disconnect</button></div>
+    <div id="conn" class="quiet" style="margin-top:8px"></div>
+    <div id="fresh" class="quiet"></div>
+  </div>
+
+  <div class="card">
+    <div class="big" id="temp">--</div>
+    <div class="row"><span id="state" class="state"></span><span id="left" class="quiet"></span></div>
+    <div class="quiet"><span id="preset"></span> · <span id="lightNow"></span> · <span id="battery"></span></div>
+  </div>
+
+  <div class="card">
+    <div class="row"><button id="heat">HEAT IT</button><button id="cut">CUT IT</button></div>
+    <div class="row" style="margin-top:8px"><button id="extend">+10 s</button></div>
+  </div>
+
+  <div class="card">
+    <div class="quiet">Presets (only while idle)</div>
+    <div class="row" style="margin-top:8px">
+      <button id="p1" class="preset"></button><button id="p2" class="preset"></button><button id="p3" class="preset"></button>
+      <button id="p4" class="preset"></button><button id="p5" class="preset"></button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="quiet">Ride the dial (while heating, 5 °F a tap)</div>
+    <div class="row" style="margin-top:8px">
+      <button id="dialDown">−5</button><span id="dialTarget"></span><button id="dialUp">+5</button>
+      <select id="dialMode"><option value="live">Mode A: live slot</option><option value="active">Mode B: active preset</option></select>
+    </div>
+    <div id="dialWhy" class="quiet" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <div class="row"><select id="light"></select><button id="setLight">Set light</button></div>
+  </div>
+
+  <div class="card">
+    <div class="row"><button id="copyLog">Copy log</button><button id="saveLog">Save log</button></div>
+    <pre id="log"></pre>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
