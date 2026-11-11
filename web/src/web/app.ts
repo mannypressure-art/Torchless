@@ -9,7 +9,7 @@ import { RigController, LightModes, HeatProfile, RigLimits } from "../rig/rig-co
 import { WebCentral } from "../rig/web-central";
 import { chargingOf } from "../rig/frames";
 
-const BUILD = "app-4a.1";
+const BUILD = "app-4a.2";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -83,6 +83,14 @@ function openChooser(all: boolean) {
   ble.startScan();   // opens the browser's chooser; must stay inside this tap
 }
 $("linkIt").onclick = () => openChooser(false);
+// Safari and other iPhone browsers have no Bluetooth: offer a one-tap jump into Bluefy instead.
+const hasBt = !!(navigator as unknown as { bluetooth?: unknown }).bluetooth;
+if (!hasBt) {
+  $("noBt").hidden = false;
+  $<HTMLAnchorElement>("openBluefy").href = "bluefy://open?url=" + encodeURIComponent(location.href.split("#")[0]);
+  ($("linkIt") as HTMLButtonElement).hidden = true;
+  $("linkAll").hidden = true;
+}
 $("linkAll").onclick = () => openChooser(true);
 central.onChooserClosed = (why) => {
   ble.log(`Chooser closed without a rig: ${why}`);

@@ -2277,7 +2277,7 @@
   };
 
   // src/web/app.ts
-  var BUILD = "app-4a.1";
+  var BUILD = "app-4a.2";
   var clock = new RealClock();
   var central = new WebCentral();
   var ble = new BLEManager(central, clock);
@@ -2364,6 +2364,13 @@
     ble.startScan();
   }
   $("linkIt").onclick = () => openChooser(false);
+  var hasBt = !!navigator.bluetooth;
+  if (!hasBt) {
+    $("noBt").hidden = false;
+    $("openBluefy").href = "bluefy://open?url=" + encodeURIComponent(location.href.split("#")[0]);
+    $("linkIt").hidden = true;
+    $("linkAll").hidden = true;
+  }
   $("linkAll").onclick = () => openChooser(true);
   central.onChooserClosed = (why) => {
     ble.log(`Chooser closed without a rig: ${why}`);
