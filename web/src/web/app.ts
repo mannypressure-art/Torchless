@@ -9,7 +9,7 @@ import { RigController, LightModes, HeatProfile, RigLimits } from "../rig/rig-co
 import { WebCentral } from "../rig/web-central";
 import { chargingOf } from "../rig/frames";
 
-const BUILD = "app-4a.3";
+const BUILD = "app-4a.4";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -30,14 +30,18 @@ $("ageYes").onclick = () => { prefs.set("age21", "yes"); $("age").hidden = true;
 $("ageNo").onclick = () => { $("ageMsg").hidden = false; };
 
 // MARK: Full-screen tip. Bluefy ignores the manifest, so point people at its own
-// Full-screen Mode once. Shown only with Web Bluetooth and an address bar showing.
+// Full-screen Mode. Bluefy does not keep that setting between launches, so the tip
+// comes back each launch while the address bar shows. GOT IT hides it for this
+// launch only; DON'T SHOW AGAIN hides it for good.
 
 function checkFsTip() {
   const hasBt = !!(navigator as unknown as { bluetooth?: unknown }).bluetooth;
   const barShowing = window.innerHeight < screen.height - 60;
-  $("fsTip").hidden = !(hasBt && barShowing && prefs.get("fsTip") !== "done");
+  $("fsTip").hidden = !(hasBt && barShowing && !fsTipClosed && prefs.get("fsTip") !== "done");
 }
-$("fsGotIt").onclick = () => { prefs.set("fsTip", "done"); $("fsTip").hidden = true; };
+let fsTipClosed = false;
+$("fsGotIt").onclick = () => { fsTipClosed = true; $("fsTip").hidden = true; };
+$("fsNever").onclick = () => { prefs.set("fsTip", "done"); $("fsTip").hidden = true; };
 checkFsTip();
 window.addEventListener("resize", checkFsTip);
 

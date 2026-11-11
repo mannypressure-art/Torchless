@@ -2277,7 +2277,7 @@
   };
 
   // src/web/app.ts
-  var BUILD = "app-4a.3";
+  var BUILD = "app-4a.4";
   var clock = new RealClock();
   var central = new WebCentral();
   var ble = new BLEManager(central, clock);
@@ -2311,9 +2311,14 @@
   function checkFsTip() {
     const hasBt2 = !!navigator.bluetooth;
     const barShowing = window.innerHeight < screen.height - 60;
-    $("fsTip").hidden = !(hasBt2 && barShowing && prefs.get("fsTip") !== "done");
+    $("fsTip").hidden = !(hasBt2 && barShowing && !fsTipClosed && prefs.get("fsTip") !== "done");
   }
+  var fsTipClosed = false;
   $("fsGotIt").onclick = () => {
+    fsTipClosed = true;
+    $("fsTip").hidden = true;
+  };
+  $("fsNever").onclick = () => {
     prefs.set("fsTip", "done");
     $("fsTip").hidden = true;
   };
