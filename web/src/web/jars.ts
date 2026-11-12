@@ -47,6 +47,15 @@ export interface Jar {
   sessions?: number;
   dabs?: JarDab[];
   flavors?: string[];
+  // Shared catalog (cloud.ts). Only the jar's own rating is ever sent. Same fields as the iPhone app.
+  /** undefined or true = Share my rating is on (the default). false = keep it on this device. */
+  shareRating?: boolean;
+  productID?: string;
+  productKey?: string;
+  sentProductID?: string;
+  sentScore?: number;
+  globalScore?: number;
+  globalCount?: number;
   updated: string;
 }
 
@@ -323,6 +332,21 @@ export class JarStore {
     if (!(await this.persist(next))) { this.onChange(); return; }
     if (this.currentID === id) this.setCurrent(null);
     if (j.photo) { photoURLs.drop(j.photo); void this.backend.deletePhoto(j.photo); }
+    this.onChange();
+  }
+
+  /** Server bookkeeping and the share switch. Saved without touching `updated`. */
+  async setServer(id: string, change: (j: Jar) => void): Promise<void> {
+    const i = this.jars.findIndex(j => j.id === id);
+    if (i < 0) return;
+    const j: Jar = { ...this.jars[i] };
+    const before = JSON.stringify(j);
+    change(j);
+    if (JSON.stringify(j) === before) return;
+    const next = [...this.jars];
+    next[i] = j;
+    this.jars = next;
+    await this.persist(next);
     this.onChange();
   }
 

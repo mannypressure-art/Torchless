@@ -11,8 +11,9 @@ import { chargingOf } from "../rig/frames";
 import { JarStore, IDBJarBackend, MemoryJarBackend } from "./jars";
 import { DabWatcher } from "./dab-watcher";
 import { mountJars } from "./jar-ui";
+import { Account, JarSync } from "./cloud";
 
-const BUILD = "app-4b.1";
+const BUILD = "app-4c.1";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -33,8 +34,25 @@ try { backend = typeof indexedDB !== "undefined" ? new IDBJarBackend() : new Mem
 catch { backend = new MemoryJarBackend(); }
 const jars = new JarStore(backend);
 const watcher = new DabWatcher(jars);
-const jarUI = mountJars(jars, watcher, (t) => showTab(t));
-jars.onChange = () => { jarUI.renderHome(); if (tab === "jars") jarUI.renderJars(); jarUI.renderOpen(); };
+// Sign-in and the shared catalog (optional; only the jar's own rating goes up).
+const account = new Account();
+const sync = new JarSync(jars, account);
+const jarUI = mountJars(jars, watcher, (t) => showTab(t), { account, sync });
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+const kickSync = () => { if (syncTimer) clearTimeout(syncTimer); syncTimer = setTimeout(() => sync.kick(), 800); };
+jars.onChange = () => { jarUI.renderHome(); if (tab === "jars") jarUI.renderJars(); jarUI.renderOpen(); kickSync(); };
+account.onChange = () => { if (tab === "jars") jarUI.renderJars(); jarUI.renderOpen(); jarUI.renderAccount(); kickSync(); };
+// Coming back from Google or Apple: show the account page so a new user can finish their profile.
+if (/[?&]code=/.test(location.search)) {
+  showTabSoon();
+}
+function showTabSoon() {
+  // getSession waits for supabase-js to trade the code for a session before the address is tidied.
+  void account.db.auth.getSession().finally(() => {
+    history.replaceState(null, "", location.pathname);
+    showTab("jars"); jarUI.openAccount();
+  });
+}
 watcher.onPrompt = () => jarUI.renderPrompt();
 void jars.load().then(() => watcher.appOpened());
 // Ask the browser to keep this site's storage (Chrome grants it for installed apps; others may ignore it).

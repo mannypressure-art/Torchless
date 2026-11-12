@@ -5,6 +5,8 @@
 
 import { JarStore, Jar, JarDab, Jars, Dabs, JarCategory, JarFlavor, SIZE_STOPS, REVIEW_LIMIT, GRAM_PICKS, PhotoChange, photoURLs, uid } from "./jars";
 import { DabWatcher, DabPrompt } from "./dab-watcher";
+import type { Account, JarSync } from "./cloud";
+import { CatalogKey } from "./cloud";
 
 // MARK: Tiny DOM helper (text always goes in as text, never as HTML)
 
@@ -125,9 +127,14 @@ export interface JarUI {
   renderJars(): void;
   renderOpen(): void;
   renderPrompt(): void;
+  /** Redraws the account page if it is open. */
+  renderAccount(): void;
+  openAccount(): void;
 }
 
-export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: string) => void): JarUI {
+export interface Cloud { account: Account; sync: JarSync }
+
+export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: string) => void, cloud?: Cloud): JarUI {
   // Filters on the shelf
   let filter: "ALL" | "OPEN" | "FINISHED" = "ALL";
   let category: string | null = null;
@@ -173,7 +180,8 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     const n = store.jars.length;
     kids.push(h("div", { class: "row", style: "margin-top:14px" },
       h("div", {}, h("h2", {}, "JARS"), tag(`${plural(n, "JAR")} · ${store.openCount} OPEN`, "display:block;margin-top:6px")),
-      h("button", { class: "logIt", style: "margin-left:auto", "aria-label": "Log a jar", onclick: () => editJar(null) }, "+ LOG IT")));
+      cloud ? accountButton() : null,
+      h("button", { class: "logIt", style: cloud ? "" : "margin-left:auto", "aria-label": "Log a jar", onclick: () => editJar(null) }, "+ LOG IT")));
     if (store.problem) kids.push(h("div", { class: "problem" }, store.problem));
     if (store.jars.some(j => j.price !== undefined)) {
       const s = store.spend();
@@ -303,6 +311,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       ratingDial(j.rating, 112)));
     out.push(h("div", { class: "panel pad" }, tag("REVIEW", "font-size:9.5px"),
       h("p", { class: "mono review", style: j.review ? "" : "color:var(--dim)" }, j.review || "No words yet. Tap Edit to say how it hit.")));
+    if (cloud) out.push(globalCard(j));
     out.push(dabsCard(j));
     out.push(priceCard(j));
     out.push(h("div", { class: "row", style: "gap:10px" },
@@ -701,11 +710,94 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     return closeAll;
   }
 
+
+  // MARK: Account and GLOBAL (cloud.ts)
+
+  function accountButton(): HTMLElement {
+    const a = cloud!.account;
+    const label = a.state === "ready" && a.profile ? a.profile.display_name : a.state === "needsProfile" ? "FINISH SIGN-IN" : "SIGN IN";
+    return h("button", { class: "textBtn acctBtn", style: `margin-left:auto;color:${a.state === "ready" ? "var(--live)" : "var(--gold)"}`,
+      "aria-label": "Account", onclick: openAccount }, (a.state === "ready" ? "● " : "") + label.toUpperCase());
+  }
+
+  function globalCard(j: Jar): HTMLElement {
+    const a = cloud!.account;
+    const count = j.globalCount ?? 0;
+    const status = !CatalogKey.usable(j) ? "Add a producer to share this jar's rating."
+      : a.state !== "ready" ? "Sign in to add your rating to GLOBAL."
+      : j.shareRating === false ? "Your rating stays on this device."
+      : j.rating === undefined ? "Rate this jar to add it to GLOBAL."
+      : j.sentScore === j.rating && j.sentProductID ? "Your rating is in GLOBAL."
+      : "Sending your rating…";
+    const box = h("input", { type: "checkbox", checked: j.shareRating !== false,
+      onchange: (e: Event) => { const v = (e.target as HTMLInputElement).checked; void store.setServer(j.id, x => { if (v) delete x.shareRating; else x.shareRating = false; }); } });
+    return h("div", { class: "panel pad stackS" },
+      h("div", { class: "row" }, tag("GLOBAL", "font-size:9.5px"), j.globalScore !== undefined ? tag(count === 1 ? "1 RATING" : `${count} RATINGS`, "margin-left:auto;font-size:8.5px") : null),
+      h("div", { class: "row", style: "align-items:baseline;gap:8px" },
+        h("b", { class: "cond", style: `font-size:40px;color:${j.globalScore === undefined ? "var(--dim)" : "var(--live)"}` }, Jars.ratingText(j.globalScore)),
+        h("span", { class: "cond dim", style: "font-size:18px" }, "/ 10")),
+      j.globalScore === undefined ? h("p", { class: "mono dim", style: "margin:0" }, "No ratings from anyone yet.") : null,
+      h("label", { class: "switchRow" }, h("b", { class: "cond", style: "font-size:20px;font-weight:500" }, "Share my rating"), box),
+      h("p", { class: "mono sub", style: "margin:0" }, status),
+      a.state !== "ready" ? h("button", { class: "btn2 wide", style: "color:var(--gold)", onclick: openAccount }, "SIGN IN") : null);
+  }
+
+  let accountRedraw: (() => void) | null = null;
+  function openAccount(): void {
+    if (!cloud) return;
+    if (accountRedraw) { accountRedraw(); return; }
+    const a = cloud.account;
+    let name = a.profile?.display_name ?? "";
+    let handle = a.profile?.ig_handle ?? "";
+    let is21 = false;
+    openSheet(close => {
+      const page = h("div", { class: "pageBody" });
+      const done = () => { accountRedraw = null; close(); };
+      const draw = () => {
+        const kids: (HTMLElement | null)[] = [topBar(textBtn("Done", done), h("span", { class: "tag" }, "ACCOUNT"), null)];
+        if (a.state === "signedOut") {
+          kids.push(h("h2", { style: "margin-top:20px" }, "Rate it for everyone."),
+            h("p", { class: "sub" }, "Sign in to share your jar ratings and see the GLOBAL score on every jar. Only a jar's own rating is shared. Your photos, reviews, prices and dab history stay on this device."),
+            h("p", { class: "mono", style: "color:var(--gold)" }, "21+ only."),
+            h("button", { class: "bigBtn signIn", disabled: a.busy, onclick: () => void a.signIn("google") }, "Continue with Google"),
+            h("button", { class: "bigBtn signIn", disabled: a.busy, onclick: () => void a.signIn("apple") }, "Continue with Apple"));
+        } else if (a.state === "needsProfile") {
+          const nameIn = h("input", { class: "textLine big", maxlength: 30, value: name, placeholder: "Display name", autocomplete: "nickname",
+            oninput: (e: Event) => { name = (e.target as HTMLInputElement).value; } });
+          const igIn = h("input", { class: "textLine", maxlength: 31, value: handle, placeholder: "@instagram (optional)", autocapitalize: "off",
+            oninput: (e: Event) => { handle = (e.target as HTMLInputElement).value; } });
+          kids.push(h("h2", { style: "margin-top:20px" }, "One more step: pick the name people see."),
+            nameIn, igIn,
+            h("label", { class: "switchRow" }, h("b", { class: "cond", style: "font-size:20px;font-weight:500" }, "I'm 21 or older"),
+              h("input", { type: "checkbox", checked: is21, onchange: (e: Event) => { is21 = (e.target as HTMLInputElement).checked; } })),
+            h("button", { class: "goldBtn big", disabled: a.busy, onclick: () => void a.saveProfile(name, handle, is21).then(ok => { if (ok) cloud.sync.kick(); }) }, "SAVE"),
+            textBtn("Sign out", () => void a.signOut(), "var(--warn)"));
+        } else {
+          kids.push(h("h2", { style: "margin-top:20px" }, a.profile?.display_name ?? ""),
+            a.profile?.ig_handle ? h("p", { class: "mono", style: "color:var(--live)" }, "@" + a.profile.ig_handle) : null,
+            h("p", { class: "sub" }, "Your jar ratings count toward GLOBAL. Turn off Share my rating on any jar to keep it on this device. Your jars stay on this device."),
+            h("button", { class: "btn2 wide", onclick: () => void a.signOut() }, "Sign out"),
+            h("button", { class: "btn2 wide danger", style: "margin-top:24px", disabled: a.busy, onclick: () =>
+              confirmSheet("Delete your account?", "This removes your sign-in, your name and every rating you shared. They drop out of GLOBAL right away. Your jars stay on this device. This can't be undone.",
+                "Delete account", "Keep it", () => void a.deleteAccount(store)) }, "Delete account"));
+        }
+        if (a.problem) kids.push(h("div", { class: "problem" }, a.problem));
+        kids.push(h("p", { class: "mono dim", style: "margin-top:24px;font-size:10px" }, "Privacy: torchlessapp.github.io/privacy"));
+        page.replaceChildren(...kids.filter((k): k is HTMLElement => !!k));
+      };
+      accountRedraw = draw;
+      draw();
+      return page;
+    });
+  }
+
   return {
     renderHome,
     renderJars,
     renderOpen: () => { for (const f of openPages) f(); },
     renderPrompt,
+    renderAccount: () => { accountRedraw?.(); },
+    openAccount,
   };
 }
 
