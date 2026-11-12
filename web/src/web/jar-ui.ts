@@ -199,7 +199,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     }
     const chips = h("div", { class: "chips" });
     for (const f of ["ALL", "OPEN", "FINISHED"] as const) {
-      chips.append(h("button", { class: "chip" + (filter === f ? " on" : ""), onclick: () => { filter = f; renderJars(); } }, f));
+      chips.append(h("button", { class: "chip" + (filter === f ? " on" : ""), onclick: () => { filter = f; renderJars(); } }, f === "FINISHED" ? "GRAVEYARD" : f));
     }
     kids.push(chips);
     if (store.usedCategories.length) {
@@ -236,7 +236,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       grid.replaceChildren(h("div", { class: "panel pad center" },
         h("div", { style: "width:96px;margin:0 auto" }, lidSVG("")),
         h("h3", {}, all ? "No jars yet." : "Nothing here."),
-        h("p", { class: "mono sub" }, all ? "Snap the jar, name the strain, say how it hit." : `Jars show up here once you mark them ${filter === "OPEN" ? "open" : "finished"}.`),
+        h("p", { class: "mono sub" }, all ? "Snap the jar, name the strain, say how it hit." : filter === "OPEN" ? "Jars show up here once you mark them open." : "Finished jars rest here, ratings and all."),
         all ? h("button", { class: "goldBtn", onclick: () => editJar(null) }, "LOG YOUR FIRST JAR") : null));
       return;
     }
@@ -318,7 +318,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     out.push(dabsCard(j));
     out.push(priceCard(j));
     out.push(h("div", { class: "row", style: "gap:10px" },
-      h("button", { class: "btn2 tall", style: "flex:1", onclick: () => store.setFinished(j.id, !j.finished) }, j.finished ? "BACK OPEN" : "FINISHED IT"),
+      h("button", { class: "btn2 tall", style: "flex:1", onclick: () => store.setFinished(j.id, !j.finished) }, j.finished ? "BACK OPEN" : "TO THE GRAVEYARD"),
       h("button", { class: "btn2 tall", style: "width:64px;color:var(--warn)", "aria-label": "Delete jar", onclick: () =>
         confirmSheet("Delete this jar?", "The photos and review go too. This can't be undone.", "Delete jar", "Keep it", () => { void store.delete(j.id); done(); }) }, "🗑")));
     return out;
@@ -878,7 +878,7 @@ function cell(title: string, value: string, color = "var(--ink)", note?: string)
   return h("div", { class: "cell" }, tag(title, "font-size:8.5px"), h("b", { style: `color:${color}` }, value), note ? tag(note, "font-size:8px") : null);
 }
 function statusTag(finished: boolean): HTMLElement {
-  return h("span", { class: "status" + (finished ? "" : " open") }, finished ? "FINISHED" : "OPEN");
+  return h("span", { class: "status" + (finished ? "" : " open") }, finished ? "GRAVEYARD" : "OPEN");
 }
 function dateValue(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
