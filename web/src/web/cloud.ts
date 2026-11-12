@@ -149,6 +149,8 @@ export class Account {
 interface Row { id: string; merged_into: string | null }
 interface Stat { product_id: string; rating_count: number; avg_score: number | null }
 
+class SyncStop extends Error { constructor(msg: string, readonly onlyThisJar = false) { super(msg); } }
+
 export class JarSync {
   working = false;
   lastProblem: string | null = null;
@@ -182,7 +184,10 @@ export class JarSync {
       let pid: string | null = j.productKey === key ? j.productID ?? null : null;
       if (!pid) {
         pid = await this.findProduct(key);
-        if (!pid && wantShare && uid) pid = await this.addProduct(j, uid, key);
+        if (!pid && wantShare && uid && !this.rejected.has(key)) {
+          try { pid = await this.addProduct(j, uid, key); }
+          catch (e) { if (!(e instanceof SyncStop)) throw e; problem = e.message; if (!e.onlyThisJar) break; }
+        }
         if (pid || j.productKey !== key) {
           const found = pid;
           await this.store.setServer(j.id, x => { x.productKey = key; if (found) x.productID = found; else delete x.productID; });
@@ -197,7 +202,10 @@ export class JarSync {
       if (wantShare && j.rating !== undefined) {
         if (j.sentProductID !== pid || j.sentScore !== j.rating) {
           const r = j.rating;
-          if (await this.upsertRating(uid, pid, r)) {
+          let ok = false;
+          try { ok = await this.upsertRating(uid, pid, r); }
+          catch (e) { if (!(e instanceof SyncStop)) throw e; problem = e.message; break; }
+          if (ok) {
             const p = pid;
             await this.store.setServer(j.id, x => { x.sentProductID = p; x.sentScore = r; });
             uploaded = true;
@@ -215,7 +223,24 @@ export class JarSync {
     this.lastProblem = problem;
   }
 
+  /** Server refusals that stop the whole pass (moderation SQL): told once, not retried every kick. */
+  private stopFor(error: { message?: string } | null): string | null {
+    const m = error?.message ?? "";
+    if (m.includes("account_banned")) return "Your account can't share ratings right now.";
+    if (m.includes("rate_limited")) return "Too many new names today. Try again tomorrow.";
+    return null;
+  }
+  /** Names the server refused (409 on add and still not findable): skipped until the name changes. */
+  private rejected = new Set<string>();
+
   private async findProduct(key: string): Promise<string | null> {
+    // Signed in: product_id_for_key also finds names still pending or held by moderation, which a plain
+    // select can't see. Until that function is on the server (404), fall back to the select.
+    if (this.account.signedIn) {
+      const { data, error, status } = await this.db.rpc("product_id_for_key", { p_norm_key: key });
+      if (!error) return typeof data === "string" && data ? data : null;
+      if (status !== 404) return null;
+    }
     const { data, error } = await this.db.from("products").select("id,merged_into").eq("norm_key", key).is("merged_into", null);
     if (error) return null;
     return (data as Row[] | null)?.[0]?.id ?? null;
@@ -239,13 +264,21 @@ export class JarSync {
       .insert({ producer: j.producer.trim(), strain: j.strain.trim(), category: CatalogKey.category(j.category), created_by: uid })
       .select("id,merged_into");
     if (!error) return (data as Row[] | null)?.[0]?.id ?? null;
-    if (status === 409 || error.code === "23505") return this.findProduct(key);   // someone added it first
+    const stop = this.stopFor(error);
+    if (stop) throw new SyncStop(stop);
+    if (status === 409 || error.code === "23505") {   // someone added it first, or the name was refused
+      const id = await this.findProduct(key);
+      if (!id) { this.rejected.add(key); throw new SyncStop(`"${j.strain.trim()}" wasn't accepted as a product name, so its rating stays on this phone.`, true); }
+      return id;
+    }
     return null;
   }
 
   private async upsertRating(uid: string, product: string, score: number): Promise<boolean> {
     const { error } = await this.db.from("ratings")
       .upsert({ user_id: uid, product_id: product, score: Math.round(score * 10) / 10 }, { onConflict: "user_id,product_id" });
+    const stop = this.stopFor(error);
+    if (stop) throw new SyncStop(stop);
     return !error;
   }
 

@@ -801,7 +801,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       : j.shareRating === false ? "Your rating stays on this device."
       : j.rating === undefined ? "Rate this jar to add it to GLOBAL."
       : j.sentScore === j.rating && j.sentProductID ? "Your rating is in GLOBAL."
-      : "Sending your rating…";
+      : cloud!.sync.lastProblem ?? "Sending your rating…";
     const box = h("input", { type: "checkbox", checked: j.shareRating !== false,
       onchange: (e: Event) => { const v = (e.target as HTMLInputElement).checked; void store.setServer(j.id, x => { if (v) delete x.shareRating; else x.shareRating = false; }); } });
     return h("div", { class: "panel pad stackS" },
