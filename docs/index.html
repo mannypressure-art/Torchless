@@ -185,6 +185,102 @@
   .age[hidden] { display: none; }
   .age h1 { font: 600 40px/1 var(--cond); letter-spacing: 3px; margin: 18px 0 10px; }
   .age p { color: var(--sub); max-width: 320px; margin: 0 auto 24px; }
+
+  /* Jars */
+  .mono { font: 500 11px/1.4 var(--mono); } .sub { color: var(--sub); } .dim { color: var(--dim); } .center { text-align: center; }
+  .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  hr { border: 0; border-top: 1px solid var(--edge); margin: 4px 0; width: 100%; }
+  .stackS { display: flex; flex-direction: column; gap: 12px; }
+  .curJar { display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 84px; }
+  .curMain { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; text-align: left; min-height: 84px; }
+  .curText { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .curText b { font: 700 22px/1.05 var(--cond); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .curText small { font: 500 10.5px var(--mono); color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .curIcon { width: 56px; height: 56px; display: grid; place-items: center; flex: none; }
+  .jarIcon { width: 28px; height: 28px; fill: none; stroke: var(--gold); stroke-width: 1.6; }
+  .plusKey, .goldKey { flex: none; width: 52px; height: 52px; border-radius: 14px; background: var(--goldFill); color: var(--goldInk); font: 700 30px/1 var(--cond); }
+  .goldKey { height: 46px; font-size: 20px; border-radius: 12px; }
+  .jarPhoto { position: relative; aspect-ratio: 1; flex: none; overflow: hidden; background: var(--faceBottom); border: 1px solid var(--edge); display: grid; place-items: center; }
+  .jarPhoto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .jarPhoto .lid { width: 56%; height: 56%; }
+  .lidBody { fill: var(--bezel); stroke: var(--bezelEdge); } .lidRing { stroke: var(--edge); }
+  .lidArc { stroke: var(--gold); stroke-width: 2.5; stroke-linecap: round; }
+  .lidLetter { fill: var(--gold); font: 700 34px var(--cond); text-anchor: middle; }
+  .curBadge { position: absolute; top: 6px; left: 6px; background: var(--goldFill); color: var(--goldInk); font: 700 8.5px/1 var(--mono); letter-spacing: 1.5px; padding: 4px 7px; border-radius: 6px; }
+  .logIt { min-height: 44px; padding: 0 14px; border-radius: 12px; background: var(--goldFill); color: var(--goldInk); font: 700 18px var(--cond); letter-spacing: 2px; white-space: nowrap; }
+  .problem { color: var(--warn); background: var(--warnFill); border-radius: 12px; padding: 12px; font: 500 11px var(--mono); }
+  .spendStrip { display: flex; align-items: center; gap: 14px; padding: 0 16px; min-height: 64px; width: 100%; text-align: left; }
+  .cell { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+  .cell b { font: 700 22px/1.05 var(--cond); white-space: nowrap; }
+  .cells { display: flex; gap: 10px; }
+  .search { display: flex; align-items: center; gap: 10px; padding: 0 14px; min-height: 48px; border-radius: 12px; }
+  .search input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--ink); font: 500 19px var(--cond); }
+  .chips { display: flex; gap: 8px; align-items: center; }
+  .scrollX { overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; } .scrollX::-webkit-scrollbar { display: none; }
+  .chip { flex: none; min-height: 36px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--edge); background: var(--cardBottom); color: var(--sub); font: 500 10.5px var(--mono); letter-spacing: 1.6px; white-space: nowrap; }
+  .chip.on { color: var(--live); border-color: color-mix(in srgb, var(--live) 60%, transparent); background: var(--selFill); }
+  .chip.gold { background: none; font-size: 10px; letter-spacing: 1.4px; } .chip.gold.on { color: var(--gold); border-color: var(--gold); background: none; }
+  .jarGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .jarCard { padding: 10px; border-radius: 16px; text-align: left; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .jarCard.done { opacity: .78; }
+  .jarName { font: 700 19px/1.1 var(--cond); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .jarCard .row { gap: 6px; align-items: baseline; }
+  .status { margin-left: auto; font: 600 8.5px/1 var(--mono); letter-spacing: 1.5px; padding: 4px 7px; border-radius: 6px; border: 1px solid var(--edge); color: var(--dim); }
+  .status.open { color: var(--live); border-color: color-mix(in srgb, var(--live) 50%, transparent); }
+  .goldBtn { width: 100%; min-height: 56px; margin-top: 4px; border-radius: 16px; background: var(--goldFill); color: var(--goldInk); font: 700 22px/1 var(--cond); letter-spacing: 3px; }
+  .goldBtn.big { min-height: 64px; font-size: 30px; letter-spacing: 5px; border-radius: 18px; }
+  .goldBtn:disabled { opacity: .4; }
+  .btn2.wide { width: 100%; } .btn2.tall { min-height: 54px; font-size: 20px; letter-spacing: 2px; } .btn2.danger { color: var(--warn); border-color: var(--warn); }
+  .center h3, .panel.center h3 { font: 700 26px/1.1 var(--cond); margin: 12px 0 8px; }
+  .textBtn { min-height: 44px; min-width: 44px; font: 500 18px var(--cond); color: var(--sub); }
+  /* Full-screen pages and pop-up cards */
+  body.sheetOpen { overflow: hidden; }
+  .page { position: fixed; inset: 0; z-index: 12; overflow-y: auto; -webkit-overflow-scrolling: touch; background: linear-gradient(var(--bgTop), var(--bg) 320px) var(--bg); }
+  .pageBody { max-width: 480px; margin: 0 auto; padding: calc(8px + env(safe-area-inset-top)) 20px calc(28px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 16px; }
+  .topBar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; min-height: 52px; }
+  .topBar > :last-child { justify-self: end; } .topBar > :first-child { justify-self: start; }
+  .cardSheet { position: fixed; inset: 0; z-index: 14; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
+  .cardBody { width: 100%; max-width: 448px; margin: auto; background: linear-gradient(var(--cardTop), var(--cardBottom)); border: 1px solid var(--edge); border-radius: 20px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+  .cardBody h3 { font: 700 26px/1.1 var(--cond); margin: 0; } .cardBody p { margin: 0; }
+  .bigName { font: 700 32px/1.05 var(--cond); overflow-wrap: anywhere; }
+  .review { white-space: pre-wrap; margin: 8px 0 0; font-size: 13px; }
+  .curBar { width: 100%; min-height: 56px; border-radius: 14px; border: 1.5px solid var(--gold); color: var(--gold); font: 700 22px var(--cond); letter-spacing: 2px; }
+  .curBar.on { background: var(--goldFill); color: var(--goldInk); border-color: var(--goldFill); }
+  .curBar:disabled { opacity: .4; }
+  .dial { position: relative; flex: none; }
+  .dial svg { width: 100%; height: 100%; }
+  .dialFace { fill: var(--faceBottom); stroke: var(--bezelEdge); }
+  .dialTrack, .dialFill { fill: none; stroke-width: 5; stroke-linecap: round; } .dialTrack { stroke: var(--edge); }
+  .dialFill { stroke: var(--gold); filter: drop-shadow(0 0 3px color-mix(in srgb, var(--gold) 50%, transparent)); }
+  .dialText { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .dialText b { font-family: var(--cond); line-height: 1; }
+  .tempRows { display: flex; flex-direction: column; gap: 6px; }
+  .dabRow { gap: 10px; align-items: center; }
+  .rateKey { min-height: 36px; padding: 0 12px; border: 1px solid var(--gold); border-radius: 10px; color: var(--gold); font: 700 15px var(--cond); letter-spacing: 1.5px; flex: none; }
+  .flavors { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 6px; }
+  .flavor { min-height: 34px; border: 1px solid var(--edge); border-radius: 9px; color: var(--sub); font: 500 13px var(--cond); white-space: nowrap; overflow: hidden; }
+  .flavor.on { color: var(--gold); border-color: var(--gold); }
+  .photoKey { flex: 1; min-height: 48px; border-radius: 12px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); color: var(--live); font: 700 17px var(--cond); letter-spacing: 1.5px; }
+  .textLine { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; color: var(--ink); font: 500 20px var(--cond); outline: 0; margin-top: 8px; }
+  .textLine.big { min-height: 52px; font-size: 22px; }
+  .textIn { width: 100%; min-height: 140px; padding: 12px 14px; border-radius: 12px; color: var(--ink); font: 500 13px/1.45 var(--mono); outline: 0; resize: vertical; margin-top: 8px; }
+  .inBox { display: flex; align-items: center; gap: 4px; min-width: 0; min-height: 52px; padding: 0 14px; border-radius: 12px; }
+  .inBox input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; color: var(--ink); font: 500 24px var(--cond); }
+  .inBox input[type=date] { font-size: 18px; flex: none; color-scheme: inherit; }
+  .catGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .catKey { min-height: 44px; border-radius: 12px; border: 1px solid var(--edge); background: var(--cardBottom); color: var(--sub); font: 500 16px var(--cond); letter-spacing: .6px; }
+  .catKey.on { color: var(--gold); border-color: var(--gold); }
+  input[type=range].gold { accent-color: var(--gold); } input[type=range].dimRange { accent-color: var(--dim); }
+  .quick { flex: 1; min-height: 44px; border-radius: 12px; border: 1px solid var(--edge); background: var(--cardBottom); color: var(--sub); font: 700 20px var(--cond); }
+  .quick.on { background: var(--goldFill); color: var(--goldInk); border-color: var(--goldFill); }
+  .stop { flex: 1; min-height: 36px; display: flex; flex-direction: column; align-items: center; color: var(--sub); }
+  .stop b { font: 700 12px var(--cond); letter-spacing: .5px; } .stop small { font: 500 9px var(--mono); }
+  .stop.on { color: var(--gold); }
+  .pickJar { flex: none; width: 80px; padding: 5px; border-radius: 12px; border: 2px solid transparent; display: flex; flex-direction: column; align-items: center; gap: 4px; font: 500 13px var(--cond); }
+  .pickJar.on { border-color: var(--gold); }
+  .pickJar span { width: 70px; text-align: center; }
+  .bar { flex: 1; height: 22px; display: flex; align-items: center; } .bar i { display: block; height: 12px; border-radius: 4px; background: var(--gold); }
+  .tabs button { max-width: 120px; }
   [hidden] { display: none !important; }
   @media (prefers-reduced-motion: reduce) { #gNeedle { transition: none; } }
 </style>
@@ -304,12 +400,17 @@
         <div id="heatHint" class="hint"></div>
       </div>
 
+      <div id="curJar" class="curJar panel"></div>
+
       <button class="strip panel" data-tab="lights">
         <span class="orb" style="width:40px;height:40px;background:conic-gradient(#3CF2D0,#19E3FF,#6A7BFF,#B66BFF,#3CF2D0)"></span>
         <div><span class="tag" style="font-size:9px">LIGHTS</span><b>Rig lights</b><small>Colors, brightness, light show</small></div>
         <span class="chev">›</span>
       </button>
     </section>
+
+    <!-- Jars -->
+    <section data-panel="jars" id="jarsPanel" hidden style="margin-top:0" class="stack"></section>
 
     <!-- Lights -->
     <section data-panel="lights" hidden style="margin-top:14px">
@@ -345,6 +446,7 @@
 
   <nav class="tabs">
     <button data-tab="home"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 13 L16 9"/></svg>HOME</button>
+    <button data-tab="jars"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v11c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"/></svg>JARS</button>
     <button data-tab="lights"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>LIGHTS</button>
     <button data-tab="rig"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="18" rx="3"/><path d="M12 7v4"/></svg>RIG</button>
   </nav>
@@ -373,6 +475,8 @@
     </div>
   </div>
 </div>
+
+<div id="sheets"></div>
 
 <script src="app.js"></script>
 </body>

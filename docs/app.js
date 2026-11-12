@@ -268,22 +268,22 @@
       this.changed();
     }
     exportText(appVersion = "web") {
-      let h = "Presh log\n";
-      h += `App version: ${appVersion}
+      let h2 = "Presh log\n";
+      h2 += `App version: ${appVersion}
 `;
-      h += `Browser: ${typeof navigator !== "undefined" ? navigator.userAgent : "bench"}
+      h2 += `Browser: ${typeof navigator !== "undefined" ? navigator.userAgent : "bench"}
 `;
-      h += `Peripheral name: ${this.peripheralName || "(none)"}
+      h2 += `Peripheral name: ${this.peripheralName || "(none)"}
 `;
-      h += `Peripheral identifier: ${this.peripheralID || "(none)"}
+      h2 += `Peripheral identifier: ${this.peripheralID || "(none)"}
 `;
-      h += `Exported: ${new Date(this.clock.wallMs()).toISOString()}
+      h2 += `Exported: ${new Date(this.clock.wallMs()).toISOString()}
 `;
-      if (this.droppedLogLines > 0) h += `Older lines dropped to save memory: ${this.droppedLogLines}
+      if (this.droppedLogLines > 0) h2 += `Older lines dropped to save memory: ${this.droppedLogLines}
 `;
-      h += "Note: a status frame that repeats unchanged is logged once, then counted.\n";
-      h += "----------------------------------------\n";
-      return h + this.logLines.join("\n") + "\n";
+      h2 += "Note: a status frame that repeats unchanged is logged once, then counted.\n";
+      h2 += "----------------------------------------\n";
+      return h2 + this.logLines.join("\n") + "\n";
     }
     /** A frame identical to the last one of its kind is counted instead of logged again (shown once every 10 s). */
     logRX(source, bytes) {
@@ -2276,8 +2276,1773 @@
     }
   };
 
+  // src/web/jars.ts
+  var JarCategory = ["Live rosin", "Rosin", "Badder", "Sauce", "Diamonds", "Jam", "Live resin", "Hash", "Shatter", "Other"];
+  var JarFlavor = ["Citrus", "Gas", "Fruity", "Sweet", "Earthy", "Pine", "Floral", "Funk", "Spicy", "Creamy"];
+  var REVIEW_LIMIT = 500;
+  var GRAM_PICKS = [0.5, 1, 2, 3.5, 7];
+  var uid = () => {
+    const c = crypto;
+    if (c.randomUUID) return c.randomUUID().toUpperCase();
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = b[6] & 15 | 64;
+    b[8] = b[8] & 63 | 128;
+    const h2 = [...b].map((x) => x.toString(16).padStart(2, "0")).join("").toUpperCase();
+    return `${h2.slice(0, 8)}-${h2.slice(8, 12)}-${h2.slice(12, 16)}-${h2.slice(16, 20)}-${h2.slice(20)}`;
+  };
+  var round1 = (v) => Math.round(v * 10) / 10;
+  var clamp2 = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+  var Jars = {
+    clampRating: (r) => round1(clamp2(r, 0, 10)),
+    ratingText: (r) => r === void 0 || r === null ? "\u2014" : r.toFixed(1),
+    money(v) {
+      if (v === void 0 || v === null) return "\u2014";
+      return v >= 100 || Math.round(v) === v ? `$${Math.round(v)}` : `$${v.toFixed(2)}`;
+    },
+    gramsText(g) {
+      if (g === void 0 || g === null) return "\u2014";
+      return (Math.round(g) === g ? g.toFixed(0) : g.toFixed(1)) + " g";
+    },
+    boughtOn: (j) => Date.parse(j.bought ?? j.added),
+    sessionCount: (j) => j.sessions ?? 0,
+    perGram(j) {
+      return j.price && j.grams && j.price > 0 && j.grams > 0 ? j.price / j.grams : void 0;
+    },
+    avgDabGrams(j) {
+      const s = (j.dabs ?? []).map((d) => d.grams).filter((g) => g !== void 0);
+      return s.length ? s.reduce((a, b) => a + b, 0) / s.length : void 0;
+    },
+    /** Cost of one dab: real dab sizes when logged, else price over sessions. */
+    perSession(j) {
+      const pg = Jars.perGram(j), avg = Jars.avgDabGrams(j);
+      if (pg !== void 0 && avg !== void 0) return pg * avg;
+      const n = Jars.sessionCount(j);
+      return j.price && j.price > 0 && n > 0 ? j.price / n : void 0;
+    },
+    usedGrams: (j) => (j.dabs ?? []).reduce((a, d) => a + (d.grams ?? 0), 0),
+    gramsLeft(j) {
+      const used = Jars.usedGrams(j);
+      return j.grams && j.grams > 0 && used > 0 ? Math.max(j.grams - used, 0) : void 0;
+    },
+    lastDabGrams(j) {
+      const d = (j.dabs ?? []).filter((x) => x.grams !== void 0);
+      return d.length ? d[d.length - 1].grams : void 0;
+    },
+    matches(j, query) {
+      const words = query.toLowerCase().split(" ").filter(Boolean);
+      if (!words.length) return true;
+      const hay = [j.strain, j.producer, j.category ?? "", j.review].join(" ").toLowerCase();
+      return words.every((w) => hay.includes(w));
+    }
+  };
+  var SIZE_STOPS = [
+    { name: "SMALL", grams: 0.05 },
+    { name: "MEDIUM", grams: 0.1 },
+    { name: "LARGE", grams: 0.2 },
+    { name: "XL", grams: 0.4 },
+    { name: "GLOB", grams: 1 }
+  ];
+  var Dabs = {
+    clamp: (r) => round1(clamp2(r, 1, 10)),
+    clampGrams: (g) => Math.round(clamp2(g, 0.05, 1) * 100) / 100,
+    gramsAt(pos) {
+      const n = SIZE_STOPS.length - 1;
+      const x = clamp2(pos, 0, n);
+      const i = Math.min(Math.floor(x), SIZE_STOPS.length - 2);
+      const f = x - i;
+      return Dabs.clampGrams(SIZE_STOPS[i].grams + (SIZE_STOPS[i + 1].grams - SIZE_STOPS[i].grams) * f);
+    },
+    positionFor(g) {
+      const v = Dabs.clampGrams(g);
+      for (let i = 0; i < SIZE_STOPS.length - 1; i++) {
+        if (v <= SIZE_STOPS[i + 1].grams) {
+          const a = SIZE_STOPS[i].grams, b = SIZE_STOPS[i + 1].grams;
+          return i + (v - a) / (b - a);
+        }
+      }
+      return SIZE_STOPS.length - 1;
+    },
+    snap(pos) {
+      const r = Math.round(pos);
+      return Math.abs(pos - r) < 0.15 ? r : pos;
+    },
+    sizeText(g) {
+      const v = Dabs.clampGrams(g);
+      const name = SIZE_STOPS.find((s) => Math.abs(s.grams - v) < 1e-3)?.name;
+      return `${v.toFixed(2)} G` + (name ? ` \xB7 ${name}` : "");
+    },
+    isFlat: (d) => d.profile === void 0 || d.profile === "Steady" || d.profile === "Unknown",
+    goalText(d) {
+      if (d.goal === void 0) return d.peak !== void 0 ? `${d.peak}\xB0${d.unit}` : "\u2014";
+      if (!Dabs.isFlat(d) && d.goalTop !== void 0 && d.goalTop !== d.goal) return `${d.goal}\u2013${d.goalTop}\xB0${d.unit}`;
+      return `${d.goal}\xB0${d.unit}`;
+    },
+    groupKey(d) {
+      const base = d.goal !== void 0 ? `${d.goal}\xB0${d.unit}` : "?";
+      return Dabs.isFlat(d) ? base : `${base} ${(d.profile ?? "").toUpperCase()}`;
+    },
+    /** Flavor reminder: while the jar has no flavors, on dabs 3, 6, 10, then every 10th. */
+    flavorNudge(n, hasFlavors) {
+      if (hasFlavors) return false;
+      return n === 3 || n === 6 || n >= 10 && n % 10 === 0;
+    }
+  };
+  var MemoryJarBackend = class {
+    constructor() {
+      this.list = null;
+      this.photos = /* @__PURE__ */ new Map();
+      this.prefs = /* @__PURE__ */ new Map();
+    }
+    async loadList() {
+      return this.list === null ? null : JSON.parse(JSON.stringify(this.list));
+    }
+    async saveList(list) {
+      this.list = JSON.parse(JSON.stringify(list));
+    }
+    async putPhoto(k, big, thumb) {
+      this.photos.set(k, { big, thumb });
+    }
+    async getPhoto(k, thumb) {
+      const p = this.photos.get(k);
+      return p ? thumb ? p.thumb : p.big : null;
+    }
+    async deletePhoto(k) {
+      this.photos.delete(k);
+    }
+    getPref(k) {
+      return this.prefs.get(k) ?? null;
+    }
+    setPref(k, v) {
+      if (v === null) this.prefs.delete(k);
+      else this.prefs.set(k, v);
+    }
+  };
+  var JarStore = class {
+    constructor(backend2) {
+      this.backend = backend2;
+      this.jars = [];
+      this.currentID = null;
+      this.problem = null;
+      this.ready = false;
+      this.onChange = () => {
+      };
+      this.saving = Promise.resolve();
+    }
+    async load() {
+      try {
+        const raw = await this.backend.loadList();
+        this.jars = Array.isArray(raw) ? raw.filter((j) => j && typeof j.id === "string" && typeof j.strain === "string") : [];
+      } catch {
+        this.jars = [];
+        this.problem = "Couldn't read the saved jars on this phone.";
+      }
+      const cur = this.backend.getPref("currentJar");
+      this.currentID = cur && this.jars.some((j) => j.id === cur && !j.finished) ? cur : null;
+      this.ready = true;
+      this.onChange();
+    }
+    jar(id) {
+      return id ? this.jars.find((j) => j.id === id) : void 0;
+    }
+    get current() {
+      return this.jar(this.currentID);
+    }
+    /** Sets (or clears) the current jar. A finished or missing jar can't be current. */
+    setCurrent(id) {
+      const next = id && this.jars.some((j) => j.id === id && !j.finished) ? id : null;
+      this.currentID = next;
+      this.backend.setPref("currentJar", next);
+      this.onChange();
+    }
+    /** Open jars first, then newest first. */
+    get shelf() {
+      return [...this.jars].sort((a, b) => a.finished !== b.finished ? a.finished ? 1 : -1 : Date.parse(b.added) - Date.parse(a.added));
+    }
+    get openCount() {
+      return this.jars.filter((j) => !j.finished).length;
+    }
+    get usedCategories() {
+      const used = new Set(this.jars.map((j) => j.category).filter(Boolean));
+      return JarCategory.filter((c) => used.has(c));
+    }
+    get knownProducers() {
+      const count = /* @__PURE__ */ new Map(), shown = /* @__PURE__ */ new Map();
+      for (const j of this.jars) {
+        const name = j.producer.trim();
+        if (!name) continue;
+        const k = name.toLowerCase();
+        count.set(k, (count.get(k) ?? 0) + 1);
+        if (!shown.has(k)) shown.set(k, name);
+      }
+      return [...count.keys()].sort((a, b) => count.get(b) - count.get(a) || a.localeCompare(b)).map((k) => shown.get(k));
+    }
+    persist(list) {
+      const run = this.saving.then(() => this.backend.saveList(list)).then(
+        () => {
+          this.problem = null;
+          return true;
+        },
+        () => {
+          this.problem = "Couldn't save the jar list. The phone may be out of space.";
+          return false;
+        }
+      );
+      this.saving = run.then(() => void 0);
+      return run;
+    }
+    /** Adds the jar if new, else replaces the saved one with the same id. */
+    async save(input, change = { kind: "keep" }) {
+      const jar = { ...input };
+      jar.strain = jar.strain.trim();
+      jar.producer = jar.producer.trim();
+      if (jar.category && !JarCategory.includes(jar.category)) delete jar.category;
+      if (jar.price !== void 0 && !(jar.price > 0 && jar.price < 1e5)) delete jar.price;
+      if (jar.grams !== void 0 && !(jar.grams > 0 && jar.grams <= 1e3)) delete jar.grams;
+      const shop = (jar.shop ?? "").trim();
+      if (shop) jar.shop = shop.slice(0, 60);
+      else delete jar.shop;
+      if (jar.sessions !== void 0) {
+        if (jar.sessions > 0) jar.sessions = Math.min(jar.sessions, 1e5);
+        else delete jar.sessions;
+      }
+      if (jar.dabs) {
+        if (jar.dabs.length) jar.dabs = jar.dabs.slice(-2e3);
+        else delete jar.dabs;
+      }
+      if (jar.flavors) {
+        const c = JarFlavor.filter((f) => jar.flavors.includes(f));
+        if (c.length) jar.flavors = c;
+        else delete jar.flavors;
+      }
+      jar.review = jar.review.trim().slice(0, REVIEW_LIMIT);
+      if (jar.rating !== void 0) jar.rating = Jars.clampRating(jar.rating);
+      if (!jar.strain) return false;
+      jar.updated = (/* @__PURE__ */ new Date()).toISOString();
+      const old = this.jar(jar.id)?.photo;
+      let dropAfter;
+      if (change.kind === "keep") {
+        if (old) jar.photo = old;
+        else delete jar.photo;
+      } else if (change.kind === "remove") {
+        delete jar.photo;
+        dropAfter = old;
+      } else {
+        const key = `${jar.id}-${Date.now()}`;
+        try {
+          await this.backend.putPhoto(key, change.big, change.thumb);
+        } catch {
+          this.problem = "Couldn't save that photo. The phone may be out of space.";
+          this.onChange();
+          return false;
+        }
+        jar.photo = key;
+        dropAfter = old;
+      }
+      const next = [...this.jars];
+      const i = next.findIndex((j) => j.id === jar.id);
+      if (i >= 0) next[i] = jar;
+      else next.push(jar);
+      const firstEver = this.jars.length === 0 && next.length === 1;
+      this.jars = next;
+      const ok = await this.persist(next);
+      if (!ok) {
+        if (change.kind === "replace" && jar.photo) void this.backend.deletePhoto(jar.photo);
+        this.onChange();
+        return false;
+      }
+      if (dropAfter) {
+        photoURLs.drop(dropAfter);
+        void this.backend.deletePhoto(dropAfter);
+      }
+      if (jar.finished && this.currentID === jar.id) this.setCurrent(null);
+      if (firstEver && !jar.finished) this.setCurrent(jar.id);
+      this.onChange();
+      return true;
+    }
+    async delete(id) {
+      const j = this.jar(id);
+      if (!j) return;
+      const next = this.jars.filter((x) => x.id !== id);
+      this.jars = next;
+      if (!await this.persist(next)) {
+        this.onChange();
+        return;
+      }
+      if (this.currentID === id) this.setCurrent(null);
+      if (j.photo) {
+        photoURLs.drop(j.photo);
+        void this.backend.deletePhoto(j.photo);
+      }
+      this.onChange();
+    }
+    logSession(id, delta) {
+      const j = this.jar(id);
+      if (!j) return;
+      void this.save({ ...j, sessions: Math.max(Jars.sessionCount(j) + delta, 0) });
+    }
+    setFinished(id, finished) {
+      const j = this.jar(id);
+      if (j) void this.save({ ...j, finished });
+    }
+    setFlavors(id, flavors) {
+      const j = this.jar(id);
+      if (j) void this.save({ ...j, flavors });
+    }
+    /** Adds a dab to a jar and counts the session. */
+    addDab(dab, jarID) {
+      const j = this.jar(jarID);
+      if (!j) return false;
+      const d = { ...dab };
+      if (d.rating !== void 0) d.rating = Dabs.clamp(d.rating);
+      if (d.grams !== void 0) d.grams = Dabs.clampGrams(d.grams);
+      void this.save({ ...j, dabs: [...j.dabs ?? [], d], sessions: Jars.sessionCount(j) + 1 });
+      return true;
+    }
+    updateDab(jarID, dabID, change) {
+      const j = this.jar(jarID);
+      if (!j || !j.dabs) return;
+      const list = j.dabs.map((d2) => ({ ...d2 }));
+      const d = list.find((x) => x.id === dabID);
+      if (!d) return;
+      change(d);
+      if (d.rating !== void 0) d.rating = Dabs.clamp(d.rating);
+      if (d.grams !== void 0) d.grams = Dabs.clampGrams(d.grams);
+      if (d.note !== void 0) {
+        const t = d.note.trim().slice(0, 200);
+        if (t) d.note = t;
+        else delete d.note;
+      }
+      void this.save({ ...j, dabs: list });
+    }
+    /** Rated dabs grouped by exact goal temp, best average first. */
+    tempRows(j) {
+      const groups2 = /* @__PURE__ */ new Map();
+      for (const d of j.dabs ?? []) {
+        if (d.rating === void 0) continue;
+        const k = Dabs.groupKey(d);
+        groups2.set(k, [...groups2.get(k) ?? [], d]);
+      }
+      return [...groups2.entries()].map(([key, list]) => ({
+        key,
+        goal: list[0].goal,
+        flat: Dabs.isFlat(list[0]),
+        count: list.length,
+        avg: round1(list.reduce((a, d) => a + (d.rating ?? 0), 0) / list.length)
+      })).sort((a, b) => b.avg - a.avg || b.count - a.count);
+    }
+    /** One line of advice from flat-temp dabs. */
+    tempHint(j) {
+      const flat = this.tempRows(j).filter((r) => r.flat && r.goal !== void 0);
+      const best = flat[0];
+      if (!best || best.goal === void 0) return null;
+      const g = best.goal;
+      const unit = (j.dabs ?? []).find((d) => d.goal === g)?.unit ?? "F";
+      const step = unit === "C" ? 5 : 10;
+      if (flat.length < 2) return `Only ${g}\xB0${unit} rated so far. Try ${g - step}\xB0${unit} or ${g + step}\xB0${unit} to compare.`;
+      const temps = flat.map((r) => r.goal);
+      if (g === Math.min(...temps)) return `Your best is your lowest. Try ${g - step}\xB0${unit} next.`;
+      if (g === Math.max(...temps)) return `Your best is your highest. Try ${g + step}\xB0${unit} next.`;
+      return `Sweet spot looks like ${g}\xB0${unit}.`;
+    }
+    /** Newest unrated, never-offered dab from the last day. */
+    unratedToOffer(now = Date.now()) {
+      let found = null;
+      for (const j of this.jars) for (const d of j.dabs ?? []) {
+        if (d.rating === void 0 && d.asked !== true && now - Date.parse(d.at) < 864e5 && (!found || Date.parse(d.at) > Date.parse(found.dab.at))) found = { jarID: j.id, dab: d };
+      }
+      return found;
+    }
+    /** "Worth it?": rating per $/g against your own priced, rated jars (needs 3). */
+    verdict(j) {
+      const pg = Jars.perGram(j);
+      if (j.rating === void 0 || pg === void 0) return null;
+      const pool = this.jars.map((x) => {
+        const p = Jars.perGram(x);
+        return x.rating !== void 0 && p !== void 0 ? x.rating / p : null;
+      }).filter((v) => v !== null);
+      if (pool.length < 3) return null;
+      const avg = pool.reduce((a, b) => a + b, 0) / pool.length;
+      if (!(avg > 0)) return null;
+      const ratio = j.rating / pg / avg;
+      return ratio >= 1.2 ? "STEAL" : ratio >= 0.9 ? "SOLID" : ratio >= 0.7 ? "FAIR" : "PRICEY";
+    }
+    spend(now = /* @__PURE__ */ new Date()) {
+      const out = { month: 0, year: 0, all: 0, pricedJars: 0, byMonth: [] };
+      let gramsSum = 0, dollarsWithGrams = 0;
+      const months = /* @__PURE__ */ new Map();
+      for (const j of this.jars) {
+        if (!j.price || j.price <= 0) continue;
+        const d = new Date(Jars.boughtOn(j));
+        out.pricedJars++;
+        out.all += j.price;
+        if (d.getFullYear() === now.getFullYear()) {
+          out.year += j.price;
+          if (d.getMonth() === now.getMonth()) out.month += j.price;
+        }
+        if (j.grams && j.grams > 0) {
+          gramsSum += j.grams;
+          dollarsWithGrams += j.price;
+        }
+        const start = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+        months.set(start, (months.get(start) ?? 0) + j.price);
+      }
+      if (gramsSum > 0) out.avgPerGram = dollarsWithGrams / gramsSum;
+      const cutoff = new Date(now.getFullYear(), now.getMonth() - 11, 1).getTime();
+      out.byMonth = [...months.entries()].filter(([k]) => k >= cutoff).sort((a, b) => b[0] - a[0]);
+      return out;
+    }
+    // MARK: Backup (browsers can clear site data, so jars can be saved to a file and brought back)
+    async exportBackup() {
+      const photos = {};
+      for (const j of this.jars) {
+        if (!j.photo) continue;
+        const b = await this.backend.getPhoto(j.photo, false).catch(() => null);
+        if (b) photos[j.photo] = await blobToDataURL(b);
+      }
+      return JSON.stringify({ app: "Torchless", kind: "jars", version: 1, saved: (/* @__PURE__ */ new Date()).toISOString(), currentJar: this.currentID, jars: this.jars, photos });
+    }
+    /** Adds jars from a backup. Jars already here (same id) are replaced by the backup's copy. */
+    async importBackup(text, makeThumb) {
+      const data = JSON.parse(text);
+      if (data.kind !== "jars" || !Array.isArray(data.jars)) throw new Error("not a Torchless jar backup");
+      let n = 0;
+      for (const j of data.jars) {
+        if (!j || typeof j.id !== "string" || typeof j.strain !== "string") continue;
+        let change = { kind: "remove" };
+        const src = j.photo ? data.photos?.[j.photo] : void 0;
+        if (src) {
+          const big = await (await fetch(src)).blob();
+          change = { kind: "replace", big, thumb: await makeThumb(big) };
+        }
+        const clean = { ...j, review: j.review ?? "", producer: j.producer ?? "", finished: !!j.finished, added: j.added ?? (/* @__PURE__ */ new Date()).toISOString(), updated: j.updated ?? (/* @__PURE__ */ new Date()).toISOString() };
+        if (await this.save(clean, change)) n++;
+      }
+      if (!this.currentID && data.currentJar) this.setCurrent(data.currentJar);
+      return n;
+    }
+  };
+  function blobToDataURL(b) {
+    return new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result));
+      r.onerror = () => rej(r.error);
+      r.readAsDataURL(b);
+    });
+  }
+  var photoURLs = {
+    cache: /* @__PURE__ */ new Map(),
+    async get(store, key, thumb) {
+      if (!key) return null;
+      const k = `${key}${thumb ? "-t" : ""}`;
+      const hit = this.cache.get(k);
+      if (hit) return hit;
+      const b = await store.backend.getPhoto(key, thumb).catch(() => null);
+      if (!b) return null;
+      const url = URL.createObjectURL(b);
+      this.cache.set(k, url);
+      return url;
+    },
+    drop(key) {
+      for (const k of [key, `${key}-t`]) {
+        const u = this.cache.get(k);
+        if (u) {
+          URL.revokeObjectURL(u);
+          this.cache.delete(k);
+        }
+      }
+    }
+  };
+  var IDBJarBackend = class {
+    constructor(name = "torchless-jars") {
+      this.name = name;
+      this.db = new Promise((res, rej) => {
+        const req = indexedDB.open(this.name, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("kv")) db.createObjectStore("kv");
+          if (!db.objectStoreNames.contains("photos")) db.createObjectStore("photos");
+        };
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => rej(req.error);
+      });
+    }
+    async tx(store, mode, fn) {
+      const db = await this.db;
+      return new Promise((res, rej) => {
+        const t = db.transaction(store, mode);
+        const r = fn(t.objectStore(store));
+        let out;
+        if (r) r.onsuccess = () => {
+          out = r.result;
+        };
+        t.oncomplete = () => res(out);
+        t.onerror = () => rej(t.error);
+        t.onabort = () => rej(t.error);
+      });
+    }
+    loadList() {
+      return this.tx("kv", "readonly", (s) => s.get("jars")).then((v) => v ?? null);
+    }
+    async saveList(list) {
+      await this.tx("kv", "readwrite", (s) => s.put(list, "jars"));
+    }
+    async putPhoto(key, big, thumb) {
+      const [b, t] = await Promise.all([big.arrayBuffer(), thumb.arrayBuffer()]);
+      await this.tx("photos", "readwrite", (s) => {
+        s.put({ type: big.type, data: b }, key);
+        s.put({ type: thumb.type, data: t }, key + "-t");
+      });
+    }
+    async getPhoto(key, thumb) {
+      const v = await this.tx("photos", "readonly", (s) => s.get(thumb ? key + "-t" : key));
+      if (!v && thumb) return this.getPhoto(key, false);
+      return v ? new Blob([v.data], { type: v.type }) : null;
+    }
+    async deletePhoto(key) {
+      await this.tx("photos", "readwrite", (s) => {
+        s.delete(key);
+        s.delete(key + "-t");
+      });
+    }
+    getPref(k) {
+      try {
+        return localStorage.getItem("torchless." + k);
+      } catch {
+        return null;
+      }
+    }
+    setPref(k, v) {
+      try {
+        if (v === null) localStorage.removeItem("torchless." + k);
+        else localStorage.setItem("torchless." + k, v);
+      } catch {
+      }
+    }
+  };
+
+  // src/web/dab-watcher.ts
+  var _DabWatcher = class _DabWatcher {
+    constructor(store, now = Date.now, later = (fn, ms) => {
+      setTimeout(fn, ms);
+    }) {
+      this.store = store;
+      this.now = now;
+      this.later = later;
+      this.prompt = null;
+      this.onPrompt = () => {
+      };
+      this.wasOn = false;
+      this.start = null;
+      this.peak = 0;
+      this.celsius = false;
+      this.waiting = null;
+      this.cooling = null;
+      this.checkedOpen = false;
+    }
+    /** Offers the newest unrated dab once when the app opens. */
+    appOpened() {
+      if (this.checkedOpen) return;
+      this.checkedOpen = true;
+      if (this.prompt || this.waiting) return;
+      const o = this.store.unratedToOffer(this.now());
+      if (!o) return;
+      this.store.updateDab(o.jarID, o.dab.id, (d) => {
+        d.asked = true;
+      });
+      this.show({ jarID: o.jarID, dab: o.dab });
+    }
+    /** Call on every status frame. */
+    update(rig2) {
+      const s = rig2.live;
+      if (!s || !rig2.linkFresh) return;
+      const on = rig2.sessionOn;
+      this.celsius = s.unitByte === 12;
+      const temp = s.tempRaw;
+      const now = this.now();
+      if (on && !this.wasOn) {
+        this.start = now;
+        this.goal = void 0;
+        this.peak = 0;
+        this.profile = void 0;
+        this.waiting = null;
+        this.cooling = null;
+      }
+      if (on) {
+        if (s.preset >= 0 && s.preset <= 5) {
+          const ps = rig2.presets[s.preset];
+          const t = this.celsius ? ps.tempC : ps.tempF;
+          if (t !== void 0) this.goal = t;
+          if (ps.profile !== void 0) {
+            const n = HeatProfile.name(ps.profile);
+            this.profile = n.startsWith("Unknown") ? "Unknown" : n;
+          }
+        }
+        this.peak = Math.max(this.peak, temp);
+      }
+      if (!on && this.wasOn && this.start !== null) {
+        const secs = Math.round((now - this.start) / 1e3);
+        if (secs >= _DabWatcher.minSeconds) {
+          const dab = { id: uid(), at: new Date(this.start).toISOString(), seconds: secs, unit: this.celsius ? "C" : "F" };
+          if (this.goal !== void 0) dab.goal = this.goal;
+          if (this.peak > 0) dab.peak = this.peak;
+          if (this.profile !== void 0) dab.profile = this.profile;
+          if (this.goal !== void 0 && !Dabs.isFlat(dab) && this.peak > 0 && Math.abs(this.peak - this.goal) >= 3) dab.goalTop = this.peak;
+          let jarID = null;
+          const c = this.store.currentID;
+          if (c && this.store.addDab(dab, c)) jarID = c;
+          const offAt = now;
+          this.waiting = { jarID, dab, offAt };
+          this.cooling = { jarID, dabID: dab.id, offAt };
+          this.later(() => {
+            const w = this.waiting;
+            if (!w || w.offAt !== offAt || this.wasOn) return;
+            this.fire();
+          }, _DabWatcher.promptDelay);
+        }
+        this.start = null;
+      }
+      if (!on && this.cooling && temp <= (this.celsius ? _DabWatcher.coolC : _DabWatcher.coolF)) {
+        const c = this.cooling;
+        this.cooling = null;
+        const cooled = Math.round((now - c.offAt) / 1e3);
+        if (c.jarID) this.store.updateDab(c.jarID, c.dabID, (d) => {
+          d.cooledIn = cooled;
+        });
+        if (this.waiting?.dab.id === c.dabID) this.waiting.dab.cooledIn = cooled;
+      }
+      this.wasOn = on;
+    }
+    fire() {
+      const w = this.waiting;
+      if (!w) return;
+      this.waiting = null;
+      if (w.jarID) this.store.updateDab(w.jarID, w.dab.id, (d) => {
+        d.asked = true;
+      });
+      this.show({ jarID: w.jarID, dab: w.dab });
+      try {
+        navigator.vibrate?.(15);
+      } catch {
+      }
+    }
+    show(p) {
+      this.prompt = p;
+      this.onPrompt();
+    }
+    close() {
+      this.prompt = null;
+      this.onPrompt();
+    }
+  };
+  _DabWatcher.minSeconds = 20;
+  _DabWatcher.coolF = 300;
+  _DabWatcher.coolC = 149;
+  /** The pop-up shows this long after heating stops (Manny, 2026-11-11). */
+  _DabWatcher.promptDelay = 15e3;
+  var DabWatcher = _DabWatcher;
+
+  // src/web/jar-ui.ts
+  function h(tag2, attrs = {}, ...kids) {
+    const el = document.createElement(tag2);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v === void 0 || v === false) continue;
+      if (k.startsWith("on") && typeof v === "function") el.addEventListener(k.slice(2), v);
+      else if (k === "class") el.className = String(v);
+      else if (k === "style") el.setAttribute("style", String(v));
+      else if (k in el && typeof v !== "string") el[k] = v;
+      else el.setAttribute(k, v === true ? "" : String(v));
+    }
+    for (const c of kids) if (c !== null && c !== void 0 && c !== false) el.append(c);
+    return el;
+  }
+  var tag = (text, style = "") => h("span", { class: "tag", style }, text);
+  var plural = (n, w) => `${n} ${w}${n === 1 ? "" : "S"}`;
+  async function loadImage(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image();
+      img.decoding = "async";
+      await new Promise((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error("image"));
+        img.src = url;
+      });
+      return img;
+    } finally {
+      setTimeout(() => URL.revokeObjectURL(url), 1e3);
+    }
+  }
+  function scaled(img, maxSide, quality) {
+    const k = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(img.naturalWidth * k));
+    c.height = Math.max(1, Math.round(img.naturalHeight * k));
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    return new Promise((res, rej) => c.toBlob((b) => b ? res(b) : rej(new Error("encode")), "image/jpeg", quality));
+  }
+  async function photoFromFile(file) {
+    const img = await loadImage(file);
+    return { big: await scaled(img, 1600, 0.82), thumb: await scaled(img, 480, 0.78) };
+  }
+  async function thumbFromBlob(b) {
+    return scaled(await loadImage(b), 480, 0.78);
+  }
+  function jarPhoto(store, j, size, radius, thumb = true, override) {
+    const box = h("div", { class: "jarPhoto", style: `width:${size};border-radius:${radius}px` });
+    const lid = lidSVG(j.producer);
+    box.append(lid);
+    const put = (url) => {
+      if (url) {
+        box.replaceChildren(h("img", { src: url, alt: "" }));
+      }
+    };
+    if (override !== void 0) put(override);
+    else if (j.photo) void photoURLs.get(store, j.photo, thumb).then(put);
+    return box;
+  }
+  function lidSVG(producer) {
+    const letter = (producer.trim()[0] ?? "P").toUpperCase();
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 100 100");
+    svg.setAttribute("class", "lid");
+    svg.innerHTML = `<circle cx="50" cy="50" r="49" class="lidBody"/><circle cx="50" cy="50" r="40" fill="none" class="lidRing"/><path d="M50 20 A30 30 0 1 1 24 35" fill="none" class="lidArc" transform="rotate(-60 50 50)"/>`;
+    const t = document.createElementNS(ns, "text");
+    t.setAttribute("x", "50");
+    t.setAttribute("y", "62");
+    t.setAttribute("class", "lidLetter");
+    t.textContent = letter;
+    svg.append(t);
+    return svg;
+  }
+  function ratingDial(rating, size) {
+    const r = 38, c = 2 * Math.PI * r, sweep = 0.75 * c;
+    const frac = (rating ?? 0) / 10;
+    const box = h("div", {
+      class: "dial",
+      style: `width:${size}px;height:${size}px`,
+      role: "img",
+      "aria-label": rating === void 0 ? "Not rated" : `Rated ${Jars.ratingText(rating)} out of 10`
+    });
+    box.innerHTML = `<svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="49" class="dialFace"/><circle cx="50" cy="50" r="${r}" class="dialTrack" stroke-dasharray="${sweep} ${c}" transform="rotate(135 50 50)"/>` + (rating !== void 0 ? `<circle cx="50" cy="50" r="${r}" class="dialFill" stroke-dasharray="${sweep * frac} ${c}" transform="rotate(135 50 50)"/>` : "") + `</svg>`;
+    box.append(h(
+      "div",
+      { class: "dialText" },
+      h("b", { style: `font-size:${Math.round(size * 0.3)}px;color:${rating === void 0 ? "var(--dim)" : "var(--gold)"}` }, Jars.ratingText(rating)),
+      tag(rating === void 0 ? "NOT RATED" : "YOURS", "font-size:8.5px")
+    ));
+    return box;
+  }
+  var sheetRoot = () => document.getElementById("sheets");
+  function openSheet(build, kind = "page") {
+    const wrap = h("div", { class: kind === "page" ? "page" : "cardSheet" });
+    const close = () => {
+      wrap.remove();
+      document.body.classList.toggle("sheetOpen", sheetRoot().childElementCount > 0);
+    };
+    wrap.append(build(close));
+    sheetRoot().append(wrap);
+    document.body.classList.add("sheetOpen");
+    return close;
+  }
+  function topBar(left, mid, right) {
+    return h("div", { class: "topBar" }, left ?? h("span"), mid ?? h("span"), right ?? h("span"));
+  }
+  var textBtn = (label, onclick, color = "var(--sub)") => h("button", { class: "textBtn", style: `color:${color}`, onclick }, label);
+  function confirmSheet(title, body, yes, no, onYes) {
+    openSheet((close) => h(
+      "div",
+      { class: "cardBody" },
+      h("h3", {}, title),
+      h("p", { class: "sub" }, body),
+      h(
+        "div",
+        { class: "row", style: "gap:10px;margin-top:16px" },
+        h("button", { class: "btn2", style: "flex:1", onclick: close }, no),
+        h("button", { class: "btn2 danger", style: "flex:1", onclick: () => {
+          close();
+          onYes();
+        } }, yes)
+      )
+    ), "card");
+  }
+  function mountJars(store, watcher2, showTab2) {
+    let filter = "ALL";
+    let category = null;
+    let query = "";
+    const openPages = /* @__PURE__ */ new Set();
+    let justSet = false;
+    function renderHome() {
+      const box = document.getElementById("curJar");
+      const j = store.current;
+      const main = h("button", {
+        class: "curMain",
+        "aria-label": j ? `Now dabbing ${j.strain}. Open jar.` : "Pick a jar",
+        onclick: () => {
+          if (j) openJar(j.id);
+          else showTab2("jars");
+        }
+      });
+      if (j) {
+        const bits = [];
+        const pg = Jars.perGram(j);
+        if (pg !== void 0) bits.push(Jars.money(pg) + "/g");
+        const rated = (j.dabs ?? []).map((d) => d.rating).filter((r) => r !== void 0);
+        if (rated.length) bits.push("DAB AVG " + Jars.ratingText(rated.reduce((a, b) => a + b, 0) / rated.length));
+        else if (j.rating !== void 0) bits.push("RATED " + Jars.ratingText(j.rating));
+        bits.push(plural((j.dabs ?? []).length, "DAB"));
+        main.append(
+          jarPhoto(store, j, "56px", 12),
+          h(
+            "div",
+            { class: "curText" },
+            tag(justSet ? "\u2713 NOW DABBING" : "NOW DABBING", `font-size:9px;color:${justSet ? "var(--gold)" : "var(--live)"}`),
+            h("b", {}, j.strain),
+            h("small", {}, bits.join(" \xB7 "))
+          )
+        );
+      } else {
+        main.append(
+          h("span", { class: "curIcon" }, jarIcon()),
+          h("div", { class: "curText" }, tag("JARS", "font-size:9px"), h("b", {}, "Pick what you're dabbing"), h("small", {}, "Then every dab gets rated."))
+        );
+      }
+      const plus = h("button", { class: "plusKey", "aria-label": "Add a jar", onclick: () => editJar(null, (newID) => {
+        store.setCurrent(newID);
+        justSet = true;
+        setTimeout(() => {
+          justSet = false;
+          renderHome();
+        }, 4e3);
+      }) }, "+");
+      box.replaceChildren(main, plus);
+    }
+    function renderJars() {
+      const panel = document.getElementById("jarsPanel");
+      const kids = [];
+      const n = store.jars.length;
+      kids.push(h(
+        "div",
+        { class: "row", style: "margin-top:14px" },
+        h("div", {}, h("h2", {}, "JARS"), tag(`${plural(n, "JAR")} \xB7 ${store.openCount} OPEN`, "display:block;margin-top:6px")),
+        h("button", { class: "logIt", style: "margin-left:auto", "aria-label": "Log a jar", onclick: () => editJar(null) }, "+ LOG IT")
+      ));
+      if (store.problem) kids.push(h("div", { class: "problem" }, store.problem));
+      if (store.jars.some((j) => j.price !== void 0)) {
+        const s = store.spend();
+        kids.push(h(
+          "button",
+          { class: "panel spendStrip", onclick: spendSheet },
+          cell("THIS MONTH", Jars.money(s.month)),
+          cell("THIS YEAR", Jars.money(s.year)),
+          cell("AVG / G", Jars.money(s.avgPerGram), "var(--gold)"),
+          h("span", { class: "chev" }, "\u203A")
+        ));
+      }
+      if (n) {
+        const input = h("input", {
+          type: "search",
+          placeholder: "Search strain, producer, notes",
+          value: query,
+          autocomplete: "off",
+          oninput: (e) => {
+            query = e.target.value;
+            renderGrid();
+          }
+        });
+        kids.push(h("label", { class: "panel search" }, h("span", { class: "dim" }, "\u2315"), input));
+      }
+      const chips = h("div", { class: "chips" });
+      for (const f of ["ALL", "OPEN", "FINISHED"]) {
+        chips.append(h("button", { class: "chip" + (filter === f ? " on" : ""), onclick: () => {
+          filter = f;
+          renderJars();
+        } }, f));
+      }
+      kids.push(chips);
+      if (store.usedCategories.length) {
+        const row = h("div", { class: "chips scrollX" });
+        for (const c of [null, ...store.usedCategories]) {
+          row.append(h("button", { class: "chip gold" + (category === c ? " on" : ""), onclick: () => {
+            category = c;
+            renderJars();
+          } }, (c ?? "Every type").toUpperCase()));
+        }
+        kids.push(row);
+      }
+      const grid = h("div", { id: "jarGrid" });
+      kids.push(grid);
+      kids.push(backupBox());
+      panel.replaceChildren(...kids);
+      renderGrid();
+    }
+    function renderGrid() {
+      const grid = document.getElementById("jarGrid");
+      if (!grid) return;
+      const searching = category !== null || query.trim() !== "";
+      const shown = store.shelf.filter((j) => {
+        if (filter === "OPEN" && j.finished) return false;
+        if (filter === "FINISHED" && !j.finished) return false;
+        if (category && j.category !== category) return false;
+        return Jars.matches(j, query);
+      });
+      if (!shown.length && searching && store.jars.length) {
+        grid.replaceChildren(h(
+          "div",
+          { class: "panel pad center" },
+          h("h3", {}, "No match."),
+          h("button", { class: "btn2 wide", style: "color:var(--live)", onclick: () => {
+            query = "";
+            category = null;
+            renderJars();
+          } }, "CLEAR SEARCH")
+        ));
+        return;
+      }
+      if (!shown.length) {
+        const all = filter === "ALL";
+        grid.replaceChildren(h(
+          "div",
+          { class: "panel pad center" },
+          h("div", { style: "width:96px;margin:0 auto" }, lidSVG("")),
+          h("h3", {}, all ? "No jars yet." : "Nothing here."),
+          h("p", { class: "mono sub" }, all ? "Snap the jar, name the strain, say how it hit." : `Jars show up here once you mark them ${filter === "OPEN" ? "open" : "finished"}.`),
+          all ? h("button", { class: "goldBtn", onclick: () => editJar(null) }, "LOG YOUR FIRST JAR") : null
+        ));
+        return;
+      }
+      const g = h("div", { class: "jarGrid" });
+      for (const j of shown) {
+        const photo = jarPhoto(store, j, "100%", 12);
+        if (store.currentID === j.id) photo.append(h("span", { class: "curBadge" }, "CURRENT"));
+        g.append(h(
+          "button",
+          { class: "panel jarCard" + (j.finished ? " done" : ""), onclick: () => openJar(j.id) },
+          photo,
+          tag(j.producer ? j.producer.toUpperCase() : "NO PRODUCER", "font-size:8.5px;display:block;margin-top:8px"),
+          h("b", { class: "jarName" }, j.strain),
+          j.category ? h("small", { class: "mono sub" }, j.category) : null,
+          h(
+            "div",
+            { class: "row", style: "margin-top:4px" },
+            tag("YOURS", "font-size:8px"),
+            h("b", { class: "cond", style: `font-size:20px;color:${j.rating === void 0 ? "var(--dim)" : "var(--gold)"}` }, Jars.ratingText(j.rating)),
+            statusTag(j.finished)
+          )
+        ));
+      }
+      grid.replaceChildren(g);
+    }
+    let backupNote = "Jars live on this phone, in this browser. Save a backup now and then so clearing the browser can't lose them.";
+    function backupBox() {
+      const file = h("input", { type: "file", accept: "application/json,.json", hidden: true, onchange: async (e) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        try {
+          const n = await store.importBackup(await f.text(), thumbFromBlob);
+          backupNote = `Brought back ${plural(n, "jar").toLowerCase()}.`;
+        } catch {
+          backupNote = "That file isn't a Torchless jar backup.";
+        }
+        msg.textContent = backupNote;
+        e.target.value = "";
+      } });
+      const msg = h("p", { class: "mono dim", style: "margin:8px 0 0" }, backupNote);
+      return h(
+        "div",
+        { class: "panel pad", style: "margin-top:18px" },
+        h("div", { class: "row" }, tag("BACKUP"), tag("ONLY YOU", "margin-left:auto;font-size:8.5px")),
+        msg,
+        h(
+          "div",
+          { class: "row", style: "gap:10px;margin-top:12px" },
+          h("button", { class: "btn2", style: "flex:1", disabled: !store.jars.length, onclick: async () => {
+            const text = await store.exportBackup();
+            const a = h("a", {
+              href: URL.createObjectURL(new Blob([text], { type: "application/json" })),
+              download: `Torchless-jars-${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}.json`
+            });
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 5e3);
+            backupNote = "Backup saved. Keep the file somewhere safe, like Files or Drive.";
+            msg.textContent = backupNote;
+          } }, "Save backup"),
+          h("button", { class: "btn2", style: "flex:1", onclick: () => file.click() }, "Restore"),
+          file
+        )
+      );
+    }
+    function openJar(id) {
+      let rerender = () => {
+      };
+      openSheet((close) => {
+        const body = h("div", { class: "pageBody" });
+        const done = () => {
+          openPages.delete(rerender);
+          close();
+        };
+        rerender = () => body.replaceChildren(...jarPage(id, done));
+        rerender();
+        return body;
+      });
+      openPages.add(rerender);
+    }
+    function jarPage(id, done) {
+      const j = store.jar(id);
+      if (!j) return [topBar(textBtn("Done", done), null, null), h("p", { class: "center dim", style: "padding:40px" }, "This jar is gone.")];
+      const out = [];
+      out.push(topBar(textBtn("Done", done), statusTag(j.finished), textBtn("Edit", () => editJar(j), "var(--live)")));
+      out.push(jarPhoto(store, j, "100%", 20, false));
+      out.push(currentBar(j));
+      out.push(h(
+        "div",
+        { class: "row", style: "gap:14px;align-items:center" },
+        h(
+          "div",
+          { style: "flex:1;min-width:0" },
+          tag(j.producer ? j.producer.toUpperCase() : "NO PRODUCER", "font-size:9.5px"),
+          h("div", { class: "bigName" }, j.strain),
+          j.category ? h("div", { class: "mono sub" }, j.category) : null,
+          tag("LOGGED " + new Date(j.added).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" }).toUpperCase(), "font-size:8.5px")
+        ),
+        ratingDial(j.rating, 112)
+      ));
+      out.push(h(
+        "div",
+        { class: "panel pad" },
+        tag("REVIEW", "font-size:9.5px"),
+        h("p", { class: "mono review", style: j.review ? "" : "color:var(--dim)" }, j.review || "No words yet. Tap Edit to say how it hit.")
+      ));
+      out.push(dabsCard(j));
+      out.push(priceCard(j));
+      out.push(h(
+        "div",
+        { class: "row", style: "gap:10px" },
+        h("button", { class: "btn2 tall", style: "flex:1", onclick: () => store.setFinished(j.id, !j.finished) }, j.finished ? "BACK OPEN" : "FINISHED IT"),
+        h("button", { class: "btn2 tall", style: "width:64px;color:var(--warn)", "aria-label": "Delete jar", onclick: () => confirmSheet("Delete this jar?", "The photo and review go too. This can't be undone.", "Delete jar", "Keep it", () => {
+          void store.delete(j.id);
+          done();
+        }) }, "\u{1F5D1}")
+      ));
+      return out;
+    }
+    function currentBar(j) {
+      const isCur = store.currentID === j.id;
+      const btn = h("button", {
+        class: "curBar" + (isCur ? " on" : ""),
+        disabled: j.finished,
+        "aria-label": isCur ? "Now dabbing this jar. Tap to stop." : "Set as the jar you're dabbing",
+        onclick: () => {
+          if (isCur) {
+            store.setCurrent(null);
+            flashFor = null;
+          } else {
+            store.setCurrent(j.id);
+            flashFor = j.id;
+            try {
+              navigator.vibrate?.(10);
+            } catch {
+            }
+          }
+        }
+      }, isCur ? "\u2713 NOW DABBING" : "\u{1F525} DABBING THIS");
+      const note = j.finished ? "Finished jars can't be the current jar." : isCur ? flashFor === j.id ? "Got it. Your next dab logs to this jar." : "Your dabs log to this jar. Tap to stop." : "Tap so your next dab gets logged and rated here.";
+      return h("div", {}, btn, h("p", { class: "mono", style: `margin:6px 0 0;color:${isCur ? "var(--gold)" : "var(--dim)"}` }, note));
+    }
+    let flashFor = null;
+    function dabsCard(j) {
+      const dabs = j.dabs ?? [];
+      const rows = store.tempRows(j);
+      const best = rows.find((r) => r.flat) ?? rows[0];
+      const card = h("div", { class: "panel pad stackS" }, h("div", { class: "row" }, tag("DABS", "font-size:9.5px"), tag(`${dabs.length} LOGGED`, "margin-left:auto;font-size:8.5px")));
+      if (!dabs.length) card.append(h("p", { class: "mono dim" }, "No dabs yet. Tap DABBING THIS, heat up, and you'll be asked to rate it once the rig cools."));
+      if (best) {
+        card.append(h(
+          "div",
+          {},
+          tag("BEST SO FAR", "font-size:8.5px"),
+          h(
+            "div",
+            { class: "row", style: "align-items:baseline;gap:8px" },
+            h("b", { class: "cond", style: "font-size:28px" }, best.key),
+            h("b", { class: "cond", style: "font-size:22px;color:var(--gold)" }, Jars.ratingText(best.avg) + " avg"),
+            h("span", { class: "mono dim" }, `(${best.count})`)
+          )
+        ));
+        const hint = store.tempHint(j);
+        if (hint) card.append(h("p", { class: "mono", style: "color:var(--live);margin:0" }, hint));
+        if (rows.length > 1) {
+          const list = h("div", { class: "tempRows" });
+          for (const r of rows) list.append(h(
+            "div",
+            { class: "row" },
+            h("span", { class: "cond", style: `font-size:17px;color:${r.flat ? "var(--ink)" : "var(--sub)"}` }, r.key),
+            h("span", { class: "mono dim", style: "margin-left:auto" }, `${r.count} dab${r.count === 1 ? "" : "s"}`),
+            h("b", { class: "cond", style: "font-size:18px;color:var(--gold);width:44px;text-align:right" }, Jars.ratingText(r.avg))
+          ));
+          card.append(list);
+        }
+      }
+      if (dabs.length) {
+        card.append(h("hr"));
+        for (const d of dabs.slice(-10).reverse()) {
+          const when = new Date(d.at).toLocaleString(void 0, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).toUpperCase().replace(",", " \xB7");
+          const line = when + (d.peak !== void 0 ? ` \xB7 PEAK ${d.peak}\xB0` : "") + ` \xB7 ${d.seconds}S` + (d.grams !== void 0 ? ` \xB7 ${d.grams.toFixed(2)}G` : "");
+          card.append(h(
+            "div",
+            { class: "row dabRow" },
+            h(
+              "div",
+              { style: "flex:1;min-width:0" },
+              h("b", { class: "cond", style: "font-size:18px" }, Dabs.goalText(d)),
+              h("div", { class: "mono dim ellipsis", style: "font-size:9.5px" }, line),
+              d.note ? h("div", { class: "mono sub", style: "font-size:10.5px" }, d.note) : null
+            ),
+            d.rating === void 0 ? h("button", { class: "rateKey", onclick: () => rateSheet({ jarID: j.id, dab: d }) }, "RATE IT") : h("b", { class: "cond", style: "font-size:22px;color:var(--gold)" }, Jars.ratingText(d.rating))
+          ));
+        }
+      }
+      card.append(h("hr"));
+      const mine = j.flavors ?? [];
+      const fl = h("div", { class: "flavors" });
+      for (const f of JarFlavor) {
+        const on = mine.includes(f);
+        fl.append(h("button", { class: "flavor" + (on ? " on" : ""), onclick: () => store.setFlavors(j.id, on ? mine.filter((x) => x !== f) : [...mine, f]) }, f));
+      }
+      card.append(tag("FLAVOR", "font-size:8.5px"), fl);
+      return card;
+    }
+    function priceCard(j) {
+      const verdict = store.verdict(j);
+      const card = h("div", { class: "panel pad stackS" }, h("div", { class: "row" }, tag("PRICE", "font-size:9.5px"), tag("ONLY YOU", "margin-left:auto;font-size:8.5px")));
+      if (j.price === void 0) card.append(h("p", { class: "mono dim" }, "No price logged. Tap Edit to add what you paid."));
+      else {
+        const avg = Jars.avgDabGrams(j), n2 = Jars.sessionCount(j);
+        card.append(h(
+          "div",
+          { class: "cells" },
+          cell("PAID", Jars.money(j.price), "var(--ink)", j.grams !== void 0 ? Jars.gramsText(j.grams).toUpperCase() + " JAR" : void 0),
+          cell("PER GRAM", Jars.money(Jars.perGram(j)), "var(--gold)"),
+          cell(
+            avg !== void 0 ? "PER DAB" : "PER SESSION",
+            Jars.money(Jars.perSession(j)),
+            "var(--gold)",
+            avg !== void 0 ? `AVG ${avg.toFixed(2)} G` : n2 > 0 ? plural(n2, "SESSION") : void 0
+          )
+        ));
+        card.append(h(
+          "div",
+          { class: "row", style: "gap:10px" },
+          tag("WORTH IT?", "font-size:9px"),
+          h("b", { class: "cond", style: `font-size:22px;letter-spacing:2px;color:${verdict === "PRICEY" ? "var(--warn)" : verdict ? "var(--live)" : "var(--dim)"}` }, verdict ?? "\u2014")
+        ));
+        if (!verdict) card.append(h(
+          "p",
+          { class: "mono dim", style: "margin:0;font-size:10px" },
+          j.rating === void 0 || Jars.perGram(j) === void 0 ? "Needs a rating, price and grams." : "Shows once 3 jars have a price, grams and a rating."
+        ));
+        const left = Jars.gramsLeft(j);
+        if (left !== void 0) card.append(h("p", { class: "mono sub", style: "margin:0" }, `About ${left.toFixed(2)} g left, by your logged dab sizes.`));
+        if (j.shop) card.append(h("p", { class: "mono sub", style: "margin:0" }, `From ${j.shop} \xB7 ${new Date(Jars.boughtOn(j)).toLocaleDateString(void 0, { month: "short", day: "numeric", year: "numeric" })}`));
+      }
+      card.append(h("hr"));
+      const n = Jars.sessionCount(j);
+      card.append(h(
+        "div",
+        { class: "row", style: "gap:10px" },
+        h("div", {}, tag("SESSIONS", "font-size:8.5px"), h("b", { class: "cond", style: "display:block;font-size:30px" }, String(n))),
+        h("button", { class: "btn2", style: "margin-left:auto;width:52px", disabled: n === 0, onclick: () => store.logSession(j.id, -1) }, "\u22121"),
+        h("button", { class: "goldKey", style: "width:96px", onclick: () => store.logSession(j.id, 1) }, "+1")
+      ));
+      return card;
+    }
+    function editJar(original, onNew) {
+      openSheet((close) => {
+        const st = {
+          strain: original?.strain ?? "",
+          producer: original?.producer ?? "",
+          category: original?.category ?? null,
+          review: original?.review ?? "",
+          rating: original?.rating,
+          finished: original?.finished ?? false,
+          price: original?.price !== void 0 ? String(original.price) : "",
+          grams: original?.grams,
+          gramsText: original?.grams !== void 0 && !GRAM_PICKS.includes(original.grams) ? String(original.grams) : "",
+          shop: original?.shop ?? "",
+          bought: new Date(original ? Jars.boughtOn(original) : Date.now()),
+          change: { kind: "keep" },
+          preview: void 0
+        };
+        const body = h("div", { class: "pageBody" });
+        let failed = false;
+        const draw = () => body.replaceChildren(...editPage());
+        const focusKeep = (fn) => {
+          const a = document.activeElement;
+          const id = a?.id;
+          const pos = a?.selectionStart;
+          fn();
+          if (id) {
+            const el = document.getElementById(id);
+            if (el) {
+              el.focus();
+              try {
+                if (pos !== null && pos !== void 0) el.setSelectionRange(pos, pos);
+              } catch {
+              }
+            }
+          }
+        };
+        const pickFile = h("input", { type: "file", accept: "image/*", hidden: true, onchange: (e) => usePhoto(e) });
+        const snapFile = h("input", { type: "file", accept: "image/*", capture: "environment", hidden: true, onchange: (e) => usePhoto(e) });
+        async function usePhoto(e) {
+          const input = e.target;
+          const f = input.files?.[0];
+          input.value = "";
+          if (!f) return;
+          try {
+            const p = await photoFromFile(f);
+            st.change = { kind: "replace", big: p.big, thumb: p.thumb };
+            if (st.preview) URL.revokeObjectURL(st.preview);
+            st.preview = URL.createObjectURL(p.big);
+          } catch {
+            store.problem = "Couldn't read that photo. Try another one.";
+            failed = true;
+          }
+          draw();
+        }
+        function editPage() {
+          const out = [];
+          out.push(topBar(
+            textBtn("Cancel", () => {
+              if (st.preview) URL.revokeObjectURL(st.preview);
+              close();
+            }),
+            h("div", { class: "center" }, tag(original ? "EDIT" : "NEW", "font-size:9.5px"), h("div", { class: "cond", style: "font-size:24px;letter-spacing:2px" }, original ? "EDIT JAR" : "LOG A JAR")),
+            null
+          ));
+          const hasPhoto = st.preview !== void 0 ? st.preview !== null : !!original?.photo;
+          out.push(jarPhoto(store, { photo: original?.photo, producer: st.producer }, "100%", 18, false, st.preview));
+          out.push(h(
+            "div",
+            { class: "row", style: "gap:8px" },
+            h("button", { class: "photoKey", onclick: () => snapFile.click() }, hasPhoto ? "\u{1F4F7} RETAKE" : "\u{1F4F7} SNAP IT"),
+            h("button", { class: "photoKey", onclick: () => pickFile.click() }, "\u{1F5BC} PICK"),
+            hasPhoto ? h("button", { class: "photoKey", style: "flex:none;width:52px;color:var(--sub)", "aria-label": "Remove photo", onclick: () => {
+              st.change = { kind: "remove" };
+              if (st.preview) URL.revokeObjectURL(st.preview);
+              st.preview = null;
+              draw();
+            } }, "\u2715") : null,
+            pickFile,
+            snapFile
+          ));
+          out.push(field("STRAIN", "Orange Starburst", "edStrain", st.strain, (v) => {
+            st.strain = v;
+            focusKeep(draw);
+          }));
+          const prod = field("PRODUCER", "Pressure", "edProducer", st.producer, (v) => {
+            st.producer = v;
+          });
+          const picks = store.knownProducers.slice(0, 6);
+          if (picks.length) {
+            const row = h("div", { class: "chips scrollX", style: "margin-top:8px" });
+            for (const name of picks) row.append(h("button", { class: "chip gold" + (st.producer === name ? " on" : ""), onclick: () => {
+              st.producer = name;
+              draw();
+            } }, name.toUpperCase()));
+            prod.append(row);
+          }
+          out.push(prod);
+          const cats = h("div", { class: "catGrid" });
+          for (const c of JarCategory) cats.append(h("button", { class: "catKey" + (st.category === c ? " on" : ""), onclick: () => {
+            st.category = st.category === c ? null : c;
+            draw();
+          } }, c.toUpperCase()));
+          out.push(h("div", {}, tag("TYPE", "font-size:9.5px"), cats));
+          const rate = h(
+            "div",
+            { class: "panel pad stackS center" },
+            h("div", { class: "row" }, tag("RATE IT", "font-size:9.5px"), st.rating !== void 0 ? h("button", { class: "textBtn", style: "margin-left:auto;font-size:16px", onclick: () => {
+              st.rating = void 0;
+              draw();
+            } }, "Clear") : null),
+            h("div", { style: "display:flex;justify-content:center" }, ratingDial(st.rating, 150))
+          );
+          if (st.rating === void 0) rate.append(h("button", { class: "btn2 wide", style: "color:var(--gold)", onclick: () => {
+            st.rating = 7;
+            draw();
+          } }, "TAP TO RATE"));
+          else {
+            rate.append(h("input", {
+              type: "range",
+              min: 0,
+              max: 10,
+              step: 0.1,
+              value: String(st.rating),
+              class: "gold",
+              oninput: (e) => {
+                st.rating = Jars.clampRating(Number(e.target.value));
+                updDial();
+              }
+            }));
+            const bump = (d) => () => {
+              st.rating = Jars.clampRating((st.rating ?? 7) + d);
+              draw();
+            };
+            rate.append(h(
+              "div",
+              { class: "row", style: "gap:8px" },
+              ...[["\u22121", -1], ["\u2212.1", -0.1], ["+.1", 0.1], ["+1", 1]].map(([l, d]) => h("button", { class: "step", style: "flex:1;color:var(--gold)", onclick: bump(d) }, l))
+            ));
+          }
+          const updDial = () => {
+            const old = rate.querySelector(".dial");
+            if (old) old.replaceWith(ratingDial(st.rating, 150));
+          };
+          out.push(rate);
+          const count = tag(`${st.review.length} / ${REVIEW_LIMIT}`, "margin-left:auto;font-size:9px");
+          out.push(h(
+            "div",
+            {},
+            h("div", { class: "row" }, tag("SAY IT", "font-size:9.5px"), count),
+            h("textarea", {
+              class: "panel textIn",
+              rows: 5,
+              maxlength: REVIEW_LIMIT,
+              placeholder: "Taste, smell, how it hit, what temp.",
+              value: st.review,
+              oninput: (e) => {
+                st.review = e.target.value.slice(0, REVIEW_LIMIT);
+                count.textContent = `${st.review.length} / ${REVIEW_LIMIT}`;
+              }
+            })
+          ));
+          out.push(priceFields());
+          if (original) out.push(h(
+            "label",
+            { class: "panel switchRow pad" },
+            h("span", {}, h("b", { class: "cond", style: "font-size:20px" }, "Finished it"), h("br"), h("small", { class: "mono dim" }, "Finished jars sit at the back of the shelf.")),
+            h("input", { type: "checkbox", checked: st.finished, onchange: (e) => {
+              st.finished = e.target.checked;
+            } })
+          ));
+          if (failed && store.problem) out.push(h("p", { class: "mono", style: "color:var(--warn)" }, store.problem));
+          const canSave = st.strain.trim() !== "";
+          out.push(h("button", { class: "goldBtn big", disabled: !canSave, onclick: async () => {
+            const base = original ? { ...original } : { id: uid(), strain: "", producer: "", review: "", finished: false, added: (/* @__PURE__ */ new Date()).toISOString(), updated: (/* @__PURE__ */ new Date()).toISOString() };
+            const jar = { ...base, strain: st.strain, producer: st.producer, review: st.review, finished: st.finished };
+            if (st.category) jar.category = st.category;
+            else delete jar.category;
+            if (st.rating !== void 0) jar.rating = st.rating;
+            else delete jar.rating;
+            const price = Number(st.price.replace("$", "").replace(",", "."));
+            if (st.price.trim() && price > 0) jar.price = price;
+            else delete jar.price;
+            if (st.grams !== void 0) jar.grams = st.grams;
+            else delete jar.grams;
+            jar.shop = st.shop;
+            jar.bought = st.bought.toISOString();
+            if (await store.save(jar, st.change)) {
+              if (st.preview) URL.revokeObjectURL(st.preview);
+              close();
+              if (!original && onNew && !jar.finished) onNew(jar.id);
+            } else {
+              failed = true;
+              draw();
+            }
+          } }, original ? "SAVE IT" : "LOG IT"));
+          if (!canSave) out.push(h("p", { class: "mono dim center", style: "font-size:10px;margin:0" }, "Name the strain to log it."));
+          return out;
+        }
+        function priceFields() {
+          const pg = h("p", { class: "mono", style: "color:var(--gold);margin:0" });
+          const updPg = () => {
+            const p = Number(st.price.replace("$", ""));
+            pg.textContent = p > 0 && st.grams ? `${Jars.money(p / st.grams)} per gram` : "";
+          };
+          const keys = h("div", { class: "row", style: "gap:8px" });
+          for (const g of GRAM_PICKS) keys.append(h("button", { class: "catKey" + (st.grams === g && !st.gramsText ? " on" : ""), style: "flex:1", onclick: () => {
+            st.grams = g;
+            st.gramsText = "";
+            draw();
+          } }, Jars.gramsText(g).toUpperCase()));
+          const box = h(
+            "div",
+            { class: "panel pad stackS" },
+            h("div", { class: "row" }, tag("PRICE LOG", "font-size:9.5px"), tag("ONLY YOU", "margin-left:auto;font-size:8.5px")),
+            h(
+              "div",
+              { class: "row", style: "gap:10px" },
+              h(
+                "label",
+                { class: "panel inBox", style: "flex:1" },
+                h("span", { class: "dim" }, "$"),
+                h("input", { id: "edPrice", inputmode: "decimal", placeholder: "35", value: st.price, oninput: (e) => {
+                  st.price = e.target.value;
+                  updPg();
+                } })
+              ),
+              h(
+                "label",
+                { class: "panel inBox", style: "width:120px" },
+                h("input", { id: "edGrams", inputmode: "decimal", placeholder: "Other", value: st.gramsText, oninput: (e) => {
+                  const t = e.target.value;
+                  st.gramsText = t;
+                  const g = Number(t);
+                  if (g > 0) st.grams = g;
+                  else if (t) st.grams = void 0;
+                  updPg();
+                  keys.querySelectorAll(".catKey").forEach((k) => k.classList.remove("on"));
+                } }),
+                h("span", { class: "dim" }, "g")
+              )
+            ),
+            keys,
+            pg,
+            h("input", { class: "panel textLine", placeholder: "Where you got it (optional)", value: st.shop, maxlength: 60, oninput: (e) => {
+              st.shop = e.target.value;
+            } }),
+            h(
+              "label",
+              { class: "panel inBox", style: "justify-content:space-between" },
+              h("span", { class: "cond", style: "font-size:20px" }, "Bought"),
+              h("input", { type: "date", value: dateValue(st.bought), max: dateValue(/* @__PURE__ */ new Date()), onchange: (e) => {
+                const v = e.target.value;
+                if (v) {
+                  const [y, m, d] = v.split("-").map(Number);
+                  st.bought = new Date(y, m - 1, d, 12);
+                }
+              } })
+            )
+          );
+          updPg();
+          return box;
+        }
+        draw();
+        return body;
+      });
+    }
+    function field(label, hint, id, value, onInput) {
+      return h(
+        "div",
+        {},
+        tag(label, "font-size:9.5px"),
+        h("input", {
+          id,
+          class: "panel textLine big",
+          placeholder: hint,
+          value,
+          autocapitalize: "words",
+          autocomplete: "off",
+          spellcheck: false,
+          oninput: (e) => onInput(e.target.value)
+        })
+      );
+    }
+    function spendSheet() {
+      openSheet((close) => {
+        const s = store.spend();
+        const top = Math.max(0, ...s.byMonth.map((r) => r[1]));
+        const months = h("div", { class: "panel pad stackS" }, tag("LAST 12 MONTHS", "font-size:9.5px"));
+        if (!s.byMonth.length) months.append(h("p", { class: "mono dim" }, "Nothing priced yet. Add what you paid when you log a jar."));
+        for (const [m, v] of s.byMonth) months.append(h(
+          "div",
+          { class: "row", style: "gap:10px" },
+          h("span", { class: "mono sub", style: "width:78px" }, new Date(m).toLocaleDateString(void 0, { month: "short", year: "numeric" }).toUpperCase()),
+          h("span", { class: "bar" }, h("i", { style: `width:${Math.max(4, top > 0 ? v / top * 100 : 0)}%` })),
+          h("b", { class: "cond", style: "font-size:18px;width:70px;text-align:right" }, Jars.money(v))
+        ));
+        return h(
+          "div",
+          { class: "pageBody" },
+          topBar(textBtn("Done", close), h("div", { class: "center" }, tag("ONLY YOU", "font-size:9.5px"), h("div", { class: "cond", style: "font-size:24px;letter-spacing:2px" }, "SPEND")), null),
+          h(
+            "div",
+            { class: "panel pad row" },
+            h("div", {}, tag("ALL TIME", "font-size:8.5px"), h("b", { class: "cond", style: "display:block;font-size:30px" }, Jars.money(s.all)), tag(plural(s.pricedJars, "PRICED JAR"), "font-size:8px")),
+            h("div", { style: "margin-left:auto;text-align:right" }, tag("AVG PER GRAM", "font-size:8.5px"), h("b", { class: "cond", style: "display:block;font-size:30px;color:var(--gold)" }, Jars.money(s.avgPerGram)))
+          ),
+          months,
+          h("p", { class: "mono dim center", style: "font-size:10px" }, "Prices never leave this phone.")
+        );
+      });
+    }
+    let promptOpen = null;
+    function renderPrompt() {
+      const p = watcher2.prompt;
+      if (!p) {
+        if (promptOpen) {
+          promptOpen.close();
+          promptOpen = null;
+        }
+        return;
+      }
+      if (promptOpen?.prompt === p) return;
+      promptOpen?.close();
+      const close = rateSheet(p, () => {
+        promptOpen = null;
+        watcher2.close();
+      });
+      promptOpen = { prompt: p, close };
+    }
+    function rateSheet(prompt, onDone) {
+      let closeFn = () => {
+      };
+      const closeAll = () => {
+        closeFn();
+        onDone?.();
+      };
+      closeFn = openSheet(() => {
+        let picked = null;
+        let keepCurrent = true;
+        const jarIDf = () => prompt.jarID ?? picked;
+        const jarf = () => store.jar(jarIDf());
+        const j0 = jarf();
+        let rating = prompt.dab.rating ?? [...j0?.dabs ?? []].reverse().find((d) => d.rating !== void 0)?.rating ?? 8;
+        let sizePos = 1, sizeSet = false, sizeTouched = false;
+        const g0 = prompt.dab.grams ?? (j0 ? Jars.lastDabGrams(j0) : void 0);
+        if (g0 !== void 0) {
+          sizePos = Dabs.positionFor(g0);
+          sizeSet = true;
+        }
+        let noteOpen = false, note = "";
+        let flavors = [];
+        const card = h("div", { class: "cardBody rate" });
+        const nudge = () => {
+          const j = jarf();
+          if (!j) return false;
+          const n = (j.dabs ?? []).length + (prompt.jarID === null ? 1 : 0);
+          return Dabs.flavorNudge(n, (j.flavors ?? []).length > 0);
+        };
+        const lastSame = () => {
+          const j = jarf();
+          if (!j) return void 0;
+          const k = Dabs.groupKey(prompt.dab);
+          const same = (j.dabs ?? []).filter((d) => d.id !== prompt.dab.id && Dabs.groupKey(d) === k && d.rating !== void 0);
+          return same.sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0]?.rating;
+        };
+        function finish(rate) {
+          const r = rate ? Dabs.clamp(rating) : void 0;
+          const n = note.trim();
+          const size = sizeSet && (rate || sizeTouched) ? Dabs.gramsAt(sizePos) : void 0;
+          if (prompt.jarID) {
+            store.updateDab(prompt.jarID, prompt.dab.id, (d) => {
+              d.asked = true;
+              if (r !== void 0) d.rating = r;
+              if (size !== void 0) d.grams = size;
+              else if (rate || sizeTouched) delete d.grams;
+              if (n) d.note = n;
+            });
+          } else if (picked) {
+            const d = { ...prompt.dab, asked: true };
+            if (r !== void 0) d.rating = r;
+            if (size !== void 0) d.grams = size;
+            if (n) d.note = n;
+            store.addDab(d, picked);
+            if (keepCurrent) store.setCurrent(picked);
+          }
+          const id = jarIDf();
+          if (id && flavors.length) store.setFlavors(id, flavors);
+          if (rate) {
+            try {
+              navigator.vibrate?.([10, 40, 10]);
+            } catch {
+            }
+          }
+          closeAll();
+        }
+        function draw() {
+          const j = jarf();
+          const kids = [];
+          kids.push(h(
+            "div",
+            { class: "row" },
+            tag("HOW WAS THAT DAB?", "font-size:9.5px"),
+            tag(`${Dabs.goalText(prompt.dab)} \xB7 ${prompt.dab.seconds} S`, "margin-left:auto;font-size:9px;color:var(--sub)")
+          ));
+          if (j) kids.push(h("div", { class: "bigName", style: "font-size:28px" }, j.strain));
+          if (prompt.jarID === null) {
+            const open = store.shelf.filter((x) => !x.finished);
+            const strip = h("div", { class: "chips scrollX", style: "gap:10px" });
+            for (const x of open) {
+              strip.append(h(
+                "button",
+                { class: "pickJar" + (picked === x.id ? " on" : ""), onclick: () => {
+                  picked = x.id;
+                  draw();
+                } },
+                jarPhoto(store, x, "64px", 10),
+                h("span", { class: "ellipsis" }, x.strain)
+              ));
+            }
+            kids.push(h(
+              "div",
+              {},
+              tag("WHICH JAR WAS THAT?", "font-size:9.5px;color:var(--gold)"),
+              open.length ? strip : h("p", { class: "mono dim" }, "No open jars yet. Log one in JARS."),
+              picked ? h(
+                "label",
+                { class: "switchRow" },
+                h("span", { class: "mono sub" }, "Log my next dabs to this jar"),
+                h("input", { type: "checkbox", checked: keepCurrent, onchange: (e) => {
+                  keepCurrent = e.target.checked;
+                } })
+              ) : null
+            ));
+          }
+          const big = h("b", { class: "cond", style: "font-size:64px;line-height:1;color:var(--gold)" }, Jars.ratingText(rating));
+          const last = lastSame();
+          kids.push(h(
+            "div",
+            { class: "row", style: "align-items:baseline" },
+            big,
+            h("span", { class: "cond dim", style: "font-size:20px;margin-left:6px" }, "/ 10"),
+            last !== void 0 ? h(
+              "div",
+              { style: "margin-left:auto;text-align:right" },
+              tag("LAST TIME AT " + Dabs.goalText(prompt.dab), "font-size:8px"),
+              h("b", { class: "cond", style: "display:block;font-size:22px;color:var(--sub)" }, Jars.ratingText(last))
+            ) : null
+          ));
+          const quick = h("div", { class: "row", style: "gap:8px" });
+          const slider = h("input", {
+            type: "range",
+            min: 1,
+            max: 10,
+            step: 0.1,
+            value: String(rating),
+            class: "gold",
+            oninput: (e) => {
+              rating = Dabs.clamp(Number(e.target.value));
+              big.textContent = Jars.ratingText(rating);
+              quick.querySelectorAll("button").forEach((b) => b.classList.toggle("on", Number(b.textContent) === rating));
+            }
+          });
+          for (const v of [6, 7, 8, 9]) quick.append(h("button", { class: "quick" + (rating === v ? " on" : ""), onclick: () => {
+            rating = v;
+            draw();
+          } }, String(v)));
+          kids.push(slider, quick);
+          const sizeLabel = sizeSet ? h(
+            "span",
+            { class: "row", style: "margin-left:auto;gap:4px" },
+            h("b", { class: "cond", style: "font-size:16px;color:var(--gold)" }, Dabs.sizeText(Dabs.gramsAt(sizePos))),
+            h("button", { class: "textBtn", "aria-label": "Clear dab size", style: "min-height:30px;min-width:30px", onclick: () => {
+              sizeSet = false;
+              draw();
+            } }, "\u2715")
+          ) : tag("OPTIONAL", "margin-left:auto;font-size:8px");
+          const stops = h("div", { class: "row", style: "gap:0" });
+          SIZE_STOPS.forEach((s, i) => stops.append(h(
+            "button",
+            {
+              class: "stop" + (sizeSet && Math.abs(sizePos - i) < 1e-3 ? " on" : ""),
+              onclick: () => {
+                sizePos = i;
+                sizeSet = true;
+                sizeTouched = true;
+                draw();
+              }
+            },
+            h("b", {}, s.name),
+            h("small", {}, (s.grams < 0.1 ? s.grams.toFixed(2) : s.grams.toFixed(1)) + "g")
+          )));
+          kids.push(h(
+            "div",
+            {},
+            h("div", { class: "row" }, tag("DAB SIZE", "font-size:9px"), sizeLabel),
+            h("input", {
+              type: "range",
+              min: 0,
+              max: SIZE_STOPS.length - 1,
+              step: 0.01,
+              value: String(sizePos),
+              class: sizeSet ? "gold" : "dimRange",
+              onchange: (e) => {
+                sizePos = Dabs.snap(Number(e.target.value));
+                sizeSet = true;
+                sizeTouched = true;
+                draw();
+              },
+              oninput: (e) => {
+                sizePos = Dabs.snap(Number(e.target.value));
+                sizeSet = true;
+                sizeTouched = true;
+                const b = card.querySelector(".sizeNow");
+                if (b) b.textContent = Dabs.sizeText(Dabs.gramsAt(sizePos));
+              }
+            }),
+            stops
+          ));
+          const nd = nudge();
+          if (nd) {
+            const fl = h("div", { class: "flavors" });
+            for (const f of JarFlavor) fl.append(h("button", {
+              class: "flavor" + (flavors.includes(f) ? " on" : ""),
+              onclick: () => {
+                flavors = flavors.includes(f) ? flavors.filter((x) => x !== f) : [...flavors, f];
+                draw();
+              }
+            }, f));
+            kids.push(h("div", {}, h("div", { class: "row" }, tag("GOT A READ ON THE FLAVOR?", "font-size:9px"), tag("OPTIONAL", "margin-left:auto;font-size:8px")), fl));
+          }
+          if (noteOpen || nd) kids.push(h("input", {
+            class: "panel textLine",
+            maxlength: 200,
+            value: note,
+            placeholder: nd ? "Flavor, smoothness, anything (optional)" : "A note on this dab",
+            oninput: (e) => {
+              note = e.target.value;
+            }
+          }));
+          else kids.push(h("button", { class: "textBtn", style: "align-self:flex-start;letter-spacing:1.5px", onclick: () => {
+            noteOpen = true;
+            draw();
+          } }, "+ NOTE"));
+          kids.push(h(
+            "div",
+            { class: "row", style: "gap:10px" },
+            h("button", { class: "btn2", style: "width:96px;min-height:54px", onclick: () => finish(false) }, "Skip"),
+            h("button", { class: "goldBtn", style: "flex:1;margin:0;min-height:54px", disabled: !jarIDf(), onclick: () => finish(true) }, "RATE IT")
+          ));
+          card.replaceChildren(...kids.filter((k) => !!k));
+          const sizeB = card.querySelector(".row b.cond[style*='16px']");
+          if (sizeB) sizeB.classList.add("sizeNow");
+        }
+        draw();
+        return card;
+      }, "card");
+      return closeAll;
+    }
+    return {
+      renderHome,
+      renderJars,
+      renderOpen: () => {
+        for (const f of openPages) f();
+      },
+      renderPrompt
+    };
+  }
+  function cell(title, value, color = "var(--ink)", note) {
+    return h("div", { class: "cell" }, tag(title, "font-size:8.5px"), h("b", { style: `color:${color}` }, value), note ? tag(note, "font-size:8px") : null);
+  }
+  function statusTag(finished) {
+    return h("span", { class: "status" + (finished ? "" : " open") }, finished ? "FINISHED" : "OPEN");
+  }
+  function dateValue(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  function jarIcon() {
+    const ns = "http://www.w3.org/2000/svg";
+    const s = document.createElementNS(ns, "svg");
+    s.setAttribute("viewBox", "0 0 24 24");
+    s.setAttribute("class", "jarIcon");
+    s.innerHTML = `<ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v11c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"/>`;
+    return s;
+  }
+
   // src/web/app.ts
-  var BUILD = "app-4a.4";
+  var BUILD = "app-4b.1";
   var clock = new RealClock();
   var central = new WebCentral();
   var ble = new BLEManager(central, clock);
@@ -2300,6 +4065,26 @@
       }
     }
   };
+  var backend;
+  try {
+    backend = typeof indexedDB !== "undefined" ? new IDBJarBackend() : new MemoryJarBackend();
+  } catch {
+    backend = new MemoryJarBackend();
+  }
+  var jars = new JarStore(backend);
+  var watcher = new DabWatcher(jars);
+  var jarUI = mountJars(jars, watcher, (t) => showTab(t));
+  jars.onChange = () => {
+    jarUI.renderHome();
+    if (tab === "jars") jarUI.renderJars();
+    jarUI.renderOpen();
+  };
+  watcher.onPrompt = () => jarUI.renderPrompt();
+  void jars.load().then(() => watcher.appOpened());
+  try {
+    void navigator.storage?.persist?.();
+  } catch {
+  }
   if (prefs.get("age21") === "yes") $("age").hidden = true;
   $("ageYes").onclick = () => {
     prefs.set("age21", "yes");
@@ -2367,6 +4152,7 @@
     });
     document.querySelectorAll("[data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === t));
     window.scrollTo(0, 0);
+    if (t === "jars") jarUI.renderJars();
     schedule();
   }
   document.querySelectorAll("[data-tab]").forEach((b) => {
@@ -2481,10 +4267,10 @@
   ];
   var lightGrid = $("lightGrid");
   for (const [title, modes] of groups) {
-    const h = document.createElement("div");
-    h.className = "tag";
-    h.textContent = title.toUpperCase();
-    lightGrid.appendChild(h);
+    const h2 = document.createElement("div");
+    h2.className = "tag";
+    h2.textContent = title.toUpperCase();
+    lightGrid.appendChild(h2);
     const g = document.createElement("div");
     g.className = "orbs";
     for (const m of modes) {
@@ -2717,7 +4503,10 @@
     }
   }
   ble.onChange = schedule;
-  rig.onChange = schedule;
+  rig.onChange = () => {
+    watcher.update(rig);
+    schedule();
+  };
   setInterval(schedule, 500);
   showTab("home");
   render();

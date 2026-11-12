@@ -1,6 +1,6 @@
-// Phase 4a: the Torchless web app. Same rig logic as the test page (src/rig, unchanged), with the
-// Gauge screens from the iPhone app: Link it, Home (gauge, presets, HEAT IT / CUT IT), Lights, Rig.
-// Accounts and jars come in phase 4b. Sign-in will be optional (Manny, 2026-11-11).
+// The Torchless web app. Same rig logic as the test page (src/rig, unchanged), with the Gauge screens from
+// the iPhone app: Link it, Home (gauge, presets, HEAT IT / CUT IT, current jar), Jars, Lights, Rig.
+// Phase 4b: the jar library, dab rating and price log, kept on this device. Sign-in comes later.
 
 import { RealClock } from "../rig/clock";
 import { LocalStore } from "../rig/storage";
@@ -8,8 +8,11 @@ import { BLEManager } from "../rig/ble-manager";
 import { RigController, LightModes, HeatProfile, RigLimits } from "../rig/rig-controller";
 import { WebCentral } from "../rig/web-central";
 import { chargingOf } from "../rig/frames";
+import { JarStore, IDBJarBackend, MemoryJarBackend } from "./jars";
+import { DabWatcher } from "./dab-watcher";
+import { mountJars } from "./jar-ui";
 
-const BUILD = "app-4a.4";
+const BUILD = "app-4b.1";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -22,6 +25,20 @@ const prefs = {
   get(k: string): string | null { try { return localStorage.getItem("torchless." + k); } catch { return null; } },
   set(k: string, v: string) { try { localStorage.setItem("torchless." + k, v); } catch { /* private mode */ } },
 };
+
+// MARK: Jars (on this device: IndexedDB, or memory when the browser blocks storage)
+
+let backend;
+try { backend = typeof indexedDB !== "undefined" ? new IDBJarBackend() : new MemoryJarBackend(); }
+catch { backend = new MemoryJarBackend(); }
+const jars = new JarStore(backend);
+const watcher = new DabWatcher(jars);
+const jarUI = mountJars(jars, watcher, (t) => showTab(t));
+jars.onChange = () => { jarUI.renderHome(); if (tab === "jars") jarUI.renderJars(); jarUI.renderOpen(); };
+watcher.onPrompt = () => jarUI.renderPrompt();
+void jars.load().then(() => watcher.appOpened());
+// Ask the browser to keep this site's storage (Chrome grants it for installed apps; others may ignore it).
+try { void (navigator.storage as StorageManager | undefined)?.persist?.(); } catch { /* fine */ }
 
 // MARK: Age gate (21+), asked once per browser
 
@@ -85,6 +102,7 @@ function showTab(t: string) {
   document.querySelectorAll<HTMLElement>("[data-panel]").forEach(el => { el.hidden = el.dataset.panel !== t; });
   document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
   window.scrollTo(0, 0);
+  if (t === "jars") jarUI.renderJars();
   schedule();
 }
 document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach(b => { b.onclick = () => showTab(b.dataset.tab!); });
@@ -423,7 +441,7 @@ function render() {
 }
 function schedule() { if (!queued) { queued = true; requestAnimationFrame(render); } }
 ble.onChange = schedule;
-rig.onChange = schedule;
+rig.onChange = () => { watcher.update(rig); schedule(); };
 setInterval(schedule, 500);
 showTab("home");
 render();
