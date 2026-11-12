@@ -114,15 +114,17 @@ function scope(): Face {
   } };
 }
 
+let pourCount = 0;
 function pour(): Face {
   const root = el("div", "face pour");
   const W = 340, H = 300;
   const s = svg("svg", { viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", class: "pourSvg" });
   const defs = svg("defs", {});
-  const g = svg("linearGradient", { id: "pourGrad", x1: 0, y1: 0, x2: 0, y2: 1 });
+  const gid = `pourGrad${++pourCount}`;   // one id per copy: the Look page shows a second Pour
+  const g = svg("linearGradient", { id: gid, x1: 0, y1: 0, x2: 0, y2: 1 });
   g.append(svg("stop", { offset: 0, "stop-color": "#FFD27A" }), svg("stop", { offset: 0.5, "stop-color": "#E8B24A" }), svg("stop", { offset: 1, "stop-color": "#8A5A12" }));
   defs.append(g); s.append(defs);
-  const wave = svg("path", { d: "", fill: "url(#pourGrad)", class: "pWave" });
+  const wave = svg("path", { d: "", fill: `url(#${gid})`, class: "pWave" });
   s.append(wave, svg("path", { d: `M0 ${H * 0.18}H${W}`, class: "sTarget" }));
   const top = el("div", "fRow pTop"); const st = el("span", "tag"); const tgt = el("span", "tag goldTag"); top.append(st, tgt);
   const mid = el("div", "pMid"); const big = el("b"); const line = el("span", "pLine"); mid.append(big, line);

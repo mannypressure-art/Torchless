@@ -98,6 +98,8 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", () => rig.appMovedToBackground());
 window.addEventListener("pageshow", () => { if (document.visibilityState === "visible") rig.appBecameActive(); });
+// The browser drops the wake lock when the page is hidden; ask again when it comes back mid-dab.
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && rig.sessionOn) void keepAwake(true); });
 
 // Keep the screen on while heating where the browser allows it: a locked phone freezes the page.
 type Lock = { release(): Promise<void> };
@@ -106,7 +108,7 @@ async function keepAwake(on: boolean) {
   const wl = (navigator as unknown as { wakeLock?: { request(t: string): Promise<Lock> } }).wakeLock;
   if (!wl) return;
   try {
-    if (on && !wake) wake = await wl.request("screen");
+    if (on && !wake) { wake = await wl.request("screen"); (wake as unknown as EventTarget).addEventListener?.("release", () => { wake = null; }); }
     if (!on && wake) { const w = wake; wake = null; await w.release(); }
   } catch { wake = null; }
 }
@@ -336,7 +338,7 @@ function openLightShow() {
         h("div", { class: "row", style: "gap:10px" }, h("span", { class: "cond", style: "font-size:18px;width:120px" }, `Brightness ${st.brightness}`),
           h("input", { type: "range", min: 0, max: 100, step: 1, value: String(st.brightness), style: "flex:1", onchange: (e: Event) => upd(x => { x.brightness = Number((e.target as HTMLInputElement).value); }) })),
         h("div", { class: "row" },
-          h("button", { class: "btn2", style: "color:var(--live);font-size:15px", disabled: !rig.canPreview, onclick: () => rig.previewStep(rig.show.steps[i] ?? st) }, "PREVIEW 3s"),
+          h("button", { class: "btn2 pvBtn", style: "color:var(--live);font-size:15px", disabled: !rig.canPreview, onclick: () => rig.previewStep(rig.show.steps[i] ?? st) }, "PREVIEW 3s"),
           h("span", { style: "flex:1" }),
           h("button", { class: "textBtn", style: "color:var(--warn);font-size:15px", onclick: () => editShow(s => { s.steps = s.steps.filter(y => y.id !== st.id); }) }, "REMOVE")));
     };
@@ -455,6 +457,7 @@ function render() {
   const linked = ble.isConnected;
   const heating = rig.sessionOn;
   if (heating !== wasHeating) { wasHeating = heating; void keepAwake(heating); }
+  document.querySelectorAll<HTMLButtonElement>(".pvBtn").forEach(b => { if (b.disabled === rig.canPreview) b.disabled = !rig.canPreview; });
 
   // Link screen until the rig is linked (or coming back).
   if (linked) lookAround = false;
@@ -666,7 +669,7 @@ $("dialB").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMo
 const heatFX = new HeatFX($("faceCard"), () => prefs.get("heatSound") ?? "chimes", () => faceID);
 rig.onChange = () => { watcher.update(rig); heatFX.update(rig); schedule(); };
 // Audio can only start after a tap: unlock it on the first tap of any kind, and resume after an interruption.
-document.addEventListener("pointerdown", () => heatSound.unlock(), { capture: true, passive: true });
+for (const ev of ["pointerdown", "pointerup", "touchend", "click"]) document.addEventListener(ev, () => heatSound.unlock(), { capture: true, passive: true });
 setInterval(schedule, 500);
 setFace(faceID);
 { // The Link screen's dim gauge, as on iPhone: needle at rest, no readout.

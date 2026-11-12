@@ -35,6 +35,8 @@ class HeatSound {
   private lastNeed = 0;
   private idleTimer = 0;
   private ctl: [number, number, number, boolean] = [1, 0, 0, false];
+  private unlocked = false;
+  private previewUntil = 0;
 
   /** Called from the first tap of any kind (and every tap after), since audio needs a user gesture. */
   unlock(): void {
@@ -49,7 +51,13 @@ class HeatSound {
       try { this.ctx = new AC({ latencyHint: "interactive" }); } catch { return; }
       if (!this.ctx.audioWorklet) { this.ctx = null; return; }   // AudioWorklet only (Safari 14.1+, Chrome 66+)
       this.load();
-      if (!this.needed()) void this.ctx.suspend().catch(() => {});
+    }
+    if (!this.unlocked) {
+      // WebKit only lets audio start inside a real activation (touchend/click), so resume here,
+      // then park it again if nothing needs sound right now.
+      this.unlocked = true;
+      const ctx = this.ctx;
+      void ctx.resume().then(() => { if (!this.needed()) void ctx.suspend().catch(() => {}); }, () => { this.unlocked = false; });
       return;
     }
     // "interrupted" (a call, Siri) or a suspend we didn't ask for: pick back up on a tap when sound is wanted.
@@ -90,8 +98,11 @@ class HeatSound {
   play(e: HeatEvent, theme: string): void {
     const t = themeIndex(theme);
     if (t === 0) return;
-    this.send({ ev: [e, t] });
     this.lastNeed = performance.now();
+    // While the page is hidden or audio is parked, drop the moment rather than let a pile of chimes
+    // play all at once on resume. The start sound is kept: it is what wakes the audio.
+    const running = this.ctx?.state === "running" && document.visibilityState !== "hidden";
+    if (running || (e === "start" && document.visibilityState !== "hidden")) this.send({ ev: [e, t] });
     this.start();
     this.scheduleIdleCheck();
   }
@@ -103,6 +114,9 @@ class HeatSound {
     if (t === 0 && !this.ctx) return;
     this.send({ pv: t });
     this.lastNeed = performance.now() + 7000;   // the preview runs about 7 s
+    // The preview overwrites the live controls inside the worklet; send them again when it ends.
+    this.previewUntil = performance.now() + 7300;
+    window.setTimeout(() => { if (performance.now() >= this.previewUntil) this.send({ ctl: this.ctl }); }, 7400);
     this.start();
     this.scheduleIdleCheck();
   }
@@ -214,6 +228,8 @@ export class HeatFX {
     const s = rig.live;
     if (!s || !rig.linkFresh) {
       // No fresh word from the rig: go quiet rather than keep playing on old news.
+      // The web also drops the motion state, so the frame loop stops (HeatFX.swift keeps it).
+      this.phase = Phase.idle; this.energyGoal = 0;
       heatSound.update(theme, Phase.idle, 0, false);
       return;
     }
@@ -238,6 +254,7 @@ export class HeatFX {
       heatSound.play("start", theme);
       Haptics.light();
     }
+    if (on && this.wasOn && this.phase === Phase.idle) this.phase = this.readyFired ? Phase.hold : Phase.preheat;   // link back mid-dab
     if (on) {
       if (!this.readyFired) {
         const atTemp = target !== null && temp >= target - 4;

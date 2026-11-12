@@ -359,7 +359,10 @@ export class JarStore {
     const key = `${id}-${Date.now()}-${uid().slice(0, 6)}`;
     try { await this.backend.putPhoto(key, big, thumb); }
     catch { this.problem = "Couldn't save that photo. The phone may be out of space."; this.onChange(); return false; }
-    const j: Jar = { ...j0 };
+    // Read the jar again: a dab may have been logged to it while the photo was being written.
+    const j1 = this.jar(id);
+    if (!j1 || allPhotos(j1).length >= PHOTO_LIMIT) { void this.backend.deletePhoto(key); return false; }
+    const j: Jar = { ...j1 };
     if (!j.photo) j.photo = key; else j.morePhotos = [...(j.morePhotos ?? []), key];
     if (!(await this.setPhotos(j))) { void this.backend.deletePhoto(key); return false; }
     return true;
@@ -387,6 +390,7 @@ export class JarStore {
   }
 
   private async setPhotos(j: Jar): Promise<boolean> {
+    if (!j.photo && j.morePhotos?.length) { j.photo = j.morePhotos[0]; j.morePhotos = j.morePhotos.slice(1); }   // cover first, always
     if (!j.morePhotos?.length) delete j.morePhotos;
     if (!j.photo) delete j.photo;
     j.updated = new Date().toISOString();
@@ -530,15 +534,21 @@ export class JarStore {
 
   // MARK: Backup (browsers can clear site data, so jars can be saved to a file and brought back)
 
-  async exportBackup(): Promise<string> {
-    const photos: Record<string, string> = {};
+  /** The backup file, built a photo at a time so no single giant string is held (phones kill big tabs). */
+  async exportBackup(): Promise<Blob> {
+    const head = JSON.stringify({ app: "Torchless", kind: "jars", version: 1, saved: new Date().toISOString(), currentJar: this.currentID, jars: this.jars });
+    const parts: BlobPart[] = [head.slice(0, -1), ',"photos":{'];
+    let first = true;
     for (const j of this.jars) {
       for (const k of allPhotos(j)) {
         const b = await this.backend.getPhoto(k, false).catch(() => null);
-        if (b) photos[k] = await blobToDataURL(b);
+        if (!b) continue;
+        parts.push((first ? "" : ",") + JSON.stringify(k) + ":" + JSON.stringify(await blobToDataURL(b)));
+        first = false;
       }
     }
-    return JSON.stringify({ app: "Torchless", kind: "jars", version: 1, saved: new Date().toISOString(), currentJar: this.currentID, jars: this.jars, photos });
+    parts.push("}}");
+    return new Blob(parts, { type: "application/json" });
   }
 
   /** Adds jars from a backup. Jars already here (same id) are replaced by the backup's copy. */
@@ -556,17 +566,31 @@ export class JarStore {
       }
       const clean: Jar = { ...j, review: j.review ?? "", producer: j.producer ?? "", finished: !!j.finished, added: j.added ?? new Date().toISOString(), updated: j.updated ?? new Date().toISOString() };
       delete clean.morePhotos;
-      const extra = Array.isArray(j.morePhotos) ? j.morePhotos.filter(k => typeof k === "string") : [];
-      // A jar already here keeps its extra photos until the backup's copies are in.
-      const had = this.jar(j.id)?.morePhotos ?? [];
+      const extra = (Array.isArray(j.morePhotos) ? j.morePhotos : []).filter(k => typeof k === "string" && data.photos?.[k]);
       if (!(await this.save(clean, change))) continue;
       n++;
-      for (const k of had) await this.deletePhoto(j.id, k);
-      for (const k of extra) {
-        const src2 = data.photos?.[k];
-        if (!src2) continue;
-        try { const big = await (await fetch(src2)).blob(); await this.addPhoto(j.id, big, await makeThumb(big)); } catch { /* skip that photo */ }
+      // The backup's extra photos replace the ones here only once they are all stored, and only when the
+      // backup really carries them. A backup without extra photos leaves the ones on this phone alone.
+      if (!extra.length) continue;
+      const stored: string[] = [];
+      try {
+        for (const k of extra.slice(0, PHOTO_LIMIT - 1)) {
+          const big = await (await fetch(data.photos![k])).blob();
+          const key = `${j.id}-${Date.now()}-${uid().slice(0, 6)}`;
+          await this.backend.putPhoto(key, big, await makeThumb(big));
+          stored.push(key);
+        }
+      } catch {
+        for (const k of stored) void this.backend.deletePhoto(k);
+        this.problem = "Some photos in the backup couldn't be brought back. The phone may be out of space.";
+        continue;
       }
+      const now = this.jar(j.id);
+      if (!now) { for (const k of stored) void this.backend.deletePhoto(k); continue; }
+      const had = now.morePhotos ?? [];
+      if (await this.setPhotos({ ...now, morePhotos: stored })) {
+        for (const k of had) { photoURLs.drop(k); void this.backend.deletePhoto(k); }
+      } else for (const k of stored) void this.backend.deletePhoto(k);
     }
     if (!this.currentID && data.currentJar) this.setCurrent(data.currentJar);
     return n;

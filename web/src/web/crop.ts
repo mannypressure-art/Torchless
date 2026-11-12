@@ -16,7 +16,9 @@ async function loadScaled(file: Blob): Promise<HTMLCanvasElement> {
     const c = document.createElement("canvas");
     c.width = Math.max(1, Math.round(img.naturalWidth * k));
     c.height = Math.max(1, Math.round(img.naturalHeight * k));
-    c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+    const x = c.getContext("2d");
+    if (!x) throw new Error("canvas");
+    x.drawImage(img, 0, 0, c.width, c.height);
     return c;
   } finally { URL.revokeObjectURL(url); }
 }
@@ -25,19 +27,25 @@ async function loadScaled(file: Blob): Promise<HTMLCanvasElement> {
 export async function cropPhoto(file: Blob): Promise<Blob | null> {
   const src = await loadScaled(file);
   const W = src.width, H = src.height;
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     let zoom = 1, ox = 0, oy = 0;
+    const failed = () => { for (const c of [src, view]) { c.width = 0; c.height = 0; } root.remove(); document.body.classList.toggle("sheetOpen", !!document.getElementById("sheets")?.childElementCount); reject(new Error("crop")); };
     const view = h("canvas", { class: "cropView" }) as HTMLCanvasElement;
     const wrap = h("div", { class: "cropWrap" }, view, h("div", { class: "cropGrid" }));
-    const finish = (b: Blob | null) => { root.remove(); document.body.classList.toggle("sheetOpen", !!document.getElementById("sheets")?.childElementCount); resolve(b); };
+    const finish = (b: Blob | null) => {
+      // Give the canvas memory back right away: iOS caps it, and several crops in a row add up.
+      for (const c of [src, view]) { c.width = 0; c.height = 0; }
+      root.remove(); document.body.classList.toggle("sheetOpen", !!document.getElementById("sheets")?.childElementCount); resolve(b); };
     const root = h("div", { class: "cropRoot" },
       h("div", { class: "cropBar" },
         h("button", { class: "textBtn", onclick: () => finish(null) }, "Cancel"),
         h("b", { class: "cond", style: "font-size:24px;letter-spacing:2px" }, "FRAME IT"),
         h("button", { class: "textBtn", style: "color:var(--gold);font-weight:700", onclick: () => {
           const out = document.createElement("canvas"); out.width = 1600; out.height = 1600;
-          draw(out.getContext("2d")!, 1600);
-          out.toBlob(b => finish(b), "image/jpeg", 0.82);
+          const octx = out.getContext("2d");
+          if (!octx) { failed(); return; }
+          draw(octx, 1600);
+          out.toBlob(b => { out.width = 0; out.height = 0; if (b) finish(b); else failed(); }, "image/jpeg", 0.82);
         } }, "Use it")),
       wrap,
       h("p", { class: "mono dim center", style: "font-size:11px" }, "Drag to move. Pinch to zoom."),

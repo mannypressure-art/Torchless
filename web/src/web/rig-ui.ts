@@ -55,6 +55,7 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
   );
 
   let pageUpd: (() => void) | null = null;
+  let lastStatusTime: number | null = null, seenAt = new Date();
 
   function render() {
     const s = rig.live;
@@ -157,6 +158,7 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
           linked() ? disc : "",
           rig.disconnectWaiting ? h("p", { class: "mono sub", style: "font-size:11px;margin:0" }, "Dab's still going. It finishes first, then the app lets go of the rig.") : "");
         const s = ble.status;
+        if (ble.statusTime !== lastStatusTime) { lastStatusTime = ble.statusTime; seenAt = new Date(); }
         if (!s) live.replaceChildren(h("p", { class: "dim", style: "margin:0" }, "No status frame yet."));
         else {
           const temp = s.unitByte === 15 ? `${s.tempRaw} F` : s.unitByte === 12 ? `${s.tempRaw} C` : `${s.tempRaw} (unit byte ${s.unitByte})`;
@@ -167,7 +169,7 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
             kv("Haptics", hapticsOf(s) ? "on" : `off (byte ${s.hapticsByte})`), kv("Brightness", String(s.brightness)),
             kv("Unit", unitText(s)), kv("Auto shut-off / remaining", `${s.autoShutOff} / ${s.autoShutOffRemaining}`),
             kv("Session extend", String(s.sessionExtend)),
-            ble.statusTime !== null ? h("p", { class: "mono dim", style: "font-size:11px" }, "Updated " + new Date().toLocaleTimeString()) : "");
+            ble.statusTime !== null ? h("p", { class: "mono dim", style: "font-size:11px" }, "Updated " + seenAt.toLocaleTimeString()) : "");
         }
         const ex = Object.keys(ble.extra).sort();
         extra.hidden = !ex.length;

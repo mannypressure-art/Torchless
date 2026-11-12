@@ -274,8 +274,8 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       msg,
       h("div", { class: "row", style: "gap:10px;margin-top:12px" },
         h("button", { class: "btn2", style: "flex:1", disabled: !store.jars.length, onclick: async () => {
-          const text = await store.exportBackup();
-          const a = h("a", { href: URL.createObjectURL(new Blob([text], { type: "application/json" })),
+          const blob = await store.exportBackup();
+          const a = h("a", { href: URL.createObjectURL(blob),
             download: `Torchless-jars-${new Date().toISOString().slice(0, 10)}.json` }) as HTMLAnchorElement;
           a.click();
           setTimeout(() => URL.revokeObjectURL(a.href), 5000);
