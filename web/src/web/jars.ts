@@ -35,8 +35,10 @@ export interface Jar {
   review: string;
   /** 0.0 to 10.0 in tenths. */
   rating?: number;
-  /** Photo key in the backend. */
+  /** Photo key in the backend: the cover. */
   photo?: string;
+  /** More photos after the cover, in order (same as the iPhone app). Cover first is `allPhotos(j)`. */
+  morePhotos?: string[];
   finished: boolean;
   /** ISO 8601 dates throughout, so records match the iPhone app's jars.json. */
   added: string;
@@ -62,6 +64,9 @@ export interface Jar {
 export const JarCategory = ["Live rosin", "Rosin", "Badder", "Sauce", "Diamonds", "Jam", "Live resin", "Hash", "Shatter", "Other"];
 export const JarFlavor = ["Citrus", "Gas", "Fruity", "Sweet", "Earthy", "Pine", "Floral", "Funk", "Spicy", "Creamy"];
 export const REVIEW_LIMIT = 500;
+export const PHOTO_LIMIT = 10;
+/** Cover first, then the rest. What the jar page swipes through. */
+export const allPhotos = (j: Jar): string[] => [...(j.photo ? [j.photo] : []), ...(j.morePhotos ?? [])];
 export const GRAM_PICKS = [0.5, 1, 2, 3.5, 7];
 
 /** Upper-case UUIDs, like Swift's UUID().uuidString. */
@@ -294,11 +299,20 @@ export class JarStore {
     if (!jar.strain) return false;
     jar.updated = new Date().toISOString();
 
-    const old = this.jar(jar.id)?.photo;
+    const stored = this.jar(jar.id);
+    const old = stored?.photo;
+    // The photos after the cover are managed on the jar page; an edit never changes them.
+    if (stored) { if (stored.morePhotos) jar.morePhotos = stored.morePhotos; else delete jar.morePhotos; }
     let dropAfter: string | undefined;
     if (change.kind === "keep") { if (old) jar.photo = old; else delete jar.photo; }
-    else if (change.kind === "remove") { delete jar.photo; dropAfter = old; }
-    else {
+    else if (change.kind === "remove") {
+      // The next photo in the set becomes the cover.
+      const rest = [...(jar.morePhotos ?? [])];
+      const next = rest.shift();
+      if (next) jar.photo = next; else delete jar.photo;
+      jar.morePhotos = rest;
+      dropAfter = old;
+    } else {
       const key = `${jar.id}-${Date.now()}`;
       try { await this.backend.putPhoto(key, change.big, change.thumb); }
       catch { this.problem = "Couldn't save that photo. The phone may be out of space."; this.onChange(); return false; }
@@ -306,6 +320,7 @@ export class JarStore {
       dropAfter = old;
     }
 
+    if (!jar.morePhotos?.length) delete jar.morePhotos;
     const next = [...this.jars];
     const i = next.findIndex(j => j.id === jar.id);
     if (i >= 0) next[i] = jar; else next.push(jar);
@@ -331,8 +346,59 @@ export class JarStore {
     this.jars = next;
     if (!(await this.persist(next))) { this.onChange(); return; }
     if (this.currentID === id) this.setCurrent(null);
-    if (j.photo) { photoURLs.drop(j.photo); void this.backend.deletePhoto(j.photo); }
+    for (const k of allPhotos(j)) { photoURLs.drop(k); void this.backend.deletePhoto(k); }
     this.onChange();
+  }
+
+  // MARK: Photo set (cover first), same as JarStore.swift
+
+  /** Adds a photo to the end of the set (it becomes the cover when the jar has none). */
+  async addPhoto(id: string, big: Blob, thumb: Blob): Promise<boolean> {
+    const j0 = this.jar(id);
+    if (!j0 || allPhotos(j0).length >= PHOTO_LIMIT) return false;
+    const key = `${id}-${Date.now()}-${uid().slice(0, 6)}`;
+    try { await this.backend.putPhoto(key, big, thumb); }
+    catch { this.problem = "Couldn't save that photo. The phone may be out of space."; this.onChange(); return false; }
+    const j: Jar = { ...j0 };
+    if (!j.photo) j.photo = key; else j.morePhotos = [...(j.morePhotos ?? []), key];
+    if (!(await this.setPhotos(j))) { void this.backend.deletePhoto(key); return false; }
+    return true;
+  }
+
+  /** Deletes one photo. When it was the cover, the next photo becomes the cover. */
+  async deletePhoto(id: string, key: string): Promise<void> {
+    const j0 = this.jar(id);
+    if (!j0 || !allPhotos(j0).includes(key)) return;
+    const all = allPhotos(j0).filter(k => k !== key);
+    const j: Jar = { ...j0 };
+    if (all[0]) j.photo = all[0]; else delete j.photo;
+    j.morePhotos = all.slice(1);
+    if (await this.setPhotos(j)) { photoURLs.drop(key); void this.backend.deletePhoto(key); }
+  }
+
+  /** Puts the photos in a new order; the first is the cover. Must be the same photos. */
+  async reorderPhotos(id: string, order: string[]): Promise<void> {
+    const j0 = this.jar(id);
+    if (!j0) return;
+    const now = allPhotos(j0);
+    if (order.length !== now.length || new Set(order).size !== order.length || !order.every(k => now.includes(k))) return;
+    const j: Jar = { ...j0, photo: order[0], morePhotos: order.slice(1) };
+    await this.setPhotos(j);
+  }
+
+  private async setPhotos(j: Jar): Promise<boolean> {
+    if (!j.morePhotos?.length) delete j.morePhotos;
+    if (!j.photo) delete j.photo;
+    j.updated = new Date().toISOString();
+    const i = this.jars.findIndex(x => x.id === j.id);
+    if (i < 0) return false;
+    const next = [...this.jars];
+    next[i] = j;
+    const before = this.jars;
+    this.jars = next;
+    if (!(await this.persist(next))) { this.jars = before; this.onChange(); return false; }
+    this.onChange();
+    return true;
   }
 
   /** Server bookkeeping and the share switch. Saved without touching `updated`. */
@@ -467,9 +533,10 @@ export class JarStore {
   async exportBackup(): Promise<string> {
     const photos: Record<string, string> = {};
     for (const j of this.jars) {
-      if (!j.photo) continue;
-      const b = await this.backend.getPhoto(j.photo, false).catch(() => null);
-      if (b) photos[j.photo] = await blobToDataURL(b);
+      for (const k of allPhotos(j)) {
+        const b = await this.backend.getPhoto(k, false).catch(() => null);
+        if (b) photos[k] = await blobToDataURL(b);
+      }
     }
     return JSON.stringify({ app: "Torchless", kind: "jars", version: 1, saved: new Date().toISOString(), currentJar: this.currentID, jars: this.jars, photos });
   }
@@ -488,7 +555,18 @@ export class JarStore {
         change = { kind: "replace", big, thumb: await makeThumb(big) };
       }
       const clean: Jar = { ...j, review: j.review ?? "", producer: j.producer ?? "", finished: !!j.finished, added: j.added ?? new Date().toISOString(), updated: j.updated ?? new Date().toISOString() };
-      if (await this.save(clean, change)) n++;
+      delete clean.morePhotos;
+      const extra = Array.isArray(j.morePhotos) ? j.morePhotos.filter(k => typeof k === "string") : [];
+      // A jar already here keeps its extra photos until the backup's copies are in.
+      const had = this.jar(j.id)?.morePhotos ?? [];
+      if (!(await this.save(clean, change))) continue;
+      n++;
+      for (const k of had) await this.deletePhoto(j.id, k);
+      for (const k of extra) {
+        const src2 = data.photos?.[k];
+        if (!src2) continue;
+        try { const big = await (await fetch(src2)).blob(); await this.addPhoto(j.id, big, await makeThumb(big)); } catch { /* skip that photo */ }
+      }
     }
     if (!this.currentID && data.currentJar) this.setCurrent(data.currentJar);
     return n;

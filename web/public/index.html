@@ -325,6 +325,25 @@
   .flavors { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 6px; }
   .flavor { min-height: 34px; border: 1px solid var(--edge); border-radius: 9px; color: var(--sub); font: 500 13px var(--cond); white-space: nowrap; overflow: hidden; }
   .flavor.on { color: var(--gold); border-color: var(--gold); }
+  .galTag { position: absolute; padding: 4px 8px; border-radius: 6px; font: 700 9px var(--mono); letter-spacing: 1.5px; }
+  .galTag.cover { top: 10px; left: 10px; background: var(--gold); color: #1a1206; }
+  .galTag.count { bottom: 10px; right: 10px; background: rgba(0,0,0,.55); color: #fff; }
+  .galStrip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0; }
+  .galThumb { padding: 0; border: 2px solid transparent; border-radius: 12px; background: none; flex: none; }
+  .galThumb.on { border-color: var(--gold); }
+  .galAdd { flex: none; width: 58px; height: 58px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--gold) 60%, transparent); background: none; color: var(--gold); display: grid; place-items: center; align-content: center; gap: 2px; margin-top: 2px; }
+  .galAdd span { font-size: 16px; line-height: 1; }
+  .galAdd b { font: 700 11px var(--cond); letter-spacing: 1px; }
+  .galKey { width: 44px; height: 40px; border-radius: 10px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); color: var(--sub); font-size: 18px; }
+  .galKey:disabled { opacity: .4; }
+  .galCover { min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--gold); background: none; color: var(--gold); font: 700 15px var(--cond); letter-spacing: 1.5px; }
+  .cropRoot { position: fixed; inset: 0; z-index: 90; background: var(--bg); display: flex; flex-direction: column; gap: 14px; padding: max(14px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom)); }
+  .cropBar { display: flex; align-items: center; justify-content: space-between; }
+  .cropWrap { position: relative; width: 100%; max-width: 520px; align-self: center; aspect-ratio: 1; }
+  .cropView { display: block; border-radius: 4px; touch-action: none; cursor: grab; }
+  .cropGrid { position: absolute; inset: 0; pointer-events: none; border: 2px solid var(--gold); border-radius: 4px;
+    background: linear-gradient(90deg, transparent calc(33.33% - .5px), rgba(255,255,255,.35) calc(33.33% - .5px), rgba(255,255,255,.35) calc(33.33% + .5px), transparent calc(33.33% + .5px), transparent calc(66.66% - .5px), rgba(255,255,255,.35) calc(66.66% - .5px), rgba(255,255,255,.35) calc(66.66% + .5px), transparent calc(66.66% + .5px)),
+      linear-gradient(180deg, transparent calc(33.33% - .5px), rgba(255,255,255,.35) calc(33.33% - .5px), rgba(255,255,255,.35) calc(33.33% + .5px), transparent calc(33.33% + .5px), transparent calc(66.66% - .5px), rgba(255,255,255,.35) calc(66.66% - .5px), rgba(255,255,255,.35) calc(66.66% + .5px), transparent calc(66.66% + .5px)); }
   .photoKey { flex: 1; min-height: 48px; border-radius: 12px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); color: var(--live); font: 700 17px var(--cond); letter-spacing: 1.5px; }
   .textLine { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; color: var(--ink); font: 500 20px var(--cond); outline: 0; margin-top: 8px; }
   .textLine.big { min-height: 52px; font-size: 22px; }

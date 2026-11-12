@@ -3,7 +3,8 @@
 // Log a jar / Edit, the spend breakdown, the Home current-jar card and the after-dab rating pop-up.
 // Nothing here talks to the rig.
 
-import { JarStore, Jar, JarDab, Jars, Dabs, JarCategory, JarFlavor, SIZE_STOPS, REVIEW_LIMIT, GRAM_PICKS, PhotoChange, photoURLs, uid } from "./jars";
+import { JarStore, Jar, JarDab, Jars, Dabs, JarCategory, JarFlavor, SIZE_STOPS, REVIEW_LIMIT, GRAM_PICKS, PhotoChange, photoURLs, uid, allPhotos, PHOTO_LIMIT } from "./jars";
+import { cropPhoto } from "./crop";
 import { DabWatcher, DabPrompt } from "./dab-watcher";
 import type { Account, JarSync } from "./cloud";
 import { CatalogKey } from "./cloud";
@@ -59,7 +60,7 @@ function jarPhoto(store: JarStore, j: { photo?: string; producer: string }, size
   const box = h("div", { class: "jarPhoto", style: `width:${size};border-radius:${radius}px` });
   const lid = lidSVG(j.producer);
   box.append(lid);
-  const put = (url: string | null) => { if (url) { box.replaceChildren(h("img", { src: url, alt: "" })); } };
+  const put = (url: string | null) => { if (url) lid.replaceWith(h("img", { src: url, alt: "" })); };
   if (override !== undefined) put(override);
   else if (j.photo) void photoURLs.get(store, j.photo, thumb).then(put);
   return box;
@@ -140,6 +141,8 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
   let category: string | null = null;
   let query = "";
   const openPages = new Set<() => void>();   // re-renders for open jar pages
+  const galleryAt = new Map<string, number>();   // which photo each jar page is showing
+  const rerenderAll = () => { for (const f of openPages) f(); };
 
   // MARK: Home: the current jar card
   let justSet = false;
@@ -300,7 +303,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     if (!j) return [topBar(textBtn("Done", done), null, null), h("p", { class: "center dim", style: "padding:40px" }, "This jar is gone.")];
     const out: HTMLElement[] = [];
     out.push(topBar(textBtn("Done", done), statusTag(j.finished), textBtn("Edit", () => editJar(j), "var(--live)")));
-    out.push(jarPhoto(store, j, "100%", 20, false));
+    out.push(gallery(j));
     out.push(currentBar(j));
     out.push(h("div", { class: "row", style: "gap:14px;align-items:center" },
       h("div", { style: "flex:1;min-width:0" },
@@ -317,8 +320,77 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     out.push(h("div", { class: "row", style: "gap:10px" },
       h("button", { class: "btn2 tall", style: "flex:1", onclick: () => store.setFinished(j.id, !j.finished) }, j.finished ? "BACK OPEN" : "FINISHED IT"),
       h("button", { class: "btn2 tall", style: "width:64px;color:var(--warn)", "aria-label": "Delete jar", onclick: () =>
-        confirmSheet("Delete this jar?", "The photo and review go too. This can't be undone.", "Delete jar", "Keep it", () => { void store.delete(j.id); done(); }) }, "🗑")));
+        confirmSheet("Delete this jar?", "The photos and review go too. This can't be undone.", "Delete jar", "Keep it", () => { void store.delete(j.id); done(); }) }, "🗑")));
     return out;
+  }
+
+  // A jar's photo set (JarGallery.swift): swipe through, add (camera or library, then crop), make cover, move, delete.
+  function gallery(j: Jar): HTMLElement {
+    const stems = allPhotos(j);
+    let index = Math.min(galleryAt.get(j.id) ?? 0, Math.max(stems.length - 1, 0));
+    const setIndex = (i: number) => { galleryAt.set(j.id, i); rerenderAll(); };
+    const current = stems[index];
+    const canAdd = stems.length < PHOTO_LIMIT;
+
+    const main = jarPhoto(store, { photo: current, producer: j.producer }, "100%", 20, false);
+    if (index === 0 && stems.length > 1) main.append(h("span", { class: "galTag cover" }, "COVER"));
+    if (stems.length > 1) main.append(h("span", { class: "galTag count" }, `${index + 1} / ${stems.length}`));
+    let sx: number | null = null, sy = 0;
+    main.addEventListener("pointerdown", e => { sx = e.clientX; sy = e.clientY; });
+    main.addEventListener("pointerup", e => {
+      if (sx === null) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy; sx = null;
+      if (Math.abs(dx) < 40 || Math.abs(dy) > Math.abs(dx)) return;
+      if (dx < 0 && index < stems.length - 1) setIndex(index + 1);
+      if (dx > 0 && index > 0) setIndex(index - 1);
+    });
+    main.style.touchAction = "pan-y";
+
+    const add = async (e: Event) => {
+      const input = e.target as HTMLInputElement;
+      const f = input.files?.[0];
+      input.value = "";
+      if (!f) return;
+      try {
+        const out = await cropPhoto(f);
+        if (!out) return;
+        const thumb = await thumbFromBlob(out);
+        if (await store.addPhoto(j.id, out, thumb)) setIndex(allPhotos(store.jar(j.id) ?? j).length - 1);
+      } catch { store.problem = "Couldn't read that photo. Try another one."; rerenderAll(); }
+    };
+    const pick = h("input", { type: "file", accept: "image/*", hidden: true, onchange: add }) as HTMLInputElement;
+    const snap = h("input", { type: "file", accept: "image/*", capture: "environment", hidden: true, onchange: add }) as HTMLInputElement;
+
+    const strip = h("div", { class: "galStrip scrollX" });
+    stems.forEach((k, i) => {
+      const t = jarPhoto(store, { photo: k, producer: j.producer }, "58px", 10);
+      strip.append(h("button", { class: "galThumb" + (i === index ? " on" : ""), "aria-label": i === 0 ? "Cover photo" : `Photo ${i + 1}`, onclick: () => setIndex(i) }, t));
+    });
+    if (canAdd) strip.append(
+      h("button", { class: "galAdd", "aria-label": "Take a photo", onclick: () => snap.click() }, h("span", {}, "📷"), h("b", {}, "SNAP")),
+      h("button", { class: "galAdd", "aria-label": "Add a photo from your library", onclick: () => pick.click() }, h("span", {}, "🖼"), h("b", {}, "PICK")),
+      pick, snap);
+
+    const box = h("div", { class: "stackS" }, main, strip);
+    if (current) {
+      const move = (by: number) => {
+        const k = index + by;
+        if (k < 0 || k >= stems.length) return;
+        const order = [...stems];
+        [order[index], order[k]] = [order[k], order[index]];
+        galleryAt.set(j.id, k);
+        void store.reorderPhotos(j.id, order);
+      };
+      const key = (label: string, text: string, on: boolean, fn: () => void) => h("button", { class: "galKey", "aria-label": label, disabled: !on, onclick: fn }, text);
+      box.append(h("div", { class: "row", style: "gap:8px;align-items:center" },
+        index > 0 ? h("button", { class: "galCover", onclick: () => { galleryAt.set(j.id, 0); void store.reorderPhotos(j.id, [current, ...stems.filter(x => x !== current)]); } }, "MAKE COVER") : null,
+        h("span", { style: "flex:1" }),
+        stems.length > 1 ? key("Move photo left", "‹", index > 0, () => move(-1)) : null,
+        stems.length > 1 ? key("Move photo right", "›", index < stems.length - 1, () => move(1)) : null,
+        h("button", { class: "galKey", style: "color:var(--warn)", "aria-label": "Delete this photo", onclick: () =>
+          confirmSheet("Delete this photo?", index === 0 && stems.length > 1 ? "The next photo becomes the cover." : "This can't be undone.", "Delete photo", "Keep it", () => { void store.deletePhoto(j.id, current); }) }, "🗑")));
+    }
+    return box;
   }
 
   function currentBar(j: Jar): HTMLElement {
@@ -437,10 +509,11 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         input.value = "";
         if (!f) return;
         try {
-          const p = await photoFromFile(f);
-          st.change = { kind: "replace", big: p.big, thumb: p.thumb };
+          const big = await cropPhoto(f);
+          if (!big) return;
+          st.change = { kind: "replace", big, thumb: await thumbFromBlob(big) };
           if (st.preview) URL.revokeObjectURL(st.preview);
-          st.preview = URL.createObjectURL(p.big);
+          st.preview = URL.createObjectURL(big);
         } catch { store.problem = "Couldn't read that photo. Try another one."; failed = true; }
         draw();
       }
