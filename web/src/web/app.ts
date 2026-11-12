@@ -16,7 +16,7 @@ import { Account, JarSync } from "./cloud";
 import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
 import { HeatFX, heatSound, HEAT_SOUNDS } from "./heatfx";
 
-const BUILD = "app-4d.1";
+const BUILD = "app-4d.2";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
