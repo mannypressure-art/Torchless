@@ -401,7 +401,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         if (isCur) { store.setCurrent(null); flashFor = null; }
         else { store.setCurrent(j.id); flashFor = j.id; try { navigator.vibrate?.(10); } catch { /* fine */ } }
       } }, isCur ? "✓ NOW DABBING" : "🔥 DABBING THIS");
-    const note = j.finished ? "Finished jars can't be the current jar."
+    const note = j.finished ? "Graveyard jars can't be the current jar."
       : isCur ? (flashFor === j.id ? "Got it. Your next dab logs to this jar." : "Your dabs log to this jar. Tap to stop.")
       : "Tap so your next dab gets logged and rated here.";
     return h("div", {}, btn, h("p", { class: "mono", style: `margin:6px 0 0;color:${isCur ? "var(--gold)" : "var(--dim)"}` }, note));
@@ -566,7 +566,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         // Price
         out.push(priceFields());
         if (original) out.push(h("label", { class: "panel switchRow pad" },
-          h("span", {}, h("b", { class: "cond", style: "font-size:20px" }, "Finished it"), h("br"), h("small", { class: "mono dim" }, "Finished jars sit at the back of the shelf.")),
+          h("span", {}, h("b", { class: "cond", style: "font-size:20px" }, "In the graveyard"), h("br"), h("small", { class: "mono dim" }, "Finished jars rest in the graveyard, ratings and all.")),
           h("input", { type: "checkbox", checked: st.finished, onchange: (e: Event) => { st.finished = (e.target as HTMLInputElement).checked; } })));
         if (failed && store.problem) out.push(h("p", { class: "mono", style: "color:var(--warn)" }, store.problem));
         const canSave = st.strain.trim() !== "";
