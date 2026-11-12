@@ -1035,7 +1035,12 @@ export class RigController {
     if (!this.dialTouched.has(slot)) {
       this.dialTouched.add(slot);
       const original = slot === 0 ? this.presets[0].tempF : start;
-      if (original !== undefined) {
+      const owed = this.dialPending.get(slot);
+      if (owed !== undefined) {
+        // A temp is already owed back to this slot (taps before a link drop or an app relaunch).
+        // What the rig reports now is the shifted temp, so the saved original must never be replaced.
+        this.log(`DIAL TEST original for slot ${slot} stays ${owed} F (already owed from before the link dropped or the app restarted).`);
+      } else if (original !== undefined) {
         this.dialPending.set(slot, original);
         this.saveDialPending();
         this.log(`DIAL TEST original for slot ${slot} = ${original} F. Will be put back when the session ends.`);
@@ -1094,7 +1099,9 @@ export class RigController {
     if (this.dialStart === null && inRange(s.preset, 1, 5)) {
       const t = this.presets[s.preset].tempF;
       if (t !== undefined) {
-        this.dialStart = t;
+        // If a temp is still owed back to this preset, the rig is reporting the shifted temp. The saved
+        // original is the true starting point, so the 50 F limit is measured from it, not from the shift.
+        this.dialStart = this.dialPending.get(s.preset) ?? t;
         this.dialCurrent = t;
         this.dialStartPreset = s.preset;
         this.log(`DIAL TEST ready: starting target ${t} F (preset ${s.preset}).`);

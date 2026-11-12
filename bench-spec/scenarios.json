@@ -1643,6 +1643,137 @@
      "expect": "no safety cut"
     }
    ]
+  },
+  {
+   "id": "dialAfterLinkDrop",
+   "title": "ride the dial, link drops mid-dab, tap again: the true original temp is still put back",
+   "allowedAppStarts": 1,
+   "finish": 75.0,
+   "setup": {
+    "sim.hold[3]": 60
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "selectPreset",
+     "args": {
+      "slot": 3
+     }
+    },
+    {
+     "t": 3.5,
+     "do": "heatIt"
+    },
+    {
+     "t": 14.0,
+     "do": "dialNudge",
+     "args": {
+      "by": 5
+     }
+    },
+    {
+     "t": 15.5,
+     "do": "dialNudge",
+     "args": {
+      "by": 5
+     }
+    },
+    {
+     "t": 18.0,
+     "do": "world.bluetooth",
+     "args": {
+      "on": false
+     }
+    },
+    {
+     "t": 20.0,
+     "do": "world.bluetooth",
+     "args": {
+      "on": true
+     }
+    },
+    {
+     "t": 30.0,
+     "check": "ble.isConnected",
+     "expect": "reconnected by itself"
+    },
+    {
+     "t": 30.0,
+     "check": "sim.presetTemp[3] == 530",
+     "expect": "preset 3 still at 530"
+    },
+    {
+     "t": 30.0,
+     "do": "dialNudge",
+     "args": {
+      "by": 5
+     }
+    },
+    {
+     "t": 33.0,
+     "check": "sim.presetTemp[3] == 535",
+     "expect": "the tap after the drop reached the rig"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.presetTemp[3] == 520",
+     "expect": "preset 3 put back to the true original 520"
+    },
+    {
+     "rule": "!saved.dialPendingV1 || Object.keys(saved.dialPendingV1).length == 0",
+     "expect": "nothing left owed"
+    },
+    {
+     "rule": "stopsWhileHeating == 0 && !log.has('SAFETY CUT')",
+     "expect": "the dab was never cut"
+    }
+   ],
+   "notes": "Found in review 2026-11-11 (Fable): after a link drop or relaunch mid-dab the app forgot which slots it had touched but still owed the original. The next tap saved the already-shifted temp as the original. Fixed in RigController.swift d1c73db8. Fails on a51d4a83."
+  },
+  {
+   "id": "dialOwedAfterRelaunch",
+   "title": "app relaunched while owing a dial temp: the original goes back and is never overwritten",
+   "allowedAppStarts": 1,
+   "finish": 55.0,
+   "setup": {
+    "saved.dialPendingV1": {
+     "3": 520
+    },
+    "sim.presetTemp[3]": 530,
+    "sim.hold[3]": 40
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "selectPreset",
+     "args": {
+      "slot": 3
+     }
+    },
+    {
+     "t": 6.0,
+     "check": "sim.presetTemp[3] == 520",
+     "expect": "owed temp put back before any dab"
+    },
+    {
+     "t": 6.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 17.0,
+     "do": "dialNudge",
+     "args": {
+      "by": 5
+     }
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.presetTemp[3] == 520",
+     "expect": "preset 3 back at 520 after the dab"
+    }
+   ]
   }
  ]
 }

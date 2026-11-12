@@ -1,0 +1,36 @@
+PASS basic: connect, HEAT IT, CUT IT
+PASS natural end with light show and flash
+PASS race: rig stops just before a light write lands (no off status seen)
+PASS race: rig stops, reports off, then a light write in flight restarts it
+PASS rig button stops the dab during the flash (random moment)
+PASS leave the app mid-dab: dab finishes, heat confirmed off, app lets go, reconnects on return
+PASS leave the app; countdown ends but the rig keeps saying heating
+PASS link drops mid-dab, comes back after the dab ended
+PASS link drops mid-dab, comes back while still heating
+PASS Disconnect tapped mid-dab: waits for the dab, then disconnects
+PASS Disconnect tapped twice mid-dab: drops the link now, rig finishes alone
+PASS rig reports settings the app does not know: CUT IT still works
+PASS the rig misses the first Stop: the app sends it again
+PASS leave and come back before the dab ends: nothing extra is sent
+PASS light changes mid-dab and in the last seconds
+PASS save a preset, pick it, heat, ride the dial, temps put back
+PASS ride the dial, mode B: the active preset moves mid-dab and is put back after
+PASS +10s during the flash: no false alarm
+PASS Bluetooth switched off mid-dab, then back on
+PASS app was closed mid-show: lights are put back at the next connect
+PASS leave the app idle: lets go of the rig, grabs it again on return
+PASS dab started and ended at the rig while the app just watches
+PASS link drops while idle: tries, then the user taps Disconnect to stop trying
+PASS link drops while idle and never comes back: gives up cleanly
+PASS a preset outside 250-650 F is not started
+PASS idle rig does not flood the log
+PASS HEAT IT stuck behind 8 s of preset writes is dropped, not sent late
+PASS HEAT IT right after saving a preset heats once the save is out
+PASS dab started at the rig with the light show on: app runs the show, never cuts
+PASS rig button: start, app light change, stop, start again: nothing is cut
+PASS ride the dial on a climbing (Ascent) preset: the preset's own climb is not read as the dial working
+PASS ride the dial while still heating up: the app says it can't tell
+PASS +10s then CUT IT then HEAT IT again: the extra time is not carried along
+PASS ride the dial, link drops mid-dab, tap again: the true original temp is still put back
+PASS app relaunched while owing a dial temp: the original goes back and is never overwritten
+35 of 35 scenarios passed

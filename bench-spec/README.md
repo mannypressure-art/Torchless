@@ -4,13 +4,13 @@ The one list of rig scenarios that every Presh version must pass before a releas
 (Swift), the web app for iPhone (TypeScript, Web Bluetooth), and the Android app (Kotlin). Phase 1 of the
 public release plan (https://claude.ai/artifact/RaFjDqfR6UepAWDn5u4e84).
 
-- `scenarios.json`: the 33 scenarios (30 until 2026-11-12; dialOnClimbingPreset, dialDuringHeatUp and extraTimeNotCarried added with RigController a51d4a83), with what each one does, when, and what must be true. Titles are the
+- `scenarios.json`: the 35 scenarios (30 until 2026-11-12; dialOnClimbingPreset, dialDuringHeatUp and extraTimeNotCarried added with RigController a51d4a83; dialAfterLinkDrop and dialOwedAfterRelaunch added with d1c73db8), with what each one does, when, and what must be true. Titles are the
   contract: every port prints `PASS <title>` with the title exactly as written here.
 - `VOCAB.md`: the actions and observables the rules use, and the app log strings that are part of the contract.
 - `SIMRIG.md`: the simulated rig and link every port rebuilds, in plain words.
-- `check-parity.py`: `python3 check-parity.py <bench output>` says whether a port passed all 33.
+- `check-parity.py`: `python3 check-parity.py <bench output>` says whether a port passed all 35.
 
-Release rule: a heat or Bluetooth change ships on any platform only when all three ports pass all 33, plus
+Release rule: a heat or Bluetooth change ships on any platform only when all three ports pass all 35, plus
 `linkLostGiveUp` a second time with `world.pendingCancelReportsDisconnect` false.
 
 Changing the spec: add a scenario to the Swift bench (`switch app/sim-bench/harness/main.swift`) first,
