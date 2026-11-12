@@ -25,7 +25,7 @@ export function h(tag: string, attrs: Attrs = {}, ...kids: Kid[]): HTMLElement {
   for (const c of kids) if (c !== null && c !== undefined && c !== false) el.append(c);
   return el;
 }
-const tag = (text: string, style = "") => h("span", { class: "tag", style }, text);
+export const tag = (text: string, style = "") => h("span", { class: "tag", style }, text);
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "S"}`;
 
 // MARK: Photos
@@ -98,7 +98,7 @@ function ratingDial(rating: number | undefined, size: number): HTMLElement {
 // MARK: Sheets (full-screen pages that stack)
 
 const sheetRoot = () => document.getElementById("sheets")!;
-function openSheet(build: (close: () => void) => HTMLElement, kind: "page" | "card" = "page"): () => void {
+export function openSheet(build: (close: () => void) => HTMLElement, kind: "page" | "card" = "page"): () => void {
   const wrap = h("div", { class: kind === "page" ? "page" : "cardSheet" });
   const close = () => { wrap.remove(); document.body.classList.toggle("sheetOpen", sheetRoot().childElementCount > 0); };
   wrap.append(build(close));
@@ -106,10 +106,10 @@ function openSheet(build: (close: () => void) => HTMLElement, kind: "page" | "ca
   document.body.classList.add("sheetOpen");
   return close;
 }
-function topBar(left: HTMLElement | null, mid: HTMLElement | null, right: HTMLElement | null): HTMLElement {
+export function topBar(left: HTMLElement | null, mid: HTMLElement | null, right: HTMLElement | null): HTMLElement {
   return h("div", { class: "topBar" }, left ?? h("span"), mid ?? h("span"), right ?? h("span"));
 }
-const textBtn = (label: string, onclick: () => void, color = "var(--sub)") =>
+export const textBtn = (label: string, onclick: () => void, color = "var(--sub)") =>
   h("button", { class: "textBtn", style: `color:${color}`, onclick }, label);
 
 function confirmSheet(title: string, body: string, yes: string, no: string, onYes: () => void) {

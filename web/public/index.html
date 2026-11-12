@@ -137,6 +137,26 @@
   .faceKey .mini .gaugeCard { position: absolute; left: 50%; top: 50%; width: 340px; transform: translate(-50%, -50%) scale(.42); pointer-events: none; }
   .faceKey .name { display: flex; justify-content: center; align-items: center; gap: 8px; min-height: 44px; font: 600 20px var(--cond); letter-spacing: 2px; }
 
+  /* Link screen header, Rig tab */
+  .linkHead { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; }
+  #linkGauge { display: grid; place-items: center; opacity: .75; margin-top: 14px; } #linkGauge svg { width: 230px; height: 230px; overflow: visible; }
+  #linkGauge .m-gNeedle rect { fill: var(--dim); }
+  .jarsPill { margin-left: auto; min-height: 44px; padding: 0 16px; border: 1px solid color-mix(in srgb, var(--gold) 70%, transparent); border-radius: 14px; color: var(--gold); font: 700 18px var(--cond); letter-spacing: 2px; }
+  .miniLink { flex: 1; min-height: 44px; font: 700 10px var(--mono); letter-spacing: 1.4px; color: var(--sub); }
+  .linkCard { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 20px; background: var(--cardBottom); border: 1px solid var(--edge); }
+  .linkCard.on { background: var(--selFill); border-color: color-mix(in srgb, var(--live) 60%, transparent); }
+  .rigIcon { font-size: 24px; filter: grayscale(1); } .linkCard.on .rigIcon { filter: none; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tile { padding: 14px; border-radius: 16px; min-width: 0; } .tile b { display: block; margin-top: 6px; font: 600 26px/1 var(--cond); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .unlink { width: 100%; min-height: 56px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); color: var(--warn); font: 700 20px var(--cond); letter-spacing: 3px; }
+  .findRig { width: 100%; min-height: 56px; border-radius: 16px; background: var(--liveFill); color: var(--liveInk); font: 700 20px var(--cond); letter-spacing: 3px; }
+  .toolList { padding: 0 14px; border-radius: 16px; } .toolList hr { border: 0; border-top: 1px solid var(--edge); margin: 0; }
+  .toolRow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; text-align: left; }
+  .toolIcon { width: 24px; color: var(--sub); text-align: center; }
+  .logLines { font: 11px/1.45 var(--mono); white-space: pre-wrap; word-break: break-word; color: var(--sub); margin: 0; }
+  .btn2.nudge { flex: 1; min-height: 56px; font-size: 24px; color: var(--gold); border-color: var(--gold); }
+  .center { text-align: center; }
+
   /* Presets */
   .row { display: flex; align-items: center; gap: 8px; }
   .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 8px; }
@@ -175,7 +195,7 @@
   #linkScreen { min-height: 100vh; display: flex; flex-direction: column; padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom)); max-width: 480px; margin: 0 auto; }
   .hero { margin: auto 0; text-align: center; }
   .hero .mark { width: 96px; height: 96px; }
-  .hero h1 { font: 600 44px/1 var(--cond); letter-spacing: 3px; margin: 18px 0 6px; }
+  .hero h1 { font: 700 40px/1 var(--cond); letter-spacing: 1px; margin: 18px 0 8px; }
   .hero p { color: var(--sub); margin: 0 auto; max-width: 300px; }
   #linkIt { margin-top: 28px; }
   .ghost { width: 100%; min-height: 52px; border: 1px solid var(--edge); border-radius: 14px; margin-top: 10px; color: var(--sub); font: 600 18px var(--cond); letter-spacing: 1px; }
@@ -351,10 +371,15 @@
 
 <!-- Link it -->
 <section id="linkScreen">
-  <div class="hero">
+  <div class="linkHead">
     <svg class="mark"><use href="#markSym"/></svg>
-    <h1>TORCHLESS</h1>
-    <p>Find your rig. Turn it on, keep it close, then tap LINK IT and pick it from the list.</p>
+    <div><div class="brand">TORCHLESS</div><span class="tag" style="font-size:9.5px">NOT LINKED</span></div>
+    <button id="linkJars" class="jarsPill">◎ JARS</button>
+  </div>
+  <div class="hero">
+    <div id="linkGauge"></div>
+    <h1>FIND YOUR RIG</h1>
+    <p>Wake the Switch 2 and hold it close. Then tap LINK IT and pick it from the list.</p>
     <div id="btMsg" class="btmsg" style="margin-top:16px" hidden></div>
     <button id="linkIt" class="bigBtn" style="color:var(--liveInk);background:linear-gradient(#5FF0FF,var(--liveFill),#10B9D0)">LINK IT</button>
     <button id="linkAll" class="ghost">Can't find it? Show all devices</button>
@@ -364,6 +389,8 @@
     </div>
     <div id="linkState" class="small"></div>
     <div class="small">On iPhone, open this page in Bluefy. Keep the page open during a dab.</div>
+    <div class="row" style="gap:10px;margin-top:8px"><button id="lookAround" class="miniLink">LOOK AROUND FIRST</button><button id="linkLog" class="miniLink">LOG</button></div>
+    <div class="small" style="font:500 10px/1.5 var(--mono)">Compatible with Dr. Dabber Switch 2.<br>Not an official Dr. Dabber app.</div>
   </div>
 </section>
 
@@ -462,25 +489,8 @@
       <div id="lightGrid" style="margin-top:18px"></div>
     </section>
 
-    <!-- Rig -->
-    <section data-panel="rig" hidden style="margin-top:14px" class="stack">
-      <h2>RIG</h2>
-      <div class="panel pad"><div id="rigInfo"></div></div>
-      <div class="row"><button id="disconnect" class="btn2">Disconnect</button></div>
-      <div class="panel pad">
-        <span class="tag">LOOK</span>
-        <div class="seg"><button data-look="dark">DARK</button><button data-look="light">BRIGHT</button><button data-look="auto">AUTO</button></div>
-        <span class="tag" style="display:block;margin-top:16px">HOME FACE</span>
-        <div id="faceGrid" class="faceGrid"></div>
-        <p class="tag" style="margin:10px 0 0;line-height:1.5;text-transform:none;letter-spacing:.5px">Every face shows the same live temp, target and time left. HEAT IT and CUT IT never move.</p>
-      </div>
-      <div class="panel pad">
-        <span class="tag">SHOP TOOLS</span>
-        <p style="color:var(--sub);margin:8px 0 12px">For testing. The log helps when something acts up.</p>
-        <div class="row" style="flex-wrap:wrap"><button id="copyLog" class="btn2">Copy log</button><button id="saveLog" class="btn2">Save log</button><a class="btn2" href="test/">Test page</a></div>
-        <div class="small" style="text-align:left">Build <span id="build"></span>. Not affiliated with Dr. Dabber.</div>
-      </div>
-    </section>
+    <!-- Rig (built by rig-ui.ts) -->
+    <section data-panel="rig" id="rigPanel" hidden style="margin-top:14px" class="stack"></section>
   </div>
 
   <nav class="tabs">

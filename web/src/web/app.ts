@@ -10,7 +10,8 @@ import { WebCentral } from "../rig/web-central";
 import { chargingOf } from "../rig/frames";
 import { JarStore, IDBJarBackend, MemoryJarBackend } from "./jars";
 import { DabWatcher } from "./dab-watcher";
-import { mountJars } from "./jar-ui";
+import { mountJars, h, tag } from "./jar-ui";
+import { mountRig } from "./rig-ui";
 import { Account, JarSync } from "./cloud";
 import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
 
@@ -86,12 +87,8 @@ window.addEventListener("resize", checkFsTip);
 function applyLook(v: string) {
   if (v === "dark" || v === "light") document.documentElement.dataset.theme = v;
   else delete document.documentElement.dataset.theme;
-  document.querySelectorAll<HTMLButtonElement>("[data-look]").forEach(b => b.classList.toggle("on", b.dataset.look === v));
 }
-applyLook(prefs.get("look") ?? "auto");
-document.querySelectorAll<HTMLButtonElement>("[data-look]").forEach(b => {
-  b.onclick = () => { prefs.set("look", b.dataset.look!); applyLook(b.dataset.look!); };
-});
+applyLook(prefs.get("look") ?? "dark");
 
 // MARK: Leaving the page counts as leaving the app (same away rule as on iPhone)
 
@@ -256,28 +253,33 @@ bright.oninput = () => {
 };
 $<HTMLInputElement>("showOn").onchange = (e) => { rig.showEnabled = (e.target as HTMLInputElement).checked; };
 
-// MARK: Rig tab
+// MARK: Rig tab (rig-ui.ts), Link screen extras
 
-$("disconnect").onclick = () => rig.askDisconnect();
-$("copyLog").onclick = async () => {
-  try {
-    await navigator.clipboard.writeText(ble.exportText(BUILD));
-    $("copyLog").textContent = "Copied";
-  } catch {
-    $("copyLog").textContent = "Copy failed: use Save";
-  }
-  setTimeout(() => { $("copyLog").textContent = "Copy log"; }, 2000);
-};
-$("saveLog").onclick = () => {
-  const blob = new Blob([ble.exportText(BUILD)], { type: "text/plain" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  const d = new Date();
-  a.download = `Torchless-log-${d.toISOString().slice(0, 19).replace(/[:T]/g, "-")}.txt`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-};
-$("build").textContent = BUILD;
+let lookAround = false;
+const rigUI = mountRig(ble, rig, {
+  build: BUILD,
+  onFindRig: () => { lookAround = false; schedule(); },
+  lookLabel: () => `${faceID.toUpperCase()} · ${(prefs.get("look") ?? "dark").replace("light", "bright").toUpperCase()}`,
+  buildLook: (page) => {
+    const cur = prefs.get("look") ?? "dark";
+    const seg = h("div", { class: "seg" });
+    for (const [id, label] of [["dark", "DARK"], ["light", "BRIGHT"], ["auto", "AUTO"]]) {
+      const b = h("button", { class: cur === id ? "on" : "", onclick: () => {
+        prefs.set("look", id); applyLook(id); seg.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+      } }, label);
+      seg.append(b);
+    }
+    const grid = h("div", { id: "faceGrid", class: "faceGrid" });
+    page.append(tag("MODE", "font-size:9.5px;margin-top:8px"), seg, tag("HOME FACE", "font-size:9.5px;margin-top:8px"), grid,
+      h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "Every face shows the same live temp, target and time left. HEAT IT and CUT IT never move."));
+    drawFaceGrid(grid);
+    buildSoundPicker?.(page);
+  },
+});
+let buildSoundPicker: ((page: HTMLElement) => void) | null = null;
+$("lookAround").onclick = () => { lookAround = true; schedule(); };
+$("linkJars").onclick = () => { lookAround = true; showTab("jars"); };
+$("linkLog").onclick = () => { lookAround = true; showTab("rig"); schedule(); };
 
 // MARK: Gauge (SVG). Fractions run 0..1 across a 270 degree sweep starting bottom left, as on iPhone.
 
@@ -339,7 +341,8 @@ function render() {
   if (heating !== wasHeating) { wasHeating = heating; void keepAwake(heating); }
 
   // Link screen until the rig is linked (or coming back).
-  const onLink = !linked && !ble.reconnecting;
+  if (linked) lookAround = false;
+  const onLink = !linked && !ble.reconnecting && !lookAround;
   show("linkScreen", onLink);
   show("main", !onLink);
   setText("linkState", connectAfterPick || ble.connectionText === "Scanning" ? "Pick your rig in the list that opened." : ble.connectionText);
@@ -453,23 +456,8 @@ function render() {
   }
 
   // Rig tab
-  if (tab === "rig") {
-    const info = ble.deviceInfo;
-    const rows: [string, string][] = [
-      ["Name", ble.peripheralName || "--"],
-      ["Model", info["Model number (2A24)"] ?? "--"],
-      ["Firmware", info["Software revision (2A28)"] ?? "--"],
-      ["Units", s ? (celsius ? "°C" : "°F") : "--"],
-      ["Battery", s ? `${s.battery}%${chargingOf(s) ? ", charging" : ""}` : "--"],
-      ["Link", ble.connectionText],
-    ];
-    const html = rows.map(([k]) => `<div class="kv"><span>${k}</span><b></b></div>`).join("");
-    const box = $("rigInfo");
-    if (box.childElementCount !== rows.length) box.innerHTML = html;
-    rows.forEach(([, v], i) => { const b = box.children[i].querySelector("b")!; if (b.textContent !== v) b.textContent = v; });
-    enable("disconnect", linked || ble.reconnecting);
-    setText("disconnect", rig.disconnectWaiting ? "Disconnect now" : "Disconnect");
-  }
+  if (tab === "rig") rigUI.render();
+
 }
 // MARK: Home face (Gauge, Digits, Scope, Pour), saved per browser like the iPhone's look.face
 
@@ -488,8 +476,11 @@ function setFace(id: string) {
   drawFaceGrid();
   schedule();
 }
-function drawFaceGrid() {
-  const grid = $("faceGrid");
+let faceGridEl: HTMLElement | null = null;
+function drawFaceGrid(into?: HTMLElement) {
+  if (into) faceGridEl = into;
+  const grid = faceGridEl;
+  if (!grid || (!into && !grid.isConnected)) return;
   grid.replaceChildren();
   for (const f of FACES) {
     const key = document.createElement("button");
@@ -525,5 +516,15 @@ ble.onChange = schedule;
 rig.onChange = () => { watcher.update(rig); schedule(); };
 setInterval(schedule, 500);
 setFace(faceID);
+{ // The Link screen's dim gauge, as on iPhone: needle at rest, no readout.
+  const g = $("gauge").cloneNode(true) as SVGSVGElement;
+  g.removeAttribute("id");
+  g.querySelector("#gArc")?.setAttribute("d", "");
+  g.querySelectorAll("[id]").forEach(e => { e.classList.add("m-" + e.id); e.removeAttribute("id"); });
+  const m = g.querySelector<SVGGElement>(".m-gMarker"); if (m) m.style.display = "none";
+  g.querySelector(".m-gNeedle")?.setAttribute("transform", `rotate(225 ${C} ${C})`);
+  [200, 300, 400, 500, 600, 700].forEach((v, i) => { const t = g.querySelector(`.m-gL${i}`); if (t) t.textContent = String(v); });
+  $("linkGauge").append(g);
+}
 showTab("home");
 render();
