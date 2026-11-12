@@ -103,6 +103,40 @@
   .bl { bottom: 16px; left: 16px; } .br { bottom: 16px; right: 16px; text-align: right; }
   #cTarget { color: var(--gold); }
 
+  /* Other home faces (Digits, Scope, Pour) */
+  .gaugeCard .face { position: absolute; inset: 0; padding: 18px; display: flex; flex-direction: column; }
+  .gaugeCard.alt #gauge, .gaugeCard.alt .readout, .gaugeCard.alt .corner { display: none; }
+  .fRow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .goldTag { color: var(--gold) !important; }
+  .face b.gold { color: var(--gold); }
+  .digits .dBig { flex: 1; display: grid; place-items: center; font: 700 150px/1 var(--cond); }
+  .face .hot { color: var(--live); text-shadow: 0 0 16px color-mix(in srgb, var(--live) 45%, transparent); }
+  .dBar { display: flex; align-items: center; gap: 3px; }
+  .dBar i { flex: 1; height: 20px; background: var(--edge); } .dBar i.on { background: var(--live); }
+  .dBar b { width: 3px; height: 30px; background: var(--gold); }
+  .dFoot { margin-top: 10px; align-items: flex-end; } .dFoot b { display: block; font: 600 28px/1.1 var(--cond); margin-top: 2px; }
+  .scope { padding: 16px; } .scopeSvg, .pourSvg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .sGrid { stroke: var(--edge); stroke-width: 1; opacity: .7; fill: none; vector-effect: non-scaling-stroke; }
+  .sTarget { stroke: var(--gold); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; vector-effect: non-scaling-stroke; }
+  .sTrace { stroke: var(--live); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; fill: none; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 4px var(--live)); }
+  .sNow { position: relative; } .sNow b { display: block; font: 600 54px/1 var(--cond); }
+  .sTgt { position: absolute; top: 60px; right: 16px; }
+  .sFoot { position: relative; margin-top: auto; }
+  .pour { padding: 16px; } .pTop { position: relative; }
+  .pMid { position: relative; margin-top: auto; text-align: center; padding-bottom: 26px; }
+  .pMid b { display: block; font: 700 104px/1 var(--cond); }
+  .pLine { font: 700 11px var(--mono); letter-spacing: 2px; color: var(--dim); }
+  .pour.inGold .pMid b, .pour.inGold .pLine { color: #1A1206; }
+  .miniGauge { width: 252px; height: 252px; overflow: visible; }
+  .miniGauge .m-gArc { fill: none; stroke: var(--live); stroke-width: 3; stroke-linecap: round; }
+  .miniGauge .m-gMarker path { fill: var(--gold); } .miniGauge .m-gNeedle rect { fill: var(--live); }
+  .faceGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .faceKey { border: 1px solid var(--edge); border-radius: 20px; background: var(--cardBottom); overflow: hidden; }
+  .faceKey.on { border: 2px solid var(--live); }
+  .faceKey .mini { width: 100%; height: 132px; position: relative; overflow: hidden; }
+  .faceKey .mini .gaugeCard { position: absolute; left: 50%; top: 50%; width: 340px; transform: translate(-50%, -50%) scale(.42); pointer-events: none; }
+  .faceKey .name { display: flex; justify-content: center; align-items: center; gap: 8px; min-height: 44px; font: 600 20px var(--cond); letter-spacing: 2px; }
+
   /* Presets */
   .row { display: flex; align-items: center; gap: 8px; }
   .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 8px; }
@@ -365,7 +399,7 @@
 
     <!-- Home -->
     <section data-panel="home" class="stack" style="margin-top:14px">
-      <div class="gaugeCard panel">
+      <div class="gaugeCard panel" id="faceCard">
         <svg id="gauge" viewBox="0 0 260 260">
           <circle cx="130" cy="130" r="138" class="bezelEdge"/>
           <circle cx="130" cy="130" r="137" class="bezel"/>
@@ -436,6 +470,9 @@
       <div class="panel pad">
         <span class="tag">LOOK</span>
         <div class="seg"><button data-look="dark">DARK</button><button data-look="light">BRIGHT</button><button data-look="auto">AUTO</button></div>
+        <span class="tag" style="display:block;margin-top:16px">HOME FACE</span>
+        <div id="faceGrid" class="faceGrid"></div>
+        <p class="tag" style="margin:10px 0 0;line-height:1.5;text-transform:none;letter-spacing:.5px">Every face shows the same live temp, target and time left. HEAT IT and CUT IT never move.</p>
       </div>
       <div class="panel pad">
         <span class="tag">SHOP TOOLS</span>

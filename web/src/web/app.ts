@@ -12,6 +12,7 @@ import { JarStore, IDBJarBackend, MemoryJarBackend } from "./jars";
 import { DabWatcher } from "./dab-watcher";
 import { mountJars } from "./jar-ui";
 import { Account, JarSync } from "./cloud";
+import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
 
 const BUILD = "app-4c.1";
 const clock = new RealClock();
@@ -394,6 +395,19 @@ function render() {
     $("gMarker").style.display = "";
   } else $("gMarker").style.display = "none";
   setText("cTarget", targetText);
+  {
+    let fill = 0, presetLine = "";
+    if (s && s.preset >= 0 && s.preset <= 5) {
+      const ps = rig.presets[s.preset];
+      const t = celsius ? ps.tempC : ps.tempF;
+      if (t !== undefined && t > room) fill = clamp01((s.tempRaw - room) / (t - room));
+      presetLine = `PRESET ${s.preset} · ${ps.profile !== undefined ? HeatProfile.name(ps.profile).toUpperCase() : "—"}`;
+    }
+    const now = Date.now();
+    if (s && now - lastTraceAt >= 450) { lastTraceAt = now; trace.add(fill, heating); }
+    const ro: Readout = { tempText: s ? `${s.tempRaw}°` : "---", targetText, fill, heating, secondsLeft: s?.sessionTimeRemaining ?? 0, statusLine: status, presetLine };
+    face?.update(ro, trace.points);
+  }
   const hold = rig.heldHoldSeconds;
   setText("cHold", hold !== undefined ? `${hold}s` : "--");
   setText("cProfile", profileText);
@@ -457,9 +471,59 @@ function render() {
     setText("disconnect", rig.disconnectWaiting ? "Disconnect now" : "Disconnect");
   }
 }
+// MARK: Home face (Gauge, Digits, Scope, Pour), saved per browser like the iPhone's look.face
+
+const trace = new TempTrace();
+let faceID = prefs.get("face") ?? "gauge";
+let face: Face | null = null;
+let lastTraceAt = 0;
+function setFace(id: string) {
+  faceID = FACES.some(f => f.id === id) ? id : "gauge";
+  prefs.set("face", faceID);
+  face?.root.remove();
+  face = makeFace(faceID);
+  const card = $("faceCard");
+  card.classList.toggle("alt", !!face);
+  if (face) card.append(face.root);
+  drawFaceGrid();
+  schedule();
+}
+function drawFaceGrid() {
+  const grid = $("faceGrid");
+  grid.replaceChildren();
+  for (const f of FACES) {
+    const key = document.createElement("button");
+    key.className = "faceKey" + (f.id === faceID ? " on" : "");
+    key.setAttribute("aria-label", `${f.name} face${f.id === faceID ? ", on" : ""}`);
+    const mini = document.createElement("div"); mini.className = "mini";
+    const card = document.createElement("div"); card.className = "gaugeCard panel" + (f.id === "gauge" ? "" : " alt");
+    if (f.id === "gauge") {
+      const g = $("gauge").cloneNode(true) as SVGSVGElement;
+      g.removeAttribute("id");
+      g.querySelector("#gNeedle")?.setAttribute("transform", `rotate(${225 + 270 * 0.424} ${C} ${C})`);
+      g.querySelector("#gArc")?.setAttribute("d", arcPath(0, 0.424, R * 0.985));
+      const m = g.querySelector<SVGGElement>("#gMarker"); if (m) { m.style.display = ""; m.setAttribute("transform", `rotate(${225 + 270 * 0.6} ${C} ${C})`); }
+      g.querySelectorAll("[id]").forEach(e => { e.classList.add("m-" + e.id); e.removeAttribute("id"); });
+      g.classList.add("miniGauge");
+      const ro = document.createElement("div"); ro.className = "readout";
+      ro.innerHTML = '<div style="font:600 44px/1 var(--cond);color:var(--live)">412°</div>';
+      card.append(g, ro);
+    } else {
+      const ff = makeFace(f.id)!; ff.update(DEMO, DEMO_POINTS); card.append(ff.root);
+    }
+    mini.append(card);
+    const name = document.createElement("div"); name.className = "name"; name.textContent = f.name;
+    if (f.id === faceID) { const on = document.createElement("span"); on.className = "tag"; on.style.color = "var(--live)"; on.textContent = "ON"; name.append(on); }
+    key.append(mini, name);
+    key.onclick = () => setFace(f.id);
+    grid.append(key);
+  }
+}
+
 function schedule() { if (!queued) { queued = true; requestAnimationFrame(render); } }
 ble.onChange = schedule;
 rig.onChange = () => { watcher.update(rig); schedule(); };
 setInterval(schedule, 500);
+setFace(faceID);
 showTab("home");
 render();
