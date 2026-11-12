@@ -104,6 +104,9 @@
   #cTarget { color: var(--gold); }
 
   /* Other home faces (Digits, Scope, Pour) */
+  .dialKey { flex: 1; min-height: 64px; border-radius: 16px; color: var(--gold); font: 700 30px var(--cond); }
+  .dialKey:disabled { opacity: .4; }
+  .seg button:disabled { opacity: .5; }
   .heatFX { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
   .soundRow { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 14px; border-radius: 16px; border: 1px solid var(--edge); background: var(--cardBottom); color: var(--ink); text-align: left; }
   .soundRow.on { border-color: var(--live); background: color-mix(in srgb, var(--live) 10%, var(--cardBottom)); }
@@ -495,6 +498,16 @@
           <button id="extend" class="panel"><b>+10s</b><span class="tag" style="font-size:8.5px">MORE TIME</span></button>
         </div>
         <div id="heatHint" class="hint"></div>
+      </div>
+
+      <div id="dialStrip" class="stackS" hidden>
+        <div class="row" style="justify-content:space-between"><span class="tag" style="font-size:9.5px">RIDE THE DIAL · TEST</span><span id="dialGoal" class="tag" style="font-size:9.5px;color:var(--gold)">GOAL ---</span></div>
+        <div class="row" style="gap:10px">
+          <button id="dialDown" class="panel dialKey" aria-label="Goal down 5 degrees">−5°</button>
+          <button id="dialUp" class="panel dialKey" aria-label="Goal up 5 degrees">+5°</button>
+        </div>
+        <div class="seg" style="grid-template-columns:1fr 1fr"><button id="dialA">A: Live slot</button><button id="dialB">B: Active preset</button></div>
+        <p id="dialSay" class="mono sub" style="font-size:10.5px;margin:0"></p>
       </div>
 
       <div id="curJar" class="curJar panel"></div>

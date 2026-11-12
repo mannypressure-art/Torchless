@@ -551,6 +551,17 @@ function render() {
   // Heat controls
   show("heatRow", !heating);
   show("cutRow", heating);
+  // Ride the dial strip (DialStrip): only while heating. Same controller calls as the Rig > Ride the dial page.
+  show("dialStrip", heating && linked);
+  if (heating && linked) {
+    const off = rig.dialDisabledReason !== null && rig.dialDisabledReason !== undefined;
+    const locked = rig.dialCurrent !== rig.dialStart;
+    setText("dialGoal", "GOAL " + (rig.dialCurrent !== null ? `${rig.dialCurrent}°F` : "---"));
+    enable("dialDown", !off); enable("dialUp", !off);
+    $("dialA").classList.toggle("on", rig.dialMode === "live"); $("dialB").classList.toggle("on", rig.dialMode === "active");
+    enable("dialA", !locked); enable("dialB", !locked);
+    setText("dialSay", rig.dialDisabledReason ?? rig.dialReadout);
+  }
   enable("heat", rig.canHeat);
   enable("extend", rig.canExtend);
   setText("heatHint", !linked ? "" : !rig.linkFresh ? "Waiting on the rig…" : rig.startPendingAt !== null ? "Starting…" : "");
@@ -648,6 +659,10 @@ function drawFaceGrid(into?: HTMLElement) {
 
 function schedule() { if (!queued) { queued = true; requestAnimationFrame(render); } }
 ble.onChange = schedule;
+$("dialDown").onclick = () => rig.dialNudge(-RigController.dialStep);
+$("dialUp").onclick = () => rig.dialNudge(RigController.dialStep);
+$("dialA").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMode = "live"; schedule(); } };
+$("dialB").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMode = "active"; schedule(); } };
 const heatFX = new HeatFX($("faceCard"), () => prefs.get("heatSound") ?? "chimes", () => faceID);
 rig.onChange = () => { watcher.update(rig); heatFX.update(rig); schedule(); };
 // Audio can only start after a tap: unlock it on the first tap of any kind, and resume after an interruption.
