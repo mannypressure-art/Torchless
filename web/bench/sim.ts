@@ -187,6 +187,9 @@ export class SimRig {
   ignoreStops = 0;
   statusPeriod = 0.5;
   afterStatus: (() => void) | null = null;
+  /** The real rig's connect dump lists presets 1 to 5 only (Log of 2026-11-11, firmware SW2-260929-011), so the
+   *  app never learns what the live slot (0) held. A scenario can turn this on to cover the other case. */
+  reportsLiveSlot = false;
 
   received: Seen[] = [];
   events: RigEvent[] = [];
@@ -244,7 +247,12 @@ export class SimRig {
         if (this.zeroAt === null) this.zeroAt = now;
         if (!this.neverStops && now - this.zeroAt >= this.lingerAfterZero) this.stopSession("its own timer");
       }
-      const target = this.presetTemp[this.slot()];
+      const slot = this.slot();
+      let target = this.presetTemp[slot];
+      // Seen on the real rig (Log of 2026-11-11, preset 465 F / 50 s / Ascent): once the countdown runs, an
+      // Ascent preset climbs 1 F a second from its set temp, and +10 s keeps the climb going. One dab's
+      // worth of evidence; whether the rig stops climbing at set temp + 50 was not seen.
+      if (this.profile[slot] === 177 && now >= this.countdownStart) target += Math.min(this.total, now - this.countdownStart);
       this.temp = Math.min(target, this.temp + 60);
     } else {
       this.temp = Math.max(80, this.temp - 8);
@@ -279,7 +287,7 @@ export class SimRig {
     const ascii = (s: string) => Array.from(s, c => c.charCodeAt(0));
     switch (cmd) {
       case 177:
-        for (let p = 0; p <= 5; p++) this.reportPreset(p);
+        for (let p = this.reportsLiveSlot ? 0 : 1; p <= 5; p++) this.reportPreset(p);
         this.report([225, 7, 1, 2, 3, 4, 225]);
         this.report([195, 11, ...ascii("SW2-260929"), 195]);
         this.report([196, 11, ...ascii("V2.0.0  "), 196]);

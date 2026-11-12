@@ -1,464 +1,1648 @@
 {
-  "version": 1,
-  "about": "The 30 rig scenarios every Presh version (Swift iPhone, web, Android) must pass before release. Ported from switch app/sim-bench/harness/main.swift as run on RigController.swift md5 5397d39849aa6890ec0a7eeadae91025, BLEManager 6a69fac9afbc8c2c86f9f8f476e3c60a, FrameDecoder 2f9b5bcb9bd9b76c2403ec9b7c11bd60 (30 of 30 passed). Times are seconds from the start of the scenario. Rules use the vocabulary in VOCAB.md; the simulated rig is in SIMRIG.md. Each port prints 'PASS <title>' or 'FAIL <title>: n problem(s)' with the title exactly as written here.",
-  "defaults": {
-    "connect": "scan at 0.2 s, tap the first rig found at 0.6 s",
-    "allowedAppStarts": 0,
-    "show": false
+ "version": 1,
+ "about": "The 33 rig scenarios every Presh version (Swift iPhone, web, Android) must pass before release. Ported from switch app/sim-bench/harness/main.swift as run on RigController.swift md5 5397d39849aa6890ec0a7eeadae91025, BLEManager 6a69fac9afbc8c2c86f9f8f476e3c60a, FrameDecoder 2f9b5bcb9bd9b76c2403ec9b7c11bd60 (33 of 33 passed). Times are seconds from the start of the scenario. Rules use the vocabulary in VOCAB.md; the simulated rig is in SIMRIG.md. Each port prints 'PASS <title>' or 'FAIL <title>: n problem(s)' with the title exactly as written here.",
+ "defaults": {
+  "connect": "scan at 0.2 s, tap the first rig found at 0.6 s",
+  "allowedAppStarts": 0,
+  "show": false
+ },
+ "invariants": [
+  {
+   "expect": "only known-safe commands were ever sent (never reset, rename, firmware)",
+   "rule": "received.every(f => [177,178,179,181,183,185].includes(f.bytes[0]))"
   },
-  "invariants": [
-    {"expect": "only known-safe commands were ever sent (never reset, rename, firmware)", "rule": "received.every(f => [177,178,179,181,183,185].includes(f.bytes[0]))"},
-    {"expect": "every control frame is well formed", "rule": "b9s.every(f => f.bytes.length == 20 && f.bytes[1] == 20 && f.bytes[19] == 185)"},
-    {"expect": "app started heat as often as the scenario allows", "rule": "appStarts == allowedAppStarts"},
-    {"expect": "writes are spaced out (at least 85 ms apart)", "rule": "minGapBetweenReceived >= 0.085"},
-    {"expect": "mid-session writes all sent right after a status frame", "rule": "b9s.filter(f => f.bytes[10] == 170 && f.sessionWas != 0).every(f => f.sinceStatus <= 0.3)"},
-    {"expect": "rig saw nothing malformed", "rule": "events.count('BAD') == 0 && events.count('UNEXPECTED') == 0"}
-  ],
-  "scenarios": [
+  {
+   "expect": "every control frame is well formed",
+   "rule": "b9s.every(f => f.bytes.length == 20 && f.bytes[1] == 20 && f.bytes[19] == 185)"
+  },
+  {
+   "expect": "app started heat as often as the scenario allows",
+   "rule": "appStarts == allowedAppStarts"
+  },
+  {
+   "expect": "writes are spaced out (at least 85 ms apart)",
+   "rule": "minGapBetweenReceived >= 0.085"
+  },
+  {
+   "expect": "mid-session writes all sent right after a status frame",
+   "rule": "b9s.filter(f => f.bytes[10] == 170 && f.sessionWas != 0).every(f => f.sinceStatus <= 0.3)"
+  },
+  {
+   "expect": "rig saw nothing malformed",
+   "rule": "events.count('BAD') == 0 && events.count('UNEXPECTED') == 0"
+  }
+ ],
+ "scenarios": [
+  {
+   "id": "basic",
+   "title": "basic: connect, HEAT IT, CUT IT",
+   "allowedAppStarts": 1,
+   "finish": 9.0,
+   "steps": [
     {
-      "id": "basic", "title": "basic: connect, HEAT IT, CUT IT", "allowedAppStarts": 1, "finish": 9.0,
-      "steps": [
-        {"t": 2.0, "check": "app.canHeat", "expect": "HEAT IT is available once status is flowing"},
-        {"t": 2.0, "check": "app.presets[1].tempF == 450 && app.presets[1].hold == 12", "expect": "presets were read from the rig"},
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 3.0, "check": "sim.session == 170 && app.sessionOn", "expect": "rig is heating and the app knows"},
-        {"t": 6.0, "do": "cutIt"},
-        {"t": 6.4, "check": "sim.session == 0", "expect": "rig stopped within 0.4 s of CUT IT"}
-      ],
-      "final": [
-        {"rule": "events.count('STOP by app frame') == 1", "expect": "exactly one stop reached the rig"},
-        {"rule": "!app.sessionOn", "expect": "app shows not heating"},
-        {"rule": "log.count('(stop, session 0)') == 1", "expect": "no stop retry was needed"}
-      ]
+     "t": 2.0,
+     "check": "app.canHeat",
+     "expect": "HEAT IT is available once status is flowing"
     },
     {
-      "id": "naturalEndWithShow", "title": "natural end with light show and flash", "show": true, "allowedAppStarts": 1, "finish": 21.0,
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 9.0, "check": "sim.lightMode != 3 || sim.brightness != 50", "expect": "light show changed the lights"}
-      ],
-      "final": [
-        {"rule": "events.count('STOP by its own timer') == 1", "expect": "the dab ran to the end on the rig's own timer"},
-        {"rule": "sim.sessionStarts == 1", "expect": "heat never came back on"},
-        {"rule": "log.has('Slow-down flash started')", "expect": "flash ran"},
-        {"rule": "sim.lightMode == 3 && sim.brightness == 50", "expect": "lights were put back"},
-        {"rule": "b9s.filter(f => f.bytes[10] == 170 && f.sessionWas != 0 && f.remainingWas <= 2).length == 0", "expect": "nothing was written in the last 2 seconds of the countdown"},
-        {"rule": "stopsWhileHeating == 0", "expect": "nothing cut the dab short"},
-        {"rule": "!log.has('SAFETY CUT') && !log.has('AWAY')", "expect": "no safety action fired in a normal dab"}
-      ]
+     "t": 2.0,
+     "check": "app.presets[1].tempF == 450 && app.presets[1].hold == 12",
+     "expect": "presets were read from the rig"
     },
     {
-      "id": "raceRestartSilent", "title": "race: rig stops just before a light write lands (no off status seen)", "allowedAppStarts": 2, "finish": 13.0,
-      "notes": "The rig's own button stops it in the instant after a 'heating' status goes out, so the app's light write echoes 'heating' and restarts heat. The app cannot prevent that one frame; it must notice and cut.",
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 8.3, "do": "sim.afterNextStatus", "args": {"then": ["sim.buttonStop"]}},
-        {"t": 8.3, "do": "setLightMode", "args": {"mode": 5}}
-      ],
-      "final": [
-        {"rule": "sim.sessionStarts == 2", "expect": "the race really happened (heat was restarted by the echo)"},
-        {"rule": "log.has('SAFETY CUT')", "expect": "the app noticed and cut"},
-        {"rule": "sim.session == 0", "expect": "heat is off at the end"},
-        {"rule": "starts.length == 2 && stops.length >= 2 && stops[1].time - starts[1].time < 1.2", "expect": "accidental heat lasted under 1.2 s"}
-      ]
+     "t": 2.0,
+     "do": "heatIt"
     },
     {
-      "id": "raceRestartSeenOff", "title": "race: rig stops, reports off, then a light write in flight restarts it", "allowedAppStarts": 2, "finish": 13.0,
-      "setup": {"world.writeLatency": 0.06},
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 8.3, "do": "sim.afterNextStatus", "args": {"delay": 0.03, "then": ["sim.buttonStop", "sim.sendStatus"]}},
-        {"t": 8.3, "do": "setLightMode", "args": {"mode": 5}}
-      ],
-      "final": [
-        {"rule": "sim.sessionStarts == 2", "expect": "the race really happened (heat was restarted by the echo)"},
-        {"rule": "log.has('SAFETY CUT')", "expect": "the app noticed and cut"},
-        {"rule": "sim.session == 0", "expect": "heat is off at the end"},
-        {"rule": "starts.length == 2 && stops.length >= 2 && stops[1].time - starts[1].time < 1.2", "expect": "accidental heat lasted under 1.2 s"}
-      ]
+     "t": 3.0,
+     "check": "sim.session == 170 && app.sessionOn",
+     "expect": "rig is heating and the app knows"
     },
     {
-      "id": "rigButtonStopDuringFlash", "title": "rig button stops the dab during the flash (random moment)", "show": true, "allowedAppStarts": "sim.sessionStarts", "finish": 14.0,
-      "notes": "The stop lands at 9.0 s plus a random 0 to 0.45 s in steps of 0.05. Either no race (1 start) or a race the app cut (2 starts).",
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": "9.0 + 0.05 * randomInt(0, 9)", "do": "sim.buttonStop"}
-      ],
-      "final": [
-        {"rule": "sim.session == 0", "expect": "heat is off at the end"},
-        {"rule": "sim.sessionStarts <= 1 || log.has('SAFETY CUT')", "expect": "accidental restart was cut"},
-        {"rule": "sim.lightMode == 3 && sim.brightness == 50", "expect": "lights were put back"}
-      ]
+     "t": 6.0,
+     "do": "cutIt"
     },
     {
-      "id": "leaveAppMidDab", "title": "leave the app mid-dab: dab finishes, heat confirmed off, app lets go, reconnects on return", "show": true, "allowedAppStarts": 1, "finish": 29.0,
-      "setup": {"app.parkAfterQuiet": 4},
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 5.0, "do": "appMovedToBackground"},
-        {"t": 15.0, "check": "stopsWhileHeating == 0", "expect": "the running dab was not cut"},
-        {"t": 15.0, "check": "world.peripheral.connected", "expect": "still connected while the dab runs"},
-        {"t": 19.0, "check": "events.count('STOP by its own timer') == 1", "expect": "the dab ran to its own end"},
-        {"t": 19.0, "check": "log.count('SAFE OFF (stop, session 0)') == 1", "expect": "one stop was sent after the dab to confirm heat is off"},
-        {"t": 19.0, "check": "sim.lightMode == 3 && sim.brightness == 50", "expect": "lights were put back while in the background"},
-        {"t": 24.5, "check": "!world.peripheral.connected", "expect": "app let go of the rig after sitting idle"},
-        {"t": 24.5, "check": "ble.connectionText.startsWith('Resting')", "expect": "status text says resting"},
-        {"t": 26.0, "do": "appBecameActive"}
-      ],
-      "final": [
-        {"rule": "ble.isConnected && app.canControl", "expect": "reconnected by itself on return"},
-        {"rule": "app.awayNote != null", "expect": "a note tells him what happened"},
-        {"rule": "sim.sessionStarts == 1", "expect": "heat never came back on"},
-        {"rule": "stopsWhileHeating == 0", "expect": "the dab was never cut"}
-      ]
-    },
-    {
-      "id": "leaveAppStuckSession", "title": "leave the app; countdown ends but the rig keeps saying heating", "allowedAppStarts": 1, "finish": 29.0,
-      "setup": {"sim.neverStops": true},
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 5.0, "do": "appMovedToBackground"},
-        {"t": 15.5, "check": "stopsWhileHeating == 0", "expect": "nothing sent while the countdown is still running"}
-      ],
-      "final": [
-        {"rule": "log.has('AWAY CUT')", "expect": "the app cut heat once the dab was clearly over"},
-        {"rule": "sim.session == 0", "expect": "heat is off"},
-        {"rule": "firstStopWhileHeating != null && firstStopWhileHeating.remainingWas == 0", "expect": "the cut came only after the countdown hit zero"}
-      ]
-    },
-    {
-      "id": "linkLostBackAfterEnd", "title": "link drops mid-dab, comes back after the dab ended", "allowedAppStarts": 1, "finish": 24.0,
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 6.0, "do": "world.loseLink"},
-        {"t": 7.0, "check": "!ble.isConnected && ble.reconnecting", "expect": "app is trying to get the rig back"},
-        {"t": 7.0, "check": "sim.session == 170", "expect": "rig keeps heating on its own"},
-        {"t": 20.0, "check": "events.count('STOP by its own timer') == 1", "expect": "rig finished the dab by itself"},
-        {"t": 20.0, "do": "world.backInRange"}
-      ],
-      "final": [
-        {"rule": "ble.isConnected", "expect": "reconnected by itself"},
-        {"rule": "log.count('SAFE OFF (stop, session 0)') == 1", "expect": "one stop sent after reconnect to confirm heat is off"},
-        {"rule": "sim.sessionStarts == 1", "expect": "heat never came back on"},
-        {"rule": "app.awayNote != null", "expect": "a note tells him what happened"}
-      ]
-    },
-    {
-      "id": "linkLostBackWhileHeating", "title": "link drops mid-dab, comes back while still heating", "allowedAppStarts": 1, "finish": 39.0,
-      "setup": {"sim.preset": 2},
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 5.0, "do": "world.loseLink"},
-        {"t": 9.0, "do": "world.backInRange"},
-        {"t": 20.0, "check": "ble.isConnected && app.sessionOn", "expect": "reconnected and sees the dab still running"},
-        {"t": 20.0, "check": "stopsWhileHeating == 0", "expect": "the running dab was not cut"}
-      ],
-      "final": [
-        {"rule": "events.count('STOP by its own timer') == 1", "expect": "the dab ran to its own end"},
-        {"rule": "log.count('SAFE OFF (stop, session 0)') == 1", "expect": "one stop sent after the dab to confirm heat is off"},
-        {"rule": "stopsWhileHeating == 0", "expect": "the dab was never cut"}
-      ]
-    },
-    {
-      "id": "disconnectMidDab", "title": "Disconnect tapped mid-dab: waits for the dab, then disconnects", "allowedAppStarts": 1, "finish": 23.0,
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 5.0, "do": "askDisconnect"},
-        {"t": 6.0, "check": "app.disconnectWaiting && ble.isConnected", "expect": "still connected, waiting for the dab"}
-      ],
-      "final": [
-        {"rule": "events.count('STOP by its own timer') == 1", "expect": "the dab ran to its own end"},
-        {"rule": "stopsWhileHeating == 0", "expect": "the dab was never cut"},
-        {"rule": "log.count('SAFE OFF (stop, session 0)') == 1", "expect": "one stop sent after the dab"},
-        {"rule": "!ble.isConnected && ble.connectionText == 'Disconnected'", "expect": "then it disconnected"},
-        {"rule": "!ble.reconnecting", "expect": "and is not trying to reconnect"}
-      ]
-    },
-    {
-      "id": "disconnectTwice", "title": "Disconnect tapped twice mid-dab: drops the link now, rig finishes alone", "allowedAppStarts": 1, "finish": 20.0,
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 5.0, "do": "askDisconnect"},
-        {"t": 6.0, "do": "askDisconnect"},
-        {"t": 7.0, "check": "!ble.isConnected", "expect": "disconnected right away"}
-      ],
-      "final": [
-        {"rule": "events.count('STOP by its own timer') == 1", "expect": "the rig finished the dab by itself"},
-        {"rule": "stopsWhileHeating == 0", "expect": "no stop was sent"},
-        {"rule": "!ble.reconnecting && !ble.isConnected", "expect": "stays disconnected"}
-      ]
-    },
-    {
-      "id": "oddStatusCutStillWorks", "title": "rig reports settings the app does not know: CUT IT still works", "allowedAppStarts": 0, "finish": 7.0,
-      "setup": {"sim.lightMode": 40, "sim.autoOff": 200},
-      "steps": [
-        {"t": 2.0, "do": "sim.buttonStart"},
-        {"t": 3.0, "do": "setLightMode", "args": {"mode": 5}},
-        {"t": 5.0, "do": "cutIt"}
-      ],
-      "final": [
-        {"rule": "sim.session == 0", "expect": "CUT IT stopped the rig"},
-        {"rule": "firstB9Off != null && firstB9Off.bytes[6] == 40 && firstB9Off.bytes[8] == 200", "expect": "the stop copied the rig's own odd values back unchanged"},
-        {"rule": "b9s.filter(f => f.bytes[10] == 170).length == 0", "expect": "nothing else was written with odd values"}
-      ]
-    },
-    {
-      "id": "stopSwallowed", "title": "the rig misses the first Stop: the app sends it again", "allowedAppStarts": 1, "finish": 9.0,
-      "setup": {"sim.ignoreStops": 1},
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 5.0, "do": "cutIt"}
-      ],
-      "final": [
-        {"rule": "sim.session == 0", "expect": "rig is off"},
-        {"rule": "log.has('Sending it again')", "expect": "the stop was sent again"},
-        {"rule": "events.count('STOP by app frame') == 1", "expect": "second stop took"}
-      ]
-    },
-    {
-      "id": "backBeforeDabEnds", "title": "leave and come back before the dab ends: nothing extra is sent", "allowedAppStarts": 1, "finish": 24.0,
-      "setup": {"app.parkAfterQuiet": 4},
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 4.0, "do": "appMovedToBackground"},
-        {"t": 7.0, "do": "appBecameActive"}
-      ],
-      "final": [
-        {"rule": "events.count('STOP by its own timer') == 1", "expect": "the dab ran to its own end"},
-        {"rule": "log.count('(stop, session 0)') == 0", "expect": "no stop of any kind was sent"},
-        {"rule": "ble.isConnected", "expect": "still connected (no parking while the app is open)"}
-      ]
-    },
-    {
-      "id": "midSessionLightAndEndGuard", "title": "light changes mid-dab and in the last seconds", "allowedAppStarts": 1, "finish": 20.0,
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 6.13, "do": "setLightMode", "args": {"mode": 5}},
-        {"t": 7.2, "check": "sim.lightMode == 5", "expect": "light changed within a second"},
-        {"t": 7.2, "check": "sim.session == 170", "expect": "dab still running"},
-        {"t": 14.6, "check": "sim.session == 170 && sim.remaining <= 3", "expect": "we are in the last 3 seconds"},
-        {"t": 14.6, "do": "setLightMode", "args": {"mode": 6}}
-      ],
-      "final": [
-        {"rule": "sim.sessionStarts == 1", "expect": "heat never came back on"},
-        {"rule": "b9s.filter(f => f.bytes[6] == 6).length == 1 && b9s.filter(f => f.bytes[6] == 6)[0].sessionWas == 0 && b9s.filter(f => f.bytes[6] == 6)[0].bytes[10] == 0", "expect": "the late change was held and sent after the dab, with heat off"},
-        {"rule": "sim.lightMode == 6", "expect": "the late change still happened"},
-        {"rule": "events.count('STOP by its own timer') == 1", "expect": "the dab ran to its own end"}
-      ]
-    },
-    {
-      "id": "presetsAndDial", "title": "save a preset, pick it, heat, ride the dial, temps put back", "allowedAppStarts": 1, "finish": 35.0,
-      "steps": [
-        {"t": 2.0, "do": "savePreset", "args": {"slot": 3, "tempF": 510, "hold": 20, "profile": 177}},
-        {"t": 5.5, "check": "sim.presetTemp[3] == 510 && sim.hold[3] == 20 && sim.profile[3] == 177", "expect": "preset saved on the rig"},
-        {"t": 5.5, "do": "selectPreset", "args": {"slot": 3}},
-        {"t": 7.0, "check": "sim.preset == 3", "expect": "preset 3 selected"},
-        {"t": 7.0, "do": "heatIt"},
-        {"t": 11.0, "check": "app.dialDisabledReason == null", "expect": "dial test is available"},
-        {"t": 11.0, "do": "dialNudge", "args": {"by": 5}},
-        {"t": 12.5, "do": "dialNudge", "args": {"by": 5}},
-        {"t": 13.5, "check": "sim.presetTemp[0] == 520", "expect": "live slot moved to 520"}
-      ],
-      "final": [
-        {"rule": "sim.presetTemp[0] == 480", "expect": "live slot put back to 480 after the dab"},
-        {"rule": "sim.presetTemp[3] == 510", "expect": "preset 3 untouched"},
-        {"rule": "sim.sessionStarts == 1", "expect": "one dab"},
-        {"rule": "saves.length >= 3 && saves[1].time - saves[0].time >= 0.95 && saves[2].time - saves[1].time >= 0.95", "expect": "preset frames went out a second apart"}
-      ]
-    },
-    {
-      "id": "dialActivePreset", "title": "ride the dial, mode B: the active preset moves mid-dab and is put back after", "allowedAppStarts": 1, "finish": 50.0,
-      "steps": [
-        {"t": 2.0, "do": "selectPreset", "args": {"slot": 3}},
-        {"t": 3.5, "check": "sim.preset == 3", "expect": "preset 3 selected"},
-        {"t": 3.5, "do": "setDialMode", "args": {"mode": "active"}},
-        {"t": 3.5, "do": "heatIt"},
-        {"t": 8.0, "check": "app.dialDisabledReason == null", "expect": "dial test is available"},
-        {"t": 8.0, "do": "dialNudge", "args": {"by": 5}},
-        {"t": 9.5, "do": "dialNudge", "args": {"by": 5}},
-        {"t": 11.0, "do": "dialNudge", "args": {"by": 10}, "notes": "a 10 degree tap is ignored"},
-        {"t": 12.0, "check": "sim.presetTemp[3] == 530", "expect": "preset 3 moved to 530 mid-dab"},
-        {"t": 12.0, "check": "sim.presetTemp[0] == 480", "expect": "live slot untouched"},
-        {"t": 12.0, "check": "Math.round(sim.temp) == 530", "expect": "the rig's temp followed to 530"}
-      ],
-      "final": [
-        {"rule": "sim.presetTemp[3] == 520", "expect": "preset 3 put back to 520 after the dab"},
-        {"rule": "sim.presetTemp[0] == 480", "expect": "live slot still untouched"},
-        {"rule": "sim.sessionStarts == 1", "expect": "one dab"},
-        {"rule": "events.count('STOP by its own timer') == 1 && stopsWhileHeating == 0", "expect": "the dab ran to its own end"},
-        {"rule": "!log.has('SAFETY CUT')", "expect": "no safety cut"}
-      ]
-    },
-    {
-      "id": "extendWithShow", "title": "+10s during the flash: no false alarm", "show": true, "allowedAppStarts": 1, "finish": 42.0,
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 9.0, "check": "app.canExtend", "expect": "+10s is available"},
-        {"t": 9.0, "do": "extendTen"},
-        {"t": 10.5, "do": "extendTen"}
-      ],
-      "final": [
-        {"rule": "events.count('EXTEND to 1') == 1 && events.count('EXTEND to 2') == 1", "expect": "both extensions reached the rig"},
-        {"rule": "!log.has('SAFETY CUT')", "expect": "no false safety cut"},
-        {"rule": "events.count('STOP by its own timer') == 1 && stopsWhileHeating == 0", "expect": "the dab ran to its own (extended) end"},
-        {"rule": "sim.sessionStarts == 1", "expect": "heat never came back on"},
-        {"rule": "sim.lightMode == 3 && sim.brightness == 50", "expect": "lights were put back"}
-      ]
-    },
-    {
-      "id": "bluetoothOffMidDab", "title": "Bluetooth switched off mid-dab, then back on", "allowedAppStarts": 1, "finish": 22.0,
-      "steps": [
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 5.0, "do": "world.bluetooth", "args": {"on": false}},
-        {"t": 6.0, "check": "!ble.isConnected && !app.canControl", "expect": "app knows the link is gone"},
-        {"t": 8.0, "do": "world.bluetooth", "args": {"on": true}}
-      ],
-      "final": [
-        {"rule": "ble.isConnected", "expect": "reconnected by itself"},
-        {"rule": "stopsWhileHeating == 0", "expect": "the dab was never cut"},
-        {"rule": "log.count('SAFE OFF (stop, session 0)') == 1", "expect": "one stop sent after the dab"}
-      ]
-    },
-    {
-      "id": "owedLightsAfterRelaunch", "title": "app was closed mid-show: lights are put back at the next connect", "allowedAppStarts": 0, "finish": 5.0,
-      "setup": {"saved.lightRestoreV1": [3, 50], "sim.lightMode": 8, "sim.brightness": 20},
-      "steps": [],
-      "final": [
-        {"rule": "sim.lightMode == 3 && sim.brightness == 50", "expect": "lights put back"},
-        {"rule": "saved.lightRestoreV1 == null", "expect": "nothing left owed"}
-      ]
-    },
-    {
-      "id": "idleParkAndReturn", "title": "leave the app idle: lets go of the rig, grabs it again on return", "allowedAppStarts": 0, "finish": 12.0,
-      "setup": {"app.parkAfterQuiet": 3},
-      "steps": [
-        {"t": 3.0, "do": "appMovedToBackground"},
-        {"t": 8.5, "check": "!world.peripheral.connected && !ble.reconnecting", "expect": "let go, not hunting for it"},
-        {"t": 9.0, "do": "appBecameActive"}
-      ],
-      "final": [
-        {"rule": "ble.isConnected && app.canControl", "expect": "connected again with status flowing"},
-        {"rule": "b9s.length == 0", "expect": "no control frames were sent at all"}
-      ]
-    },
-    {
-      "id": "rigButtonOnly", "title": "dab started and ended at the rig while the app just watches", "allowedAppStarts": 0, "finish": 20.0,
-      "steps": [
-        {"t": 3.0, "do": "sim.buttonStart"}
-      ],
-      "final": [
-        {"rule": "events.count('STOP by its own timer') == 1", "expect": "the dab ran to its own end"},
-        {"rule": "b9s.length == 0", "expect": "the app sent no control frames"},
-        {"rule": "log.has('SESSION START') && log.has('SESSION END')", "expect": "the app logged the session"}
-      ]
-    },
-    {
-      "id": "linkLostGiveUpAndUserCancel", "title": "link drops while idle: tries, then the user taps Disconnect to stop trying", "allowedAppStarts": 0, "finish": 10.0,
-      "setup": {"ble.linkLostWindow": 6},
-      "steps": [
-        {"t": 3.0, "do": "world.loseLink"},
-        {"t": 4.0, "check": "ble.reconnecting", "expect": "trying to get it back"},
-        {"t": 5.0, "do": "askDisconnect"},
-        {"t": 6.0, "do": "world.backInRange"}
-      ],
-      "final": [
-        {"rule": "!ble.isConnected && !ble.reconnecting", "expect": "stays disconnected after the user said so"},
-        {"rule": "!world.peripheral.connected", "expect": "no link was made behind his back"}
-      ]
-    },
-    {
-      "id": "linkLostGiveUp", "title": "link drops while idle and never comes back: gives up cleanly", "allowedAppStarts": 0, "finish": 12.0,
-      "setup": {"ble.linkLostWindow": 4, "world.pendingCancelReportsDisconnect": true},
-      "notes": "Run once more with world.pendingCancelReportsDisconnect false (the Swift bench's --quiet-cancel flag): both must pass.",
-      "steps": [
-        {"t": 3.0, "do": "world.loseLink"},
-        {"t": 9.0, "do": "world.backInRange"}
-      ],
-      "final": [
-        {"rule": "!ble.isConnected && !ble.reconnecting", "expect": "gave up"},
-        {"rule": "ble.connectionText.startsWith('Not connected')", "expect": "says so"},
-        {"rule": "!world.peripheral.connected", "expect": "no late connection"}
-      ]
-    },
-    {
-      "id": "heatRefusedOutOfRangePreset", "title": "a preset outside 250-650 F is not started", "allowedAppStarts": 0, "finish": 4.0,
-      "setup": {"sim.presetTemp[1]": 700},
-      "steps": [
-        {"t": 2.0, "do": "heatIt"}
-      ],
-      "final": [
-        {"rule": "sim.sessionStarts == 0", "expect": "no heat"},
-        {"rule": "app.message != null", "expect": "he is told why"}
-      ]
-    },
-    {
-      "id": "idleLogStaysSmall", "title": "idle rig does not flood the log", "allowedAppStarts": 0, "finish": 14.0,
-      "steps": [],
-      "final": [
-        {"rule": "log.count('] RX ') < 60", "expect": "about 26 status frames arrived, under 60 RX lines logged in total"},
-        {"rule": "app.canControl", "expect": "status still flowing"}
-      ]
-    },
-    {
-      "id": "lateHeatDropped", "title": "HEAT IT stuck behind 8 s of preset writes is dropped, not sent late", "allowedAppStarts": 0, "finish": 14.0,
-      "steps": [
-        {"t": 2.0, "do": "savePreset", "args": {"slot": 2, "tempF": 455, "hold": 15, "profile": 161}},
-        {"t": 2.0, "do": "savePreset", "args": {"slot": 3, "tempF": 510, "hold": 20, "profile": 177}},
-        {"t": 2.0, "do": "savePreset", "args": {"slot": 4, "tempF": 525, "hold": 25, "profile": 193}},
-        {"t": 2.2, "do": "heatIt"}
-      ],
-      "final": [
-        {"rule": "sim.presetTemp[4] == 525 && sim.hold[4] == 25 && sim.profile[4] == 193", "expect": "all three presets were saved"},
-        {"rule": "sim.sessionStarts == 0", "expect": "heat did not come on late"},
-        {"rule": "log.has('HEAT IT waited too long')", "expect": "the app said to tap again"},
-        {"rule": "app.canHeat", "expect": "HEAT IT is available again"}
-      ]
-    },
-    {
-      "id": "heatRightAfterSave", "title": "HEAT IT right after saving a preset heats once the save is out", "allowedAppStarts": 1, "finish": 9.0,
-      "steps": [
-        {"t": 2.0, "do": "savePreset", "args": {"slot": 1, "tempF": 470, "hold": 14, "profile": 161}},
-        {"t": 2.0, "do": "heatIt"},
-        {"t": 6.0, "check": "sim.session == 170 && app.sessionOn", "expect": "rig is heating"},
-        {"t": 6.0, "check": "sim.presetTemp[1] == 470 && sim.hold[1] == 14", "expect": "the save landed first"},
-        {"t": 6.0, "do": "cutIt"}
-      ],
-      "final": [
-        {"rule": "indexOfFirstStartFrame > indexOfLastSaveFrame", "expect": "the start went out after the preset frames"},
-        {"rule": "sim.session == 0", "expect": "heat is off at the end"}
-      ]
-    },
-    {
-      "id": "rigButtonWithShow", "title": "dab started at the rig with the light show on: app runs the show, never cuts", "show": true, "allowedAppStarts": 0, "finish": 22.0,
-      "steps": [
-        {"t": 3.0, "do": "sim.buttonStart"},
-        {"t": 9.0, "check": "sim.session != 0", "expect": "still heating mid-dab"},
-        {"t": 9.0, "check": "sim.lightMode != 3 || sim.brightness != 50", "expect": "light show ran on a rig-started dab"}
-      ],
-      "final": [
-        {"rule": "events.count('STOP by its own timer') == 1", "expect": "the dab ran to its own end"},
-        {"rule": "sim.sessionStarts == 1", "expect": "one dab, started at the rig"},
-        {"rule": "stopsWhileHeating == 0", "expect": "the app never sent a stop into the dab"},
-        {"rule": "!log.has('SAFETY CUT') && !log.has('AWAY CUT')", "expect": "no safety action fired"},
-        {"rule": "sim.lightMode == 3 && sim.brightness == 50", "expect": "lights were put back"}
-      ]
-    },
-    {
-      "id": "rigButtonStopThenStartAgain", "title": "rig button: start, app light change, stop, start again: nothing is cut", "allowedAppStarts": 0, "finish": 30.0,
-      "steps": [
-        {"t": 3.0, "do": "sim.buttonStart"},
-        {"t": 7.0, "do": "setLightMode", "args": {"mode": 5}},
-        {"t": 9.0, "do": "sim.buttonStop"},
-        {"t": 12.0, "do": "sim.buttonStart"},
-        {"t": 16.0, "check": "sim.session != 0", "expect": "second dab is still heating 4 s in"}
-      ],
-      "final": [
-        {"rule": "sim.sessionStarts == 2", "expect": "two dabs, both started at the rig"},
-        {"rule": "events.count('STOP by its own timer') == 1", "expect": "the second dab ran to its own end"},
-        {"rule": "stopsWhileHeating == 0", "expect": "the app never sent a stop into either dab"},
-        {"rule": "!log.has('SAFETY CUT') && !log.has('AWAY CUT')", "expect": "no safety action fired"},
-        {"rule": "sim.lightMode == 5", "expect": "the light change from the app stuck"}
-      ]
+     "t": 6.4,
+     "check": "sim.session == 0",
+     "expect": "rig stopped within 0.4 s of CUT IT"
     }
-  ]
+   ],
+   "final": [
+    {
+     "rule": "events.count('STOP by app frame') == 1",
+     "expect": "exactly one stop reached the rig"
+    },
+    {
+     "rule": "!app.sessionOn",
+     "expect": "app shows not heating"
+    },
+    {
+     "rule": "log.count('(stop, session 0)') == 1",
+     "expect": "no stop retry was needed"
+    }
+   ]
+  },
+  {
+   "id": "naturalEndWithShow",
+   "title": "natural end with light show and flash",
+   "show": true,
+   "allowedAppStarts": 1,
+   "finish": 21.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 9.0,
+     "check": "sim.lightMode != 3 || sim.brightness != 50",
+     "expect": "light show changed the lights"
+    }
+   ],
+   "final": [
+    {
+     "rule": "events.count('STOP by its own timer') == 1",
+     "expect": "the dab ran to the end on the rig's own timer"
+    },
+    {
+     "rule": "sim.sessionStarts == 1",
+     "expect": "heat never came back on"
+    },
+    {
+     "rule": "log.has('Slow-down flash started')",
+     "expect": "flash ran"
+    },
+    {
+     "rule": "sim.lightMode == 3 && sim.brightness == 50",
+     "expect": "lights were put back"
+    },
+    {
+     "rule": "b9s.filter(f => f.bytes[10] == 170 && f.sessionWas != 0 && f.remainingWas <= 2).length == 0",
+     "expect": "nothing was written in the last 2 seconds of the countdown"
+    },
+    {
+     "rule": "stopsWhileHeating == 0",
+     "expect": "nothing cut the dab short"
+    },
+    {
+     "rule": "!log.has('SAFETY CUT') && !log.has('AWAY')",
+     "expect": "no safety action fired in a normal dab"
+    }
+   ]
+  },
+  {
+   "id": "raceRestartSilent",
+   "title": "race: rig stops just before a light write lands (no off status seen)",
+   "allowedAppStarts": 2,
+   "finish": 13.0,
+   "notes": "The rig's own button stops it in the instant after a 'heating' status goes out, so the app's light write echoes 'heating' and restarts heat. The app cannot prevent that one frame; it must notice and cut.",
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 8.3,
+     "do": "sim.afterNextStatus",
+     "args": {
+      "then": [
+       "sim.buttonStop"
+      ]
+     }
+    },
+    {
+     "t": 8.3,
+     "do": "setLightMode",
+     "args": {
+      "mode": 5
+     }
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.sessionStarts == 2",
+     "expect": "the race really happened (heat was restarted by the echo)"
+    },
+    {
+     "rule": "log.has('SAFETY CUT')",
+     "expect": "the app noticed and cut"
+    },
+    {
+     "rule": "sim.session == 0",
+     "expect": "heat is off at the end"
+    },
+    {
+     "rule": "starts.length == 2 && stops.length >= 2 && stops[1].time - starts[1].time < 1.2",
+     "expect": "accidental heat lasted under 1.2 s"
+    }
+   ]
+  },
+  {
+   "id": "raceRestartSeenOff",
+   "title": "race: rig stops, reports off, then a light write in flight restarts it",
+   "allowedAppStarts": 2,
+   "finish": 13.0,
+   "setup": {
+    "world.writeLatency": 0.06
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 8.3,
+     "do": "sim.afterNextStatus",
+     "args": {
+      "delay": 0.03,
+      "then": [
+       "sim.buttonStop",
+       "sim.sendStatus"
+      ]
+     }
+    },
+    {
+     "t": 8.3,
+     "do": "setLightMode",
+     "args": {
+      "mode": 5
+     }
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.sessionStarts == 2",
+     "expect": "the race really happened (heat was restarted by the echo)"
+    },
+    {
+     "rule": "log.has('SAFETY CUT')",
+     "expect": "the app noticed and cut"
+    },
+    {
+     "rule": "sim.session == 0",
+     "expect": "heat is off at the end"
+    },
+    {
+     "rule": "starts.length == 2 && stops.length >= 2 && stops[1].time - starts[1].time < 1.2",
+     "expect": "accidental heat lasted under 1.2 s"
+    }
+   ]
+  },
+  {
+   "id": "rigButtonStopDuringFlash",
+   "title": "rig button stops the dab during the flash (random moment)",
+   "show": true,
+   "allowedAppStarts": "sim.sessionStarts",
+   "finish": 14.0,
+   "notes": "The stop lands at 9.0 s plus a random 0 to 0.45 s in steps of 0.05. Either no race (1 start) or a race the app cut (2 starts).",
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": "9.0 + 0.05 * randomInt(0, 9)",
+     "do": "sim.buttonStop"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.session == 0",
+     "expect": "heat is off at the end"
+    },
+    {
+     "rule": "sim.sessionStarts <= 1 || log.has('SAFETY CUT')",
+     "expect": "accidental restart was cut"
+    },
+    {
+     "rule": "sim.lightMode == 3 && sim.brightness == 50",
+     "expect": "lights were put back"
+    }
+   ]
+  },
+  {
+   "id": "leaveAppMidDab",
+   "title": "leave the app mid-dab: dab finishes, heat confirmed off, app lets go, reconnects on return",
+   "show": true,
+   "allowedAppStarts": 1,
+   "finish": 29.0,
+   "setup": {
+    "app.parkAfterQuiet": 4
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 5.0,
+     "do": "appMovedToBackground"
+    },
+    {
+     "t": 15.0,
+     "check": "stopsWhileHeating == 0",
+     "expect": "the running dab was not cut"
+    },
+    {
+     "t": 15.0,
+     "check": "world.peripheral.connected",
+     "expect": "still connected while the dab runs"
+    },
+    {
+     "t": 19.0,
+     "check": "events.count('STOP by its own timer') == 1",
+     "expect": "the dab ran to its own end"
+    },
+    {
+     "t": 19.0,
+     "check": "log.count('SAFE OFF (stop, session 0)') == 1",
+     "expect": "one stop was sent after the dab to confirm heat is off"
+    },
+    {
+     "t": 19.0,
+     "check": "sim.lightMode == 3 && sim.brightness == 50",
+     "expect": "lights were put back while in the background"
+    },
+    {
+     "t": 24.5,
+     "check": "!world.peripheral.connected",
+     "expect": "app let go of the rig after sitting idle"
+    },
+    {
+     "t": 24.5,
+     "check": "ble.connectionText.startsWith('Resting')",
+     "expect": "status text says resting"
+    },
+    {
+     "t": 26.0,
+     "do": "appBecameActive"
+    }
+   ],
+   "final": [
+    {
+     "rule": "ble.isConnected && app.canControl",
+     "expect": "reconnected by itself on return"
+    },
+    {
+     "rule": "app.awayNote != null",
+     "expect": "a note tells him what happened"
+    },
+    {
+     "rule": "sim.sessionStarts == 1",
+     "expect": "heat never came back on"
+    },
+    {
+     "rule": "stopsWhileHeating == 0",
+     "expect": "the dab was never cut"
+    }
+   ]
+  },
+  {
+   "id": "leaveAppStuckSession",
+   "title": "leave the app; countdown ends but the rig keeps saying heating",
+   "allowedAppStarts": 1,
+   "finish": 29.0,
+   "setup": {
+    "sim.neverStops": true
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 5.0,
+     "do": "appMovedToBackground"
+    },
+    {
+     "t": 15.5,
+     "check": "stopsWhileHeating == 0",
+     "expect": "nothing sent while the countdown is still running"
+    }
+   ],
+   "final": [
+    {
+     "rule": "log.has('AWAY CUT')",
+     "expect": "the app cut heat once the dab was clearly over"
+    },
+    {
+     "rule": "sim.session == 0",
+     "expect": "heat is off"
+    },
+    {
+     "rule": "firstStopWhileHeating != null && firstStopWhileHeating.remainingWas == 0",
+     "expect": "the cut came only after the countdown hit zero"
+    }
+   ]
+  },
+  {
+   "id": "linkLostBackAfterEnd",
+   "title": "link drops mid-dab, comes back after the dab ended",
+   "allowedAppStarts": 1,
+   "finish": 24.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 6.0,
+     "do": "world.loseLink"
+    },
+    {
+     "t": 7.0,
+     "check": "!ble.isConnected && ble.reconnecting",
+     "expect": "app is trying to get the rig back"
+    },
+    {
+     "t": 7.0,
+     "check": "sim.session == 170",
+     "expect": "rig keeps heating on its own"
+    },
+    {
+     "t": 20.0,
+     "check": "events.count('STOP by its own timer') == 1",
+     "expect": "rig finished the dab by itself"
+    },
+    {
+     "t": 20.0,
+     "do": "world.backInRange"
+    }
+   ],
+   "final": [
+    {
+     "rule": "ble.isConnected",
+     "expect": "reconnected by itself"
+    },
+    {
+     "rule": "log.count('SAFE OFF (stop, session 0)') == 1",
+     "expect": "one stop sent after reconnect to confirm heat is off"
+    },
+    {
+     "rule": "sim.sessionStarts == 1",
+     "expect": "heat never came back on"
+    },
+    {
+     "rule": "app.awayNote != null",
+     "expect": "a note tells him what happened"
+    }
+   ]
+  },
+  {
+   "id": "linkLostBackWhileHeating",
+   "title": "link drops mid-dab, comes back while still heating",
+   "allowedAppStarts": 1,
+   "finish": 39.0,
+   "setup": {
+    "sim.preset": 2
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 5.0,
+     "do": "world.loseLink"
+    },
+    {
+     "t": 9.0,
+     "do": "world.backInRange"
+    },
+    {
+     "t": 20.0,
+     "check": "ble.isConnected && app.sessionOn",
+     "expect": "reconnected and sees the dab still running"
+    },
+    {
+     "t": 20.0,
+     "check": "stopsWhileHeating == 0",
+     "expect": "the running dab was not cut"
+    }
+   ],
+   "final": [
+    {
+     "rule": "events.count('STOP by its own timer') == 1",
+     "expect": "the dab ran to its own end"
+    },
+    {
+     "rule": "log.count('SAFE OFF (stop, session 0)') == 1",
+     "expect": "one stop sent after the dab to confirm heat is off"
+    },
+    {
+     "rule": "stopsWhileHeating == 0",
+     "expect": "the dab was never cut"
+    }
+   ]
+  },
+  {
+   "id": "disconnectMidDab",
+   "title": "Disconnect tapped mid-dab: waits for the dab, then disconnects",
+   "allowedAppStarts": 1,
+   "finish": 23.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 5.0,
+     "do": "askDisconnect"
+    },
+    {
+     "t": 6.0,
+     "check": "app.disconnectWaiting && ble.isConnected",
+     "expect": "still connected, waiting for the dab"
+    }
+   ],
+   "final": [
+    {
+     "rule": "events.count('STOP by its own timer') == 1",
+     "expect": "the dab ran to its own end"
+    },
+    {
+     "rule": "stopsWhileHeating == 0",
+     "expect": "the dab was never cut"
+    },
+    {
+     "rule": "log.count('SAFE OFF (stop, session 0)') == 1",
+     "expect": "one stop sent after the dab"
+    },
+    {
+     "rule": "!ble.isConnected && ble.connectionText == 'Disconnected'",
+     "expect": "then it disconnected"
+    },
+    {
+     "rule": "!ble.reconnecting",
+     "expect": "and is not trying to reconnect"
+    }
+   ]
+  },
+  {
+   "id": "disconnectTwice",
+   "title": "Disconnect tapped twice mid-dab: drops the link now, rig finishes alone",
+   "allowedAppStarts": 1,
+   "finish": 20.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 5.0,
+     "do": "askDisconnect"
+    },
+    {
+     "t": 6.0,
+     "do": "askDisconnect"
+    },
+    {
+     "t": 7.0,
+     "check": "!ble.isConnected",
+     "expect": "disconnected right away"
+    }
+   ],
+   "final": [
+    {
+     "rule": "events.count('STOP by its own timer') == 1",
+     "expect": "the rig finished the dab by itself"
+    },
+    {
+     "rule": "stopsWhileHeating == 0",
+     "expect": "no stop was sent"
+    },
+    {
+     "rule": "!ble.reconnecting && !ble.isConnected",
+     "expect": "stays disconnected"
+    }
+   ]
+  },
+  {
+   "id": "oddStatusCutStillWorks",
+   "title": "rig reports settings the app does not know: CUT IT still works",
+   "allowedAppStarts": 0,
+   "finish": 7.0,
+   "setup": {
+    "sim.lightMode": 40,
+    "sim.autoOff": 200
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "sim.buttonStart"
+    },
+    {
+     "t": 3.0,
+     "do": "setLightMode",
+     "args": {
+      "mode": 5
+     }
+    },
+    {
+     "t": 5.0,
+     "do": "cutIt"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.session == 0",
+     "expect": "CUT IT stopped the rig"
+    },
+    {
+     "rule": "firstB9Off != null && firstB9Off.bytes[6] == 40 && firstB9Off.bytes[8] == 200",
+     "expect": "the stop copied the rig's own odd values back unchanged"
+    },
+    {
+     "rule": "b9s.filter(f => f.bytes[10] == 170).length == 0",
+     "expect": "nothing else was written with odd values"
+    }
+   ]
+  },
+  {
+   "id": "stopSwallowed",
+   "title": "the rig misses the first Stop: the app sends it again",
+   "allowedAppStarts": 1,
+   "finish": 9.0,
+   "setup": {
+    "sim.ignoreStops": 1
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 5.0,
+     "do": "cutIt"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.session == 0",
+     "expect": "rig is off"
+    },
+    {
+     "rule": "log.has('Sending it again')",
+     "expect": "the stop was sent again"
+    },
+    {
+     "rule": "events.count('STOP by app frame') == 1",
+     "expect": "second stop took"
+    }
+   ]
+  },
+  {
+   "id": "backBeforeDabEnds",
+   "title": "leave and come back before the dab ends: nothing extra is sent",
+   "allowedAppStarts": 1,
+   "finish": 24.0,
+   "setup": {
+    "app.parkAfterQuiet": 4
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 4.0,
+     "do": "appMovedToBackground"
+    },
+    {
+     "t": 7.0,
+     "do": "appBecameActive"
+    }
+   ],
+   "final": [
+    {
+     "rule": "events.count('STOP by its own timer') == 1",
+     "expect": "the dab ran to its own end"
+    },
+    {
+     "rule": "log.count('(stop, session 0)') == 0",
+     "expect": "no stop of any kind was sent"
+    },
+    {
+     "rule": "ble.isConnected",
+     "expect": "still connected (no parking while the app is open)"
+    }
+   ]
+  },
+  {
+   "id": "midSessionLightAndEndGuard",
+   "title": "light changes mid-dab and in the last seconds",
+   "allowedAppStarts": 1,
+   "finish": 20.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 6.13,
+     "do": "setLightMode",
+     "args": {
+      "mode": 5
+     }
+    },
+    {
+     "t": 7.2,
+     "check": "sim.lightMode == 5",
+     "expect": "light changed within a second"
+    },
+    {
+     "t": 7.2,
+     "check": "sim.session == 170",
+     "expect": "dab still running"
+    },
+    {
+     "t": 14.6,
+     "check": "sim.session == 170 && sim.remaining <= 3",
+     "expect": "we are in the last 3 seconds"
+    },
+    {
+     "t": 14.6,
+     "do": "setLightMode",
+     "args": {
+      "mode": 6
+     }
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.sessionStarts == 1",
+     "expect": "heat never came back on"
+    },
+    {
+     "rule": "b9s.filter(f => f.bytes[6] == 6).length == 1 && b9s.filter(f => f.bytes[6] == 6)[0].sessionWas == 0 && b9s.filter(f => f.bytes[6] == 6)[0].bytes[10] == 0",
+     "expect": "the late change was held and sent after the dab, with heat off"
+    },
+    {
+     "rule": "sim.lightMode == 6",
+     "expect": "the late change still happened"
+    },
+    {
+     "rule": "events.count('STOP by its own timer') == 1",
+     "expect": "the dab ran to its own end"
+    }
+   ]
+  },
+  {
+   "id": "presetsAndDial",
+   "title": "save a preset, pick it, heat, ride the dial, temps put back",
+   "allowedAppStarts": 1,
+   "finish": 35.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "savePreset",
+     "args": {
+      "slot": 3,
+      "tempF": 510,
+      "hold": 20,
+      "profile": 177
+     }
+    },
+    {
+     "t": 5.5,
+     "check": "sim.presetTemp[3] == 510 && sim.hold[3] == 20 && sim.profile[3] == 177",
+     "expect": "preset saved on the rig"
+    },
+    {
+     "t": 5.5,
+     "do": "selectPreset",
+     "args": {
+      "slot": 3
+     }
+    },
+    {
+     "t": 7.0,
+     "check": "sim.preset == 3",
+     "expect": "preset 3 selected"
+    },
+    {
+     "t": 7.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 11.0,
+     "check": "app.dialDisabledReason == null",
+     "expect": "dial test is available"
+    },
+    {
+     "t": 11.0,
+     "do": "dialNudge",
+     "args": {
+      "by": 5
+     }
+    },
+    {
+     "t": 12.5,
+     "do": "dialNudge",
+     "args": {
+      "by": 5
+     }
+    },
+    {
+     "t": 13.5,
+     "check": "sim.presetTemp[0] == 520",
+     "expect": "live slot moved to 520"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.presetTemp[0] == 480",
+     "expect": "live slot put back to 480 after the dab"
+    },
+    {
+     "rule": "sim.presetTemp[3] == 510",
+     "expect": "preset 3 untouched"
+    },
+    {
+     "rule": "sim.sessionStarts == 1",
+     "expect": "one dab"
+    },
+    {
+     "rule": "saves.length >= 3 && saves[1].time - saves[0].time >= 0.95 && saves[2].time - saves[1].time >= 0.95",
+     "expect": "preset frames went out a second apart"
+    }
+   ],
+   "setup": {
+    "sim.reportsLiveSlot": true,
+    "app.dialMode": "live"
+   },
+   "notes": "a rig that does report slot 0, so the put-back path stays covered; mode A set on purpose"
+  },
+  {
+   "id": "dialActivePreset",
+   "title": "ride the dial, mode B: the active preset moves mid-dab and is put back after",
+   "allowedAppStarts": 1,
+   "finish": 52.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "selectPreset",
+     "args": {
+      "slot": 3
+     }
+    },
+    {
+     "t": 3.5,
+     "check": "sim.preset == 3",
+     "expect": "preset 3 selected"
+    },
+    {
+     "t": 3.5,
+     "check": "app.dialMode == 'active'",
+     "expect": "the dial test opens on mode B"
+    },
+    {
+     "t": 3.5,
+     "do": "heatIt"
+    },
+    {
+     "t": 14.6,
+     "check": "app.dialDisabledReason == null",
+     "expect": "dial test is available"
+    },
+    {
+     "t": 14.6,
+     "do": "dialNudge",
+     "args": {
+      "by": 5
+     }
+    },
+    {
+     "t": 16.1,
+     "do": "dialNudge",
+     "args": {
+      "by": 5
+     }
+    },
+    {
+     "t": 17.6,
+     "do": "dialNudge",
+     "args": {
+      "by": 10
+     },
+     "notes": "a 10 degree tap is ignored"
+    },
+    {
+     "t": 23.6,
+     "check": "log.count('result after 6 s: yes') == 1 && log.count('result after 6 s: no') == 0",
+     "expect": "the app said yes when the temp really followed"
+    },
+    {
+     "t": 23.6,
+     "check": "sim.presetTemp[3] == 530",
+     "expect": "preset 3 moved to 530 mid-dab"
+    },
+    {
+     "t": 23.6,
+     "check": "sim.presetTemp[0] == 480",
+     "expect": "live slot untouched"
+    },
+    {
+     "t": 23.6,
+     "check": "Math.round(sim.temp) == 530",
+     "expect": "the rig's temp followed to 530"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.presetTemp[3] == 520",
+     "expect": "preset 3 put back to 520 after the dab"
+    },
+    {
+     "rule": "sim.presetTemp[0] == 480",
+     "expect": "live slot still untouched"
+    },
+    {
+     "rule": "sim.sessionStarts == 1",
+     "expect": "one dab"
+    },
+    {
+     "rule": "events.count('STOP by its own timer') == 1 && stopsWhileHeating == 0",
+     "expect": "the dab ran to its own end"
+    },
+    {
+     "rule": "!log.has('SAFETY CUT')",
+     "expect": "no safety cut"
+    }
+   ],
+   "setup": {
+    "sim.hold[3]": 40
+   },
+   "notes": "Taps at 14.6 s: the temp reaches 520 at 7.5 s, so the verdict needs 7 s of settled temp behind the first tap. At exactly 14.0 the 7.0 s sample (500 F) lands on the window edge; the Swift bench passes there only because of real-clock jitter."
+  },
+  {
+   "id": "extendWithShow",
+   "title": "+10s during the flash: no false alarm",
+   "show": true,
+   "allowedAppStarts": 1,
+   "finish": 42.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 9.0,
+     "check": "app.canExtend",
+     "expect": "+10s is available"
+    },
+    {
+     "t": 9.0,
+     "do": "extendTen"
+    },
+    {
+     "t": 10.5,
+     "do": "extendTen"
+    }
+   ],
+   "final": [
+    {
+     "rule": "events.count('EXTEND to 1') == 1 && events.count('EXTEND to 2') == 1",
+     "expect": "both extensions reached the rig"
+    },
+    {
+     "rule": "!log.has('SAFETY CUT')",
+     "expect": "no false safety cut"
+    },
+    {
+     "rule": "events.count('STOP by its own timer') == 1 && stopsWhileHeating == 0",
+     "expect": "the dab ran to its own (extended) end"
+    },
+    {
+     "rule": "sim.sessionStarts == 1",
+     "expect": "heat never came back on"
+    },
+    {
+     "rule": "sim.lightMode == 3 && sim.brightness == 50",
+     "expect": "lights were put back"
+    }
+   ]
+  },
+  {
+   "id": "bluetoothOffMidDab",
+   "title": "Bluetooth switched off mid-dab, then back on",
+   "allowedAppStarts": 1,
+   "finish": 22.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 5.0,
+     "do": "world.bluetooth",
+     "args": {
+      "on": false
+     }
+    },
+    {
+     "t": 6.0,
+     "check": "!ble.isConnected && !app.canControl",
+     "expect": "app knows the link is gone"
+    },
+    {
+     "t": 8.0,
+     "do": "world.bluetooth",
+     "args": {
+      "on": true
+     }
+    }
+   ],
+   "final": [
+    {
+     "rule": "ble.isConnected",
+     "expect": "reconnected by itself"
+    },
+    {
+     "rule": "stopsWhileHeating == 0",
+     "expect": "the dab was never cut"
+    },
+    {
+     "rule": "log.count('SAFE OFF (stop, session 0)') == 1",
+     "expect": "one stop sent after the dab"
+    }
+   ]
+  },
+  {
+   "id": "owedLightsAfterRelaunch",
+   "title": "app was closed mid-show: lights are put back at the next connect",
+   "allowedAppStarts": 0,
+   "finish": 5.0,
+   "setup": {
+    "saved.lightRestoreV1": [
+     3,
+     50
+    ],
+    "sim.lightMode": 8,
+    "sim.brightness": 20
+   },
+   "steps": [],
+   "final": [
+    {
+     "rule": "sim.lightMode == 3 && sim.brightness == 50",
+     "expect": "lights put back"
+    },
+    {
+     "rule": "saved.lightRestoreV1 == null",
+     "expect": "nothing left owed"
+    }
+   ]
+  },
+  {
+   "id": "idleParkAndReturn",
+   "title": "leave the app idle: lets go of the rig, grabs it again on return",
+   "allowedAppStarts": 0,
+   "finish": 12.0,
+   "setup": {
+    "app.parkAfterQuiet": 3
+   },
+   "steps": [
+    {
+     "t": 3.0,
+     "do": "appMovedToBackground"
+    },
+    {
+     "t": 8.5,
+     "check": "!world.peripheral.connected && !ble.reconnecting",
+     "expect": "let go, not hunting for it"
+    },
+    {
+     "t": 9.0,
+     "do": "appBecameActive"
+    }
+   ],
+   "final": [
+    {
+     "rule": "ble.isConnected && app.canControl",
+     "expect": "connected again with status flowing"
+    },
+    {
+     "rule": "b9s.length == 0",
+     "expect": "no control frames were sent at all"
+    }
+   ]
+  },
+  {
+   "id": "rigButtonOnly",
+   "title": "dab started and ended at the rig while the app just watches",
+   "allowedAppStarts": 0,
+   "finish": 20.0,
+   "steps": [
+    {
+     "t": 3.0,
+     "do": "sim.buttonStart"
+    }
+   ],
+   "final": [
+    {
+     "rule": "events.count('STOP by its own timer') == 1",
+     "expect": "the dab ran to its own end"
+    },
+    {
+     "rule": "b9s.length == 0",
+     "expect": "the app sent no control frames"
+    },
+    {
+     "rule": "log.has('SESSION START') && log.has('SESSION END')",
+     "expect": "the app logged the session"
+    }
+   ]
+  },
+  {
+   "id": "linkLostGiveUpAndUserCancel",
+   "title": "link drops while idle: tries, then the user taps Disconnect to stop trying",
+   "allowedAppStarts": 0,
+   "finish": 10.0,
+   "setup": {
+    "ble.linkLostWindow": 6
+   },
+   "steps": [
+    {
+     "t": 3.0,
+     "do": "world.loseLink"
+    },
+    {
+     "t": 4.0,
+     "check": "ble.reconnecting",
+     "expect": "trying to get it back"
+    },
+    {
+     "t": 5.0,
+     "do": "askDisconnect"
+    },
+    {
+     "t": 6.0,
+     "do": "world.backInRange"
+    }
+   ],
+   "final": [
+    {
+     "rule": "!ble.isConnected && !ble.reconnecting",
+     "expect": "stays disconnected after the user said so"
+    },
+    {
+     "rule": "!world.peripheral.connected",
+     "expect": "no link was made behind his back"
+    }
+   ]
+  },
+  {
+   "id": "linkLostGiveUp",
+   "title": "link drops while idle and never comes back: gives up cleanly",
+   "allowedAppStarts": 0,
+   "finish": 12.0,
+   "setup": {
+    "ble.linkLostWindow": 4,
+    "world.pendingCancelReportsDisconnect": true
+   },
+   "notes": "Run once more with world.pendingCancelReportsDisconnect false (the Swift bench's --quiet-cancel flag): both must pass.",
+   "steps": [
+    {
+     "t": 3.0,
+     "do": "world.loseLink"
+    },
+    {
+     "t": 9.0,
+     "do": "world.backInRange"
+    }
+   ],
+   "final": [
+    {
+     "rule": "!ble.isConnected && !ble.reconnecting",
+     "expect": "gave up"
+    },
+    {
+     "rule": "ble.connectionText.startsWith('Not connected')",
+     "expect": "says so"
+    },
+    {
+     "rule": "!world.peripheral.connected",
+     "expect": "no late connection"
+    }
+   ]
+  },
+  {
+   "id": "heatRefusedOutOfRangePreset",
+   "title": "a preset outside 250-650 F is not started",
+   "allowedAppStarts": 0,
+   "finish": 4.0,
+   "setup": {
+    "sim.presetTemp[1]": 700
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.sessionStarts == 0",
+     "expect": "no heat"
+    },
+    {
+     "rule": "app.message != null",
+     "expect": "he is told why"
+    }
+   ]
+  },
+  {
+   "id": "idleLogStaysSmall",
+   "title": "idle rig does not flood the log",
+   "allowedAppStarts": 0,
+   "finish": 14.0,
+   "steps": [],
+   "final": [
+    {
+     "rule": "log.count('] RX ') < 60",
+     "expect": "about 26 status frames arrived, under 60 RX lines logged in total"
+    },
+    {
+     "rule": "app.canControl",
+     "expect": "status still flowing"
+    }
+   ]
+  },
+  {
+   "id": "lateHeatDropped",
+   "title": "HEAT IT stuck behind 8 s of preset writes is dropped, not sent late",
+   "allowedAppStarts": 0,
+   "finish": 14.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "savePreset",
+     "args": {
+      "slot": 2,
+      "tempF": 455,
+      "hold": 15,
+      "profile": 161
+     }
+    },
+    {
+     "t": 2.0,
+     "do": "savePreset",
+     "args": {
+      "slot": 3,
+      "tempF": 510,
+      "hold": 20,
+      "profile": 177
+     }
+    },
+    {
+     "t": 2.0,
+     "do": "savePreset",
+     "args": {
+      "slot": 4,
+      "tempF": 525,
+      "hold": 25,
+      "profile": 193
+     }
+    },
+    {
+     "t": 2.2,
+     "do": "heatIt"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.presetTemp[4] == 525 && sim.hold[4] == 25 && sim.profile[4] == 193",
+     "expect": "all three presets were saved"
+    },
+    {
+     "rule": "sim.sessionStarts == 0",
+     "expect": "heat did not come on late"
+    },
+    {
+     "rule": "log.has('HEAT IT waited too long')",
+     "expect": "the app said to tap again"
+    },
+    {
+     "rule": "app.canHeat",
+     "expect": "HEAT IT is available again"
+    }
+   ]
+  },
+  {
+   "id": "heatRightAfterSave",
+   "title": "HEAT IT right after saving a preset heats once the save is out",
+   "allowedAppStarts": 1,
+   "finish": 9.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "savePreset",
+     "args": {
+      "slot": 1,
+      "tempF": 470,
+      "hold": 14,
+      "profile": 161
+     }
+    },
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 6.0,
+     "check": "sim.session == 170 && app.sessionOn",
+     "expect": "rig is heating"
+    },
+    {
+     "t": 6.0,
+     "check": "sim.presetTemp[1] == 470 && sim.hold[1] == 14",
+     "expect": "the save landed first"
+    },
+    {
+     "t": 6.0,
+     "do": "cutIt"
+    }
+   ],
+   "final": [
+    {
+     "rule": "indexOfFirstStartFrame > indexOfLastSaveFrame",
+     "expect": "the start went out after the preset frames"
+    },
+    {
+     "rule": "sim.session == 0",
+     "expect": "heat is off at the end"
+    }
+   ]
+  },
+  {
+   "id": "rigButtonWithShow",
+   "title": "dab started at the rig with the light show on: app runs the show, never cuts",
+   "show": true,
+   "allowedAppStarts": 0,
+   "finish": 22.0,
+   "steps": [
+    {
+     "t": 3.0,
+     "do": "sim.buttonStart"
+    },
+    {
+     "t": 9.0,
+     "check": "sim.session != 0",
+     "expect": "still heating mid-dab"
+    },
+    {
+     "t": 9.0,
+     "check": "sim.lightMode != 3 || sim.brightness != 50",
+     "expect": "light show ran on a rig-started dab"
+    }
+   ],
+   "final": [
+    {
+     "rule": "events.count('STOP by its own timer') == 1",
+     "expect": "the dab ran to its own end"
+    },
+    {
+     "rule": "sim.sessionStarts == 1",
+     "expect": "one dab, started at the rig"
+    },
+    {
+     "rule": "stopsWhileHeating == 0",
+     "expect": "the app never sent a stop into the dab"
+    },
+    {
+     "rule": "!log.has('SAFETY CUT') && !log.has('AWAY CUT')",
+     "expect": "no safety action fired"
+    },
+    {
+     "rule": "sim.lightMode == 3 && sim.brightness == 50",
+     "expect": "lights were put back"
+    }
+   ]
+  },
+  {
+   "id": "rigButtonStopThenStartAgain",
+   "title": "rig button: start, app light change, stop, start again: nothing is cut",
+   "allowedAppStarts": 0,
+   "finish": 30.0,
+   "steps": [
+    {
+     "t": 3.0,
+     "do": "sim.buttonStart"
+    },
+    {
+     "t": 7.0,
+     "do": "setLightMode",
+     "args": {
+      "mode": 5
+     }
+    },
+    {
+     "t": 9.0,
+     "do": "sim.buttonStop"
+    },
+    {
+     "t": 12.0,
+     "do": "sim.buttonStart"
+    },
+    {
+     "t": 16.0,
+     "check": "sim.session != 0",
+     "expect": "second dab is still heating 4 s in"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.sessionStarts == 2",
+     "expect": "two dabs, both started at the rig"
+    },
+    {
+     "rule": "events.count('STOP by its own timer') == 1",
+     "expect": "the second dab ran to its own end"
+    },
+    {
+     "rule": "stopsWhileHeating == 0",
+     "expect": "the app never sent a stop into either dab"
+    },
+    {
+     "rule": "!log.has('SAFETY CUT') && !log.has('AWAY CUT')",
+     "expect": "no safety action fired"
+    },
+    {
+     "rule": "sim.lightMode == 5",
+     "expect": "the light change from the app stuck"
+    }
+   ]
+  },
+  {
+   "id": "dialOnClimbingPreset",
+   "title": "ride the dial on a climbing (Ascent) preset: the preset's own climb is not read as the dial working",
+   "allowedAppStarts": 1,
+   "finish": 38.0,
+   "setup": {
+    "sim.presetTemp[2]": 465,
+    "sim.hold[2]": 50,
+    "sim.profile[2]": 177,
+    "app.dialMode": "live"
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "selectPreset",
+     "args": {
+      "slot": 2
+     }
+    },
+    {
+     "t": 3.5,
+     "check": "sim.preset == 2",
+     "expect": "preset 2 selected"
+    },
+    {
+     "t": 3.5,
+     "do": "heatIt"
+    },
+    {
+     "t": 16.0,
+     "check": "app.dialDisabledReason == null",
+     "expect": "dial test is available"
+    },
+    {
+     "t": 16.0,
+     "check": "Math.round(sim.temp) > 468",
+     "expect": "the preset is climbing by itself"
+    },
+    {
+     "t": 16.0,
+     "do": "dialNudge",
+     "args": {
+      "by": 5
+     }
+    },
+    {
+     "t": 17.5,
+     "do": "dialNudge",
+     "args": {
+      "by": 5
+     }
+    },
+    {
+     "t": 25.0,
+     "check": "sim.presetTemp[0] == 475",
+     "expect": "the rig saved the live slot at 475"
+    },
+    {
+     "t": 25.0,
+     "check": "log.count('result after 6 s: yes') == 0",
+     "expect": "the app did not say yes for a climb that was already happening"
+    },
+    {
+     "t": 25.0,
+     "check": "log.count('result after 6 s: no') == 1",
+     "expect": "the app said no"
+    },
+    {
+     "t": 26.0,
+     "do": "dialNudge",
+     "args": {
+      "by": -5
+     }
+    },
+    {
+     "t": 33.5,
+     "check": "log.count('result after 6 s: yes') == 0 && log.count('result after 6 s: no') == 2",
+     "expect": "the app said no again"
+    },
+    {
+     "t": 33.5,
+     "check": "log.has('original for slot 0 was unknown')",
+     "expect": "the live slot's old value was never reported, and the Log says so"
+    },
+    {
+     "t": 34.0,
+     "do": "cutIt"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.presetTemp[2] == 465",
+     "expect": "preset 2 untouched"
+    },
+    {
+     "rule": "sim.sessionStarts == 1 && events.count('STOP by app frame') == 1",
+     "expect": "one dab, one stop"
+    },
+    {
+     "rule": "!log.has('SAFETY CUT')",
+     "expect": "no safety cut"
+    }
+   ]
+  },
+  {
+   "id": "dialDuringHeatUp",
+   "title": "ride the dial while still heating up: the app says it can't tell",
+   "allowedAppStarts": 1,
+   "finish": 18.0,
+   "setup": {
+    "sim.presetTemp[2]": 600,
+    "sim.hold[2]": 30,
+    "app.dialMode": "live"
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "selectPreset",
+     "args": {
+      "slot": 2
+     }
+    },
+    {
+     "t": 3.5,
+     "do": "heatIt"
+    },
+    {
+     "t": 6.2,
+     "check": "app.dialDisabledReason == null",
+     "expect": "dial test is available"
+    },
+    {
+     "t": 6.2,
+     "do": "dialNudge",
+     "args": {
+      "by": -5
+     }
+    },
+    {
+     "t": 13.5,
+     "check": "log.count(\"result after 6 s: can't tell\") == 1",
+     "expect": "the app said it can't tell"
+    },
+    {
+     "t": 13.5,
+     "check": "log.count('result after 6 s: yes') == 0 && log.count('result after 6 s: no') == 0",
+     "expect": "no yes or no was claimed"
+    },
+    {
+     "t": 14.0,
+     "do": "cutIt"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.sessionStarts == 1 && events.count('STOP by app frame') == 1",
+     "expect": "one dab, one stop"
+    }
+   ]
+  },
+  {
+   "id": "extraTimeNotCarried",
+   "title": "+10s then CUT IT then HEAT IT again: the extra time is not carried along",
+   "allowedAppStarts": 2,
+   "show": true,
+   "finish": 19.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "selectPreset",
+     "args": {
+      "slot": 2
+     }
+    },
+    {
+     "t": 3.5,
+     "do": "heatIt"
+    },
+    {
+     "t": 8.0,
+     "do": "extendTen"
+    },
+    {
+     "t": 9.6,
+     "check": "sim.extend == 1",
+     "expect": "the rig took the extra 10 s"
+    },
+    {
+     "t": 9.6,
+     "do": "cutIt"
+    },
+    {
+     "t": 10.7,
+     "do": "heatIt",
+     "notes": "right behind the stop and the light restore"
+    },
+    {
+     "t": 13.0,
+     "check": "sim.session == 170",
+     "expect": "the second dab is running"
+    },
+    {
+     "t": 13.0,
+     "check": "sim.extend == 0",
+     "expect": "the second dab started with no extra time"
+    },
+    {
+     "t": 15.0,
+     "do": "cutIt"
+    }
+   ],
+   "final": [
+    {
+     "rule": "b9s.filter(f => f.bytes[10] === 0 && f.sessionWas === 0).length > 0 && b9s.filter(f => f.bytes[10] === 0 && f.sessionWas === 0).every(f => f.bytes[12] === 0)",
+     "expect": "frames sent with heat off carried no extra time"
+    },
+    {
+     "rule": "b9s.filter(f => f.bytes[10] === 170 && f.sessionWas === 0).length == 2 && b9s.filter(f => f.bytes[10] === 170 && f.sessionWas === 0).every(f => f.bytes[12] === 0)",
+     "expect": "both HEAT IT frames carried extend 0"
+    },
+    {
+     "rule": "events.count('STOP by app frame') == 2",
+     "expect": "both dabs were cut by the app"
+    },
+    {
+     "rule": "!log.has('SAFETY CUT')",
+     "expect": "no safety cut"
+    }
+   ]
+  }
+ ]
 }

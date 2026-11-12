@@ -58,3 +58,7 @@ the last status frame.
 - Anything else: event "UNEXPECTED frame n".
 
 Slot temp report 163: `163, 8, slot, F>>8, F&255, C>>8, C&255, 163` with C = round((F - 32) * 5 / 9).
+
+2026-11-12, matching the Swift sim (sim-bench/stubs/CoreBluetooth.swift, 2026-11-11):
+- Ascent (profile 177): once the countdown runs, the target climbs 1 F a second from the set temp, up to the hold length.
+- reportsLiveSlot = false by default. The connect dump lists presets 1 to 5 only, as the real rig does. presetsAndDial turns it on.

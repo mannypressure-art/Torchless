@@ -183,7 +183,7 @@ export class RigController {
 
   // Ride-the-dial test state
   static readonly dialStep = 5;
-  dialMode: DialMode = "live";
+  dialMode: DialMode = "active";
   dialStart: number | null = null;
   dialCurrent: number | null = null;
   dialReadout = "No nudge yet";
@@ -233,6 +233,7 @@ export class RigController {
   private dialSamples: { time: number; f: number }[] = [];
   private dialNudgeAt: number | null = null;
   private dialNudgeBase = 0;
+  private dialBeforeSteady = false;
   private dialNudgeDir = 1;
   private dialNudgeTarget = 0;
   private dialBeforeSlope = 0;
@@ -694,6 +695,10 @@ export class RigController {
 
     const { change, intent } = item.kind;
     const f = this.effectiveFields(s);
+    // Extra time belongs to the dab that is running. With heat off there is none, and a new dab starts at
+    // 0, so a value from a frame sent a moment ago must not ride along. (Real rig, 2026-11-11: the
+    // Restore lights frame after a +10 s dab still carried extend 1.)
+    if (s.sessionByte === 0) f.extend = 0;
     if (change.preset !== undefined) f.preset = change.preset;
     if (change.lightMode !== undefined) f.lightMode = change.lightMode;
     if (change.brightness !== undefined) f.brightness = change.brightness;
@@ -1053,11 +1058,25 @@ export class RigController {
 
   private dialNudgeSent(newTarget: number, delta: number) {
     const now = this.now();
-    const recent = this.dialSamples.filter(x => now - x.time <= 4.0);
-    let slope = 0;
-    const a = recent[0], b = recent[recent.length - 1];
-    if (a && b && b.time > a.time) slope = (b.f - a.f) / (b.time - a.time);
-    this.dialBeforeSlope = slope;
+    /** F per second across the samples aged between `from` and `to` seconds; null when they span under 1.5 s. */
+    const slopeBetween = (from: number, to: number): number | null => {
+      const w = this.dialSamples.filter(x => { const age = now - x.time; return age <= from && age >= to; });
+      const a = w[0], b = w[w.length - 1];
+      if (!a || !b || b.time - a.time < 1.5) return null;
+      return (b.f - a.f) / (b.time - a.time);
+    };
+    // What the temp was doing by itself before the tap. The verdict takes that off, because a preset can
+    // climb with no help (Ascent rose 1 F a second on the real rig and was read as "yes"). A follow-up tap
+    // inside the 6 s window keeps the first tap's measurement: by then the temp may be answering that tap.
+    if (this.dialNudgeAt === null) {
+      const recent = slopeBetween(4.0, 0);
+      const earlier = slopeBetween(7.0, 4.0);
+      this.dialBeforeSlope = recent ?? 0;
+      // Still racing up to the preset, or only just levelled off: no fair comparison can be made.
+      if (recent !== null && earlier !== null) this.dialBeforeSteady = Math.abs(recent) <= 3.0 && Math.abs(recent - earlier) <= 1.0;
+      else this.dialBeforeSteady = false;
+    }
+    const slope = this.dialBeforeSlope;
     this.dialNudgeBase = this.dialSamples.length > 0 ? this.dialSamples[this.dialSamples.length - 1].f : (this.liveTempF ?? 0);
     this.dialNudgeDir = delta > 0 ? 1 : -1;
     this.dialNudgeTarget = newTarget;
@@ -1092,17 +1111,21 @@ export class RigController {
     if (this.dialNudgeAt !== null) {
       const el = now - this.dialNudgeAt;
       const delta = f - this.dialNudgeBase;
-      const toward = delta * this.dialNudgeDir;
       const sign = delta >= 0 ? "+" : "";
-      const nums = `At nudge ${this.dialNudgeBase} F, now ${f} F (${sign}${delta} F in ${el.toFixed(1)} s), new target ${this.dialNudgeTarget} F, slope before ${this.dialBeforeSlope.toFixed(1)} F/s`;
+      const drift = this.dialBeforeSlope * el;
+      const driftText = (drift >= 0 ? "+" : "") + drift.toFixed(1);
+      const nums = `At nudge ${this.dialNudgeBase} F, now ${f} F (${sign}${delta} F in ${el.toFixed(1)} s, ${driftText} F expected with no tap), new target ${this.dialNudgeTarget} F, slope before ${this.dialBeforeSlope.toFixed(1)} F/s`;
       if (el < 6.0) {
         this.dialReadout = "Temp moving toward new target: too early";
         this.dialNumbers = nums;
       } else {
-        const yes = toward >= Math.max(2, Math.trunc((RigController.dialStep * 3) / 5));
-        this.dialReadout = `Temp moving toward new target: ${yes ? "yes" : "no"}`;
+        // Movement toward the new target beyond what the temp was already doing.
+        const extra = (delta - drift) * this.dialNudgeDir;
+        const need = Math.max(2, Math.trunc((RigController.dialStep * 3) / 5));
+        const verdict = !this.dialBeforeSteady ? "can't tell (temp was not steady before the tap)" : (extra >= need ? "yes" : "no");
+        this.dialReadout = `Temp moving toward new target: ${verdict}`;
         this.dialNumbers = nums;
-        this.log(`DIAL TEST result after 6 s: ${yes ? "yes" : "no"}. ${nums}`);
+        this.log(`DIAL TEST result after 6 s: ${verdict}. ${nums}`);
         this.dialNudgeAt = null;
       }
     }
