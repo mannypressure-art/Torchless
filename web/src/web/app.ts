@@ -14,6 +14,7 @@ import { mountJars, h, tag, openSheet, topBar, textBtn } from "./jar-ui";
 import { mountRig } from "./rig-ui";
 import { Account, JarSync } from "./cloud";
 import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
+import { HeatFX, heatSound, HEAT_SOUNDS } from "./heatfx";
 
 const BUILD = "app-4c.1";
 const clock = new RealClock();
@@ -373,10 +374,25 @@ const rigUI = mountRig(ble, rig, {
     page.append(tag("MODE", "font-size:9.5px;margin-top:8px"), seg, tag("HOME FACE", "font-size:9.5px;margin-top:8px"), grid,
       h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "Every face shows the same live temp, target and time left. HEAT IT and CUT IT never move."));
     drawFaceGrid(grid);
-    buildSoundPicker?.(page);
+    buildSoundPicker(page);
   },
 });
-let buildSoundPicker: ((page: HTMLElement) => void) | null = null;
+// Heat-up sound picker (Rig > Look), same rows and words as HeatSoundPicker.
+function buildSoundPicker(page: HTMLElement) {
+  const box = h("div", { class: "stackS" });
+  const draw = () => {
+    const cur = prefs.get("heatSound") ?? "chimes";
+    box.replaceChildren(...HEAT_SOUNDS.map(c => {
+      const on = cur === c.id;
+      return h("button", { class: "soundRow" + (on ? " on" : ""), "aria-label": `${c.name} sound${on ? ", on" : ""}`, onclick: () => {
+        prefs.set("heatSound", c.id); heatSound.preview(c.id); draw(); rigUI.render();
+      } }, h("div", { style: "flex:1;min-width:0" }, h("b", { class: "cond" }, c.name), h("small", { class: "mono" }, c.line)), on ? tag("ON", "color:var(--live);font-size:9px") : null);
+    }));
+  };
+  draw();
+  page.append(tag("HEAT-UP SOUND", "font-size:9.5px;margin-top:8px"), box,
+    h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "Tap one to hear a short preview; tapping another cuts it off. Follows the silent switch on iPhone where the browser allows it, and plays over your own music. Phone taps happen with every option on Android."));
+}
 $("lookAround").onclick = () => { lookAround = true; schedule(); };
 $("linkJars").onclick = () => { lookAround = true; showTab("jars"); };
 $("linkLog").onclick = () => { lookAround = true; showTab("rig"); schedule(); };
@@ -632,7 +648,10 @@ function drawFaceGrid(into?: HTMLElement) {
 
 function schedule() { if (!queued) { queued = true; requestAnimationFrame(render); } }
 ble.onChange = schedule;
-rig.onChange = () => { watcher.update(rig); schedule(); };
+const heatFX = new HeatFX($("faceCard"), () => prefs.get("heatSound") ?? "chimes", () => faceID);
+rig.onChange = () => { watcher.update(rig); heatFX.update(rig); schedule(); };
+// Audio can only start after a tap: unlock it on the first tap of any kind, and resume after an interruption.
+document.addEventListener("pointerdown", () => heatSound.unlock(), { capture: true, passive: true });
 setInterval(schedule, 500);
 setFace(faceID);
 { // The Link screen's dim gauge, as on iPhone: needle at rest, no readout.
