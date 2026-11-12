@@ -6,7 +6,7 @@ plugins {
     id("com.android.application")
 }
 
-val siteHost = "mannypressure-art.github.io"
+val siteHost = "torchlessapp.github.io"
 val startUrl = "https://$siteHost/Torchless/"
 
 android {
