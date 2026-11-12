@@ -103,6 +103,69 @@
   .bl { bottom: 16px; left: 16px; } .br { bottom: 16px; right: 16px; text-align: right; }
   #cTarget { color: var(--gold); }
 
+  /* Other home faces (Digits, Scope, Pour) */
+  .dialKey { flex: 1; min-height: 64px; border-radius: 16px; color: var(--gold); font: 700 30px var(--cond); }
+  .dialKey:disabled { opacity: .4; }
+  .seg button:disabled { opacity: .5; }
+  .heatFX { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
+  .soundRow { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 14px; border-radius: 16px; border: 1px solid var(--edge); background: var(--cardBottom); color: var(--ink); text-align: left; }
+  .soundRow.on { border-color: var(--live); background: color-mix(in srgb, var(--live) 10%, var(--cardBottom)); }
+  .soundRow b { display: block; font-size: 20px; letter-spacing: 2px; font-weight: 600; }
+  .soundRow.on b { color: var(--live); }
+  .soundRow small { display: block; font-size: 10px; color: var(--dim); margin-top: 3px; }
+  .gaugeCard .face { position: absolute; inset: 0; padding: 18px; display: flex; flex-direction: column; }
+  .gaugeCard.alt #gauge, .gaugeCard.alt .readout, .gaugeCard.alt .corner { display: none; }
+  .fRow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .goldTag { color: var(--gold) !important; }
+  .face b.gold { color: var(--gold); }
+  .digits .dBig { flex: 1; display: grid; place-items: center; font: 700 150px/1 var(--cond); }
+  .face .hot { color: var(--live); text-shadow: 0 0 16px color-mix(in srgb, var(--live) 45%, transparent); }
+  .dBar { display: flex; align-items: center; gap: 3px; }
+  .dBar i { flex: 1; height: 20px; background: var(--edge); } .dBar i.on { background: var(--live); }
+  .dBar b { width: 3px; height: 30px; background: var(--gold); }
+  .dFoot { margin-top: 10px; align-items: flex-end; } .dFoot b { display: block; font: 600 28px/1.1 var(--cond); margin-top: 2px; }
+  .scope { padding: 16px; } .scopeSvg, .pourSvg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .sGrid { stroke: var(--edge); stroke-width: 1; opacity: .7; fill: none; vector-effect: non-scaling-stroke; }
+  .sTarget { stroke: var(--gold); stroke-width: 1.5; stroke-dasharray: 6 5; fill: none; vector-effect: non-scaling-stroke; }
+  .sTrace { stroke: var(--live); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; fill: none; vector-effect: non-scaling-stroke; filter: drop-shadow(0 0 4px var(--live)); }
+  .sNow { position: relative; } .sNow b { display: block; font: 600 54px/1 var(--cond); }
+  .sTgt { position: absolute; top: 60px; right: 16px; }
+  .sFoot { position: relative; margin-top: auto; }
+  .pour { padding: 16px; } .pTop { position: relative; }
+  .pMid { position: relative; margin-top: auto; text-align: center; padding-bottom: 26px; }
+  .pMid b { display: block; font: 700 104px/1 var(--cond); }
+  .pLine { font: 700 11px var(--mono); letter-spacing: 2px; color: var(--dim); }
+  .pour.inGold .pMid b, .pour.inGold .pLine { color: #1A1206; }
+  .miniGauge { width: 252px; height: 252px; overflow: visible; }
+  .miniGauge .m-gArc { fill: none; stroke: var(--live); stroke-width: 3; stroke-linecap: round; }
+  .miniGauge .m-gMarker path { fill: var(--gold); } .miniGauge .m-gNeedle rect { fill: var(--live); }
+  .faceGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+  .faceKey { border: 1px solid var(--edge); border-radius: 20px; background: var(--cardBottom); overflow: hidden; }
+  .faceKey.on { border: 2px solid var(--live); }
+  .faceKey .mini { width: 100%; height: 132px; position: relative; overflow: hidden; }
+  .faceKey .mini .gaugeCard { position: absolute; left: 50%; top: 50%; width: 340px; transform: translate(-50%, -50%) scale(.42); pointer-events: none; }
+  .faceKey .name { display: flex; justify-content: center; align-items: center; gap: 8px; min-height: 44px; font: 600 20px var(--cond); letter-spacing: 2px; }
+
+  /* Link screen header, Rig tab */
+  .linkHead { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; }
+  #linkGauge { display: grid; place-items: center; opacity: .75; margin-top: 14px; } #linkGauge svg { width: 230px; height: 230px; overflow: visible; }
+  #linkGauge .m-gNeedle rect { fill: var(--dim); }
+  .jarsPill { margin-left: auto; min-height: 44px; padding: 0 16px; border: 1px solid color-mix(in srgb, var(--gold) 70%, transparent); border-radius: 14px; color: var(--gold); font: 700 18px var(--cond); letter-spacing: 2px; }
+  .miniLink { flex: 1; min-height: 44px; font: 700 10px var(--mono); letter-spacing: 1.4px; color: var(--sub); }
+  .linkCard { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 20px; background: var(--cardBottom); border: 1px solid var(--edge); }
+  .linkCard.on { background: var(--selFill); border-color: color-mix(in srgb, var(--live) 60%, transparent); }
+  .rigIcon { font-size: 24px; filter: grayscale(1); } .linkCard.on .rigIcon { filter: none; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .tile { padding: 14px; border-radius: 16px; min-width: 0; } .tile b { display: block; margin-top: 6px; font: 600 26px/1 var(--cond); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .unlink { width: 100%; min-height: 56px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); color: var(--warn); font: 700 20px var(--cond); letter-spacing: 3px; }
+  .findRig { width: 100%; min-height: 56px; border-radius: 16px; background: var(--liveFill); color: var(--liveInk); font: 700 20px var(--cond); letter-spacing: 3px; }
+  .toolList { padding: 0 14px; border-radius: 16px; } .toolList hr { border: 0; border-top: 1px solid var(--edge); margin: 0; }
+  .toolRow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; text-align: left; }
+  .toolIcon { width: 24px; color: var(--sub); text-align: center; }
+  .logLines { font: 11px/1.45 var(--mono); white-space: pre-wrap; word-break: break-word; color: var(--sub); margin: 0; }
+  .btn2.nudge { flex: 1; min-height: 56px; font-size: 24px; color: var(--gold); border-color: var(--gold); }
+  .center { text-align: center; }
+
   /* Presets */
   .row { display: flex; align-items: center; gap: 8px; }
   .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 8px; }
@@ -126,6 +189,8 @@
   .hint { text-align: center; color: var(--sub); font: 500 11px var(--mono); min-height: 14px; margin-top: 6px; }
 
   /* Strips */
+  .linkJarsStrip { margin-top: 12px; min-height: 76px; border-color: color-mix(in srgb, var(--gold) 55%, var(--edge)); color: var(--ink); }
+  .linkJarsStrip .jarIcon { font-size: 30px; width: 40px; text-align: center; }
   .strip { display: flex; align-items: center; gap: 14px; padding: 0 16px; min-height: 84px; width: 100%; text-align: left; }
   .strip b { display: block; font: 600 24px/1.1 var(--cond); margin: 5px 0 3px; }
   .strip small { font: 500 10.5px var(--mono); color: var(--sub); }
@@ -141,13 +206,22 @@
   #linkScreen { min-height: 100vh; display: flex; flex-direction: column; padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom)); max-width: 480px; margin: 0 auto; }
   .hero { margin: auto 0; text-align: center; }
   .hero .mark { width: 96px; height: 96px; }
-  .hero h1 { font: 600 44px/1 var(--cond); letter-spacing: 3px; margin: 18px 0 6px; }
+  .hero h1 { font: 700 40px/1 var(--cond); letter-spacing: 1px; margin: 18px 0 8px; }
   .hero p { color: var(--sub); margin: 0 auto; max-width: 300px; }
   #linkIt { margin-top: 28px; }
   .ghost { width: 100%; min-height: 52px; border: 1px solid var(--edge); border-radius: 14px; margin-top: 10px; color: var(--sub); font: 600 18px var(--cond); letter-spacing: 1px; }
   .small { color: var(--dim); font-size: 13px; text-align: center; margin-top: 14px; }
 
   /* Lights */
+  .showPill { margin-left: auto; padding: 6px 9px; border: 1px solid var(--edge); border-radius: 7px; font-size: 9.5px; }
+  .nowCard { padding: 18px; border-radius: 24px; }
+  .showRow { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 0 16px; border-radius: 18px; background: var(--cardBottom); border: 1px solid color-mix(in srgb, var(--gold) 55%, transparent); }
+  .chips2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 20px; }
+  .lchip { min-height: 44px; padding: 0 8px; border-radius: 12px; border: 1px solid var(--edge); background: var(--cardBottom); font: 600 17px var(--cond); color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lchip.on { background: var(--selFill); border-color: var(--live); color: var(--ink); }
+  .lchip:disabled { opacity: .45; }
+  .stepCard { padding: 14px; border-radius: 16px; }
+  .showStrip { display: flex; height: 16px; border-radius: 5px; overflow: hidden; }
   .orbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0 18px; }
   .orbBtn { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 2px; border-radius: 14px; border: 1px solid transparent; }
   .orbBtn.on { border-color: var(--live); background: var(--selFill); }
@@ -207,6 +281,8 @@
   .lidArc { stroke: var(--gold); stroke-width: 2.5; stroke-linecap: round; }
   .lidLetter { fill: var(--gold); font: 700 34px var(--cond); text-anchor: middle; }
   .curBadge { position: absolute; top: 6px; left: 6px; background: var(--goldFill); color: var(--goldInk); font: 700 8.5px/1 var(--mono); letter-spacing: 1.5px; padding: 4px 7px; border-radius: 6px; }
+  .acctBtn { font: 600 15px var(--cond); letter-spacing: 1.5px; margin-right: 10px; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bigBtn.signIn { margin-top: 12px; background: var(--ink); color: var(--bg); font-size: 22px; letter-spacing: 1px; text-transform: none; }
   .logIt { min-height: 44px; padding: 0 14px; border-radius: 12px; background: var(--goldFill); color: var(--goldInk); font: 700 18px var(--cond); letter-spacing: 2px; white-space: nowrap; }
   .problem { color: var(--warn); background: var(--warnFill); border-radius: 12px; padding: 12px; font: 500 11px var(--mono); }
   .spendStrip { display: flex; align-items: center; gap: 14px; padding: 0 16px; min-height: 64px; width: 100%; text-align: left; }
@@ -260,6 +336,25 @@
   .flavors { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 6px; }
   .flavor { min-height: 34px; border: 1px solid var(--edge); border-radius: 9px; color: var(--sub); font: 500 13px var(--cond); white-space: nowrap; overflow: hidden; }
   .flavor.on { color: var(--gold); border-color: var(--gold); }
+  .galTag { position: absolute; padding: 4px 8px; border-radius: 6px; font: 700 9px var(--mono); letter-spacing: 1.5px; }
+  .galTag.cover { top: 10px; left: 10px; background: var(--gold); color: #1a1206; }
+  .galTag.count { bottom: 10px; right: 10px; background: rgba(0,0,0,.55); color: #fff; }
+  .galStrip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0; }
+  .galThumb { padding: 0; border: 2px solid transparent; border-radius: 12px; background: none; flex: none; }
+  .galThumb.on { border-color: var(--gold); }
+  .galAdd { flex: none; width: 58px; height: 58px; border-radius: 10px; border: 1px dashed color-mix(in srgb, var(--gold) 60%, transparent); background: none; color: var(--gold); display: grid; place-items: center; align-content: center; gap: 2px; margin-top: 2px; }
+  .galAdd span { font-size: 16px; line-height: 1; }
+  .galAdd b { font: 700 11px var(--cond); letter-spacing: 1px; }
+  .galKey { width: 44px; height: 40px; border-radius: 10px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); color: var(--sub); font-size: 18px; }
+  .galKey:disabled { opacity: .4; }
+  .galCover { min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--gold); background: none; color: var(--gold); font: 700 15px var(--cond); letter-spacing: 1.5px; }
+  .cropRoot { position: fixed; inset: 0; z-index: 90; background: var(--bg); display: flex; flex-direction: column; gap: 14px; padding: max(14px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom)); }
+  .cropBar { display: flex; align-items: center; justify-content: space-between; }
+  .cropWrap { position: relative; width: 100%; max-width: 520px; align-self: center; aspect-ratio: 1; }
+  .cropView { display: block; border-radius: 4px; touch-action: none; cursor: grab; }
+  .cropGrid { position: absolute; inset: 0; pointer-events: none; border: 2px solid var(--gold); border-radius: 4px;
+    background: linear-gradient(90deg, transparent calc(33.33% - .5px), rgba(255,255,255,.35) calc(33.33% - .5px), rgba(255,255,255,.35) calc(33.33% + .5px), transparent calc(33.33% + .5px), transparent calc(66.66% - .5px), rgba(255,255,255,.35) calc(66.66% - .5px), rgba(255,255,255,.35) calc(66.66% + .5px), transparent calc(66.66% + .5px)),
+      linear-gradient(180deg, transparent calc(33.33% - .5px), rgba(255,255,255,.35) calc(33.33% - .5px), rgba(255,255,255,.35) calc(33.33% + .5px), transparent calc(33.33% + .5px), transparent calc(66.66% - .5px), rgba(255,255,255,.35) calc(66.66% - .5px), rgba(255,255,255,.35) calc(66.66% + .5px), transparent calc(66.66% + .5px)); }
   .photoKey { flex: 1; min-height: 48px; border-radius: 12px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); color: var(--live); font: 700 17px var(--cond); letter-spacing: 1.5px; }
   .textLine { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; color: var(--ink); font: 500 20px var(--cond); outline: 0; margin-top: 8px; }
   .textLine.big { min-height: 52px; font-size: 22px; }
@@ -315,19 +410,27 @@
 
 <!-- Link it -->
 <section id="linkScreen">
-  <div class="hero">
+  <div class="linkHead">
     <svg class="mark"><use href="#markSym"/></svg>
-    <h1>TORCHLESS</h1>
-    <p>Find your rig. Turn it on, keep it close, then tap LINK IT and pick it from the list.</p>
+    <div><div class="brand">TORCHLESS</div><span class="tag" style="font-size:9.5px">NOT LINKED</span></div>
+    <button id="linkJars" class="jarsPill">◎ JARS</button>
+  </div>
+  <div class="hero">
+    <div id="linkGauge"></div>
+    <h1>FIND YOUR RIG</h1>
+    <p>Wake the Switch 2 and hold it close. Then tap LINK IT and pick it from the list.</p>
     <div id="btMsg" class="btmsg" style="margin-top:16px" hidden></div>
     <button id="linkIt" class="bigBtn" style="color:var(--liveInk);background:linear-gradient(#5FF0FF,var(--liveFill),#10B9D0)">LINK IT</button>
     <button id="linkAll" class="ghost">Can't find it? Show all devices</button>
+    <button id="linkJarsBig" class="strip panel linkJarsStrip"><span class="jarIcon">🫙</span><div><span class="tag" style="font-size:9px;color:var(--gold)">JARS</span><b>Your jars</b><small>Log it. Rate it. No rig needed.</small></div><span class="chev" style="margin-left:auto;color:var(--gold);font-size:26px">›</span></button>
     <div id="noBt" hidden>
       <a id="openBluefy" class="bigBtn" style="margin-top:12px;text-decoration:none;color:var(--goldInk);background:linear-gradient(#FFD27A,var(--goldFill),#C98F25);font-size:30px">OPEN IN BLUEFY</a>
       <a class="ghost" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="https://apps.apple.com/app/id1492822055">Get Bluefy (free) from the App Store</a>
     </div>
     <div id="linkState" class="small"></div>
     <div class="small">On iPhone, open this page in Bluefy. Keep the page open during a dab.</div>
+    <div class="row" style="gap:10px;margin-top:8px"><button id="lookAround" class="miniLink">LOOK AROUND FIRST</button><button id="linkLog" class="miniLink">LOG</button></div>
+    <div class="small" style="font:500 10px/1.5 var(--mono)">Compatible with Dr. Dabber Switch 2.<br>Not an official Dr. Dabber app.</div>
   </div>
 </section>
 
@@ -363,7 +466,7 @@
 
     <!-- Home -->
     <section data-panel="home" class="stack" style="margin-top:14px">
-      <div class="gaugeCard panel">
+      <div class="gaugeCard panel" id="faceCard">
         <svg id="gauge" viewBox="0 0 260 260">
           <circle cx="130" cy="130" r="138" class="bezelEdge"/>
           <circle cx="130" cy="130" r="137" class="bezel"/>
@@ -400,48 +503,48 @@
         <div id="heatHint" class="hint"></div>
       </div>
 
+      <div id="dialStrip" class="stackS" hidden>
+        <div class="row" style="justify-content:space-between"><span class="tag" style="font-size:9.5px">RIDE THE DIAL · TEST</span><span id="dialGoal" class="tag" style="font-size:9.5px;color:var(--gold)">GOAL ---</span></div>
+        <div class="row" style="gap:10px">
+          <button id="dialDown" class="panel dialKey" aria-label="Goal down 5 degrees">−5°</button>
+          <button id="dialUp" class="panel dialKey" aria-label="Goal up 5 degrees">+5°</button>
+        </div>
+        <div class="seg" style="grid-template-columns:1fr 1fr"><button id="dialA">A: Live slot</button><button id="dialB">B: Active preset</button></div>
+        <p id="dialSay" class="mono sub" style="font-size:10.5px;margin:0"></p>
+      </div>
+
       <div id="curJar" class="curJar panel"></div>
 
       <button class="strip panel" data-tab="lights">
-        <span class="orb" style="width:40px;height:40px;background:conic-gradient(#3CF2D0,#19E3FF,#6A7BFF,#B66BFF,#3CF2D0)"></span>
-        <div><span class="tag" style="font-size:9px">LIGHTS</span><b>Rig lights</b><small>Colors, brightness, light show</small></div>
-        <span class="chev">›</span>
+        <span id="stripOrb" class="orb" style="width:40px;height:40px"></span>
+        <div><span class="tag" style="font-size:9px">LIGHTS</span><b id="stripName">Calm</b><small id="stripDetail">Link the rig to set lights</small></div>
+        <span id="stripShow" class="tag showPill"></span>
       </button>
     </section>
 
     <!-- Jars -->
     <section data-panel="jars" id="jarsPanel" hidden style="margin-top:0" class="stack"></section>
 
-    <!-- Lights -->
-    <section data-panel="lights" hidden style="margin-top:14px">
+    <!-- Lights (as LightsView on iPhone) -->
+    <section data-panel="lights" hidden style="margin-top:14px" class="stack">
       <h2>LIGHTS</h2>
-      <div class="tag" style="margin-top:6px">NOW · <span id="lightNow">--</span></div>
-      <div class="panel pad" style="margin-top:14px">
-        <div class="row" style="justify-content:space-between"><span class="tag">BRIGHTNESS</span><b id="brightV" class="cond" style="font-size:22px">--</b></div>
+      <div class="panel nowCard">
+        <div class="row" style="gap:16px"><span id="nowOrb" class="orb" style="width:76px;height:76px"></span>
+          <div><span class="tag" style="font-size:9px">NOW</span><b id="lightNow" class="cond" style="display:block;font-size:30px">---</b><span id="lightKind" class="mono sub" style="font-size:10.5px">Link the rig first</span></div></div>
+        <div class="row" style="justify-content:space-between;margin-top:14px"><span class="tag" style="font-size:9px">BRIGHTNESS</span><b id="brightV" class="cond" style="font-size:24px;color:var(--live)">--</b></div>
         <input id="bright" type="range" min="0" max="100" step="1">
+        <label class="switchRow"><b class="cond" style="font-size:20px;font-weight:500">Haptics</b><input id="hapticsOn" type="checkbox"></label>
       </div>
-      <div class="panel pad" style="margin-top:14px">
-        <label class="switchRow"><span><b class="cond" style="font-size:22px">Light show during dabs</b><br><small style="color:var(--sub)">Changes color as the dab counts down, then puts your light back.</small></span><input id="showOn" type="checkbox"></label>
-      </div>
-      <div id="lightGrid" style="margin-top:18px"></div>
+      <button id="showRow" class="showRow">
+        <span style="color:var(--gold);font-size:22px">∿</span>
+        <span style="flex:1;text-align:left"><b class="cond" style="display:block;font-size:22px;font-weight:500">Light show</b><span id="showSub" class="mono sub" style="font-size:10px"></span></span>
+        <span id="showTag" class="tag"></span><span class="chev">›</span>
+      </button>
+      <div id="lightGrid"></div>
     </section>
 
-    <!-- Rig -->
-    <section data-panel="rig" hidden style="margin-top:14px" class="stack">
-      <h2>RIG</h2>
-      <div class="panel pad"><div id="rigInfo"></div></div>
-      <div class="row"><button id="disconnect" class="btn2">Disconnect</button></div>
-      <div class="panel pad">
-        <span class="tag">LOOK</span>
-        <div class="seg"><button data-look="dark">DARK</button><button data-look="light">BRIGHT</button><button data-look="auto">AUTO</button></div>
-      </div>
-      <div class="panel pad">
-        <span class="tag">SHOP TOOLS</span>
-        <p style="color:var(--sub);margin:8px 0 12px">For testing. The log helps when something acts up.</p>
-        <div class="row" style="flex-wrap:wrap"><button id="copyLog" class="btn2">Copy log</button><button id="saveLog" class="btn2">Save log</button><a class="btn2" href="test/">Test page</a></div>
-        <div class="small" style="text-align:left">Build <span id="build"></span>. Not affiliated with Dr. Dabber.</div>
-      </div>
-    </section>
+    <!-- Rig (built by rig-ui.ts) -->
+    <section data-panel="rig" id="rigPanel" hidden style="margin-top:14px" class="stack"></section>
   </div>
 
   <nav class="tabs">

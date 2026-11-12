@@ -16,7 +16,7 @@ import { Account, JarSync } from "./cloud";
 import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
 import { HeatFX, heatSound, HEAT_SOUNDS } from "./heatfx";
 
-const BUILD = "app-4c.1";
+const BUILD = "app-4d.1";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -38,15 +38,17 @@ catch { backend = new MemoryJarBackend(); }
 const jars = new JarStore(backend);
 const watcher = new DabWatcher(jars);
 // Sign-in and the shared catalog (optional; only the jar's own rating goes up).
+// Off until Google/Apple sign-in is set up, tested on a real phone, and Play Data safety is updated (Manny's go).
+const CLOUD_LIVE = false;
 const account = new Account();
 const sync = new JarSync(jars, account);
-const jarUI = mountJars(jars, watcher, (t) => showTab(t), { account, sync });
+const jarUI = mountJars(jars, watcher, (t) => showTab(t), CLOUD_LIVE ? { account, sync } : undefined);
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
-const kickSync = () => { if (syncTimer) clearTimeout(syncTimer); syncTimer = setTimeout(() => sync.kick(), 800); };
+const kickSync = () => { if (!CLOUD_LIVE) return; if (syncTimer) clearTimeout(syncTimer); syncTimer = setTimeout(() => sync.kick(), 800); };
 jars.onChange = () => { jarUI.renderHome(); if (tab === "jars") jarUI.renderJars(); jarUI.renderOpen(); kickSync(); };
 account.onChange = () => { if (tab === "jars") jarUI.renderJars(); jarUI.renderOpen(); jarUI.renderAccount(); kickSync(); };
 // Coming back from Google or Apple: show the account page so a new user can finish their profile.
-if (/[?&]code=/.test(location.search)) {
+if (CLOUD_LIVE && /[?&]code=/.test(location.search)) {
   showTabSoon();
 }
 function showTabSoon() {
@@ -397,6 +399,7 @@ function buildSoundPicker(page: HTMLElement) {
 }
 $("lookAround").onclick = () => { lookAround = true; schedule(); };
 $("linkJars").onclick = () => { lookAround = true; showTab("jars"); };
+$("linkJarsBig").onclick = () => { lookAround = true; showTab("jars"); };
 $("linkLog").onclick = () => { lookAround = true; showTab("rig"); schedule(); };
 
 // MARK: Gauge (SVG). Fractions run 0..1 across a 270 degree sweep starting bottom left, as on iPhone.

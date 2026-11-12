@@ -189,6 +189,8 @@
   .hint { text-align: center; color: var(--sub); font: 500 11px var(--mono); min-height: 14px; margin-top: 6px; }
 
   /* Strips */
+  .linkJarsStrip { margin-top: 12px; min-height: 76px; border-color: color-mix(in srgb, var(--gold) 55%, var(--edge)); color: var(--ink); }
+  .linkJarsStrip .jarIcon { font-size: 30px; width: 40px; text-align: center; }
   .strip { display: flex; align-items: center; gap: 14px; padding: 0 16px; min-height: 84px; width: 100%; text-align: left; }
   .strip b { display: block; font: 600 24px/1.1 var(--cond); margin: 5px 0 3px; }
   .strip small { font: 500 10.5px var(--mono); color: var(--sub); }
@@ -420,6 +422,7 @@
     <div id="btMsg" class="btmsg" style="margin-top:16px" hidden></div>
     <button id="linkIt" class="bigBtn" style="color:var(--liveInk);background:linear-gradient(#5FF0FF,var(--liveFill),#10B9D0)">LINK IT</button>
     <button id="linkAll" class="ghost">Can't find it? Show all devices</button>
+    <button id="linkJarsBig" class="strip panel linkJarsStrip"><span class="jarIcon">🫙</span><div><span class="tag" style="font-size:9px;color:var(--gold)">JARS</span><b>Your jars</b><small>Log it. Rate it. No rig needed.</small></div><span class="chev" style="margin-left:auto;color:var(--gold);font-size:26px">›</span></button>
     <div id="noBt" hidden>
       <a id="openBluefy" class="bigBtn" style="margin-top:12px;text-decoration:none;color:var(--goldInk);background:linear-gradient(#FFD27A,var(--goldFill),#C98F25);font-size:30px">OPEN IN BLUEFY</a>
       <a class="ghost" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="https://apps.apple.com/app/id1492822055">Get Bluefy (free) from the App Store</a>
