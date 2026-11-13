@@ -2769,6 +2769,485 @@
     }
    ],
    "notes": "Swift taps from sim.afterStatus when the sim shows 3 s left, 0.05 s later."
+  },
+  {
+   "id": "oneDabPutsBack",
+   "title": "one-dab curve: preset 1 runs the curve for one dab, then goes back with heat off",
+   "allowedAppStarts": 0,
+   "finish": 90.0,
+   "steps": [
+    {
+     "t": 2.1,
+     "do": "saveCurveOnce",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 480
+       },
+       {
+        "t": 15,
+        "f": 480
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 10.0,
+     "do": "sim.buttonStart"
+    }
+   ],
+   "final": [
+    {
+     "rule": "log.has('ONE DAB: dab on preset 1')",
+     "expect": "the dab was seen on that preset"
+    },
+    {
+     "rule": "sim.sessionStarts == 1",
+     "expect": "one dab, started from the rig"
+    },
+    {
+     "rule": "sim.presetTemp[1] == 450 && sim.hold[1] == 12 && sim.profile[1] == 161",
+     "expect": "preset 1 is back to 450 F, 12 s, its old profile"
+    },
+    {
+     "rule": "!saved.curveRestoreV1 && app.curveRestore === null",
+     "expect": "nothing is owed any more"
+    },
+    {
+     "rule": "curveFrames.every(f => f.sessionWas == 0)",
+     "expect": "nothing was written while heating"
+    },
+    {
+     "rule": "stopsWhileHeating == 0",
+     "expect": "the dab was left alone"
+    }
+   ]
+  },
+  {
+   "id": "oneDabSecondSendKeepsOriginal",
+   "title": "two one-dab sends before the dab: the put-back restores the first original, not the first curve",
+   "allowedAppStarts": 0,
+   "finish": 95.0,
+   "steps": [
+    {
+     "t": 2.1,
+     "do": "saveCurveOnce",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 480
+       },
+       {
+        "t": 15,
+        "f": 480
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 9.1,
+     "do": "saveCurveOnce",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 520
+       },
+       {
+        "t": 20,
+        "f": 520
+       }
+      ]
+     }
+    },
+    {
+     "t": 16.0,
+     "do": "sim.buttonStart"
+    }
+   ],
+   "final": [
+    {
+     "rule": "log.count('saved for later') == 1",
+     "expect": "the original was saved once"
+    },
+    {
+     "rule": "sim.presetTemp[1] == 450 && sim.hold[1] == 12 && sim.profile[1] == 161",
+     "expect": "preset 1 is back to 450 F, 12 s, its old profile"
+    },
+    {
+     "rule": "!saved.curveRestoreV1 && app.curveRestore === null",
+     "expect": "nothing is owed any more"
+    },
+    {
+     "rule": "curveFrames.every(f => f.sessionWas == 0)",
+     "expect": "nothing was written while heating"
+    },
+    {
+     "rule": "stopsWhileHeating == 0",
+     "expect": "the dab was left alone"
+    }
+   ]
+  },
+  {
+   "id": "oneDabWaitsForTheDab",
+   "title": "one-dab curve with no dab yet: it stays on the preset and is still owed",
+   "allowedAppStarts": 0,
+   "finish": 30.0,
+   "steps": [
+    {
+     "t": 2.1,
+     "do": "saveCurveOnce",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 480
+       },
+       {
+        "t": 15,
+        "f": 480
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.profile[1] == 241 && sim.presetTemp[1] == 480",
+     "expect": "the curve is on preset 1"
+    },
+    {
+     "rule": "saved.curveRestoreV1 && saved.curveRestoreV1.tempF == 450 && saved.curveRestoreV1.hold == 12 && saved.curveRestoreV1.used === false",
+     "expect": "the original is saved and owed"
+    },
+    {
+     "rule": "sim.sessionStarts == 0",
+     "expect": "no heat"
+    }
+   ]
+  },
+  {
+   "id": "oneDabInterrupted",
+   "title": "heat starts mid one-dab save: the rest is dropped, and the preset goes back after that dab",
+   "allowedAppStarts": 0,
+   "finish": 80.0,
+   "steps": [
+    {
+     "t": 2.1,
+     "do": "saveCurveOnce",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 480
+       },
+       {
+        "t": 15,
+        "f": 480
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 2.6,
+     "do": "sim.buttonStart"
+    }
+   ],
+   "final": [
+    {
+     "rule": "log.has('ONE DAB: save did not finish')",
+     "expect": "the failed save is owed back"
+    },
+    {
+     "rule": "sim.presetTemp[1] == 450 && sim.hold[1] == 12 && sim.profile[1] == 161",
+     "expect": "preset 1 is back to 450 F, 12 s, its old profile"
+    },
+    {
+     "rule": "!saved.curveRestoreV1 && app.curveRestore === null",
+     "expect": "nothing is owed any more"
+    },
+    {
+     "rule": "curveFrames.every(f => f.sessionWas == 0)",
+     "expect": "nothing was written while heating"
+    },
+    {
+     "rule": "stopsWhileHeating == 0",
+     "expect": "the dab was left alone"
+    }
+   ]
+  },
+  {
+   "id": "oneDabKeepCancelsPutBack",
+   "title": "a normal save to the same preset replaces the owed put-back",
+   "allowedAppStarts": 0,
+   "finish": 40.0,
+   "steps": [
+    {
+     "t": 2.1,
+     "do": "saveCurveOnce",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 480
+       },
+       {
+        "t": 15,
+        "f": 480
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 9.1,
+     "do": "saveCurve",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 520
+       },
+       {
+        "t": 20,
+        "f": 520
+       }
+      ]
+     }
+    },
+    {
+     "t": 20.0,
+     "do": "sim.buttonStart"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.presetTemp[1] == 520 && sim.hold[1] == 20 && sim.profile[1] == 241",
+     "expect": "the kept curve stays"
+    },
+    {
+     "rule": "!saved.curveRestoreV1",
+     "expect": "nothing owed"
+    }
+   ]
+  },
+  {
+   "id": "oneDabDisconnectWaits",
+   "title": "he asks to disconnect mid-dab: the preset goes back before the link is let go",
+   "allowedAppStarts": 0,
+   "finish": 90.0,
+   "steps": [
+    {
+     "t": 2.1,
+     "do": "saveCurveOnce",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 480
+       },
+       {
+        "t": 15,
+        "f": 480
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 10.0,
+     "do": "sim.buttonStart"
+    },
+    {
+     "t": 20.0,
+     "do": "askDisconnect"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.presetTemp[1] == 450 && sim.hold[1] == 12 && sim.profile[1] == 161",
+     "expect": "preset 1 is back to 450 F, 12 s, its old profile"
+    },
+    {
+     "rule": "!saved.curveRestoreV1 && app.curveRestore === null",
+     "expect": "nothing is owed any more"
+    },
+    {
+     "rule": "curveFrames.every(f => f.sessionWas == 0)",
+     "expect": "nothing was written while heating"
+    },
+    {
+     "rule": "!world.peripheral.connected",
+     "expect": "then it disconnects, as asked"
+    },
+    {
+     "rule": "log.has('ONE DAB: preset 1 is back')",
+     "expect": "confirmed before letting go"
+    }
+   ]
+  },
+  {
+   "id": "oneDabLinkLostMidPutBack",
+   "title": "the link drops half way through the put-back: it is tried again when the rig is back",
+   "allowedAppStarts": 0,
+   "finish": 90.0,
+   "steps": [
+    {
+     "t": 2.1,
+     "do": "saveCurveOnce",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 480
+       },
+       {
+        "t": 15,
+        "f": 480
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 10.0,
+     "do": "sim.buttonStart"
+    },
+    {
+     "t": 44.5,
+     "do": "world.loseLink"
+    },
+    {
+     "t": 50.0,
+     "do": "world.backInRange"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.presetTemp[1] == 450 && sim.hold[1] == 12 && sim.profile[1] == 161",
+     "expect": "preset 1 is back to 450 F, 12 s, its old profile"
+    },
+    {
+     "rule": "!saved.curveRestoreV1 && app.curveRestore === null",
+     "expect": "nothing is owed any more"
+    },
+    {
+     "rule": "curveFrames.every(f => f.sessionWas == 0)",
+     "expect": "nothing was written while heating"
+    },
+    {
+     "rule": "log.has('ONE DAB: put-back of preset 1 did not finish')",
+     "expect": "the broken put-back was noticed"
+    }
+   ]
+  },
+  {
+   "id": "oneDabCustomOriginal",
+   "title": "preset already a Custom curve: after the one-dab curve, the old curve's exact bytes come back",
+   "allowedAppStarts": 0,
+   "finish": 100.0,
+   "steps": [
+    {
+     "t": 2.1,
+     "do": "saveCurve",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 480
+       },
+       {
+        "t": 15,
+        "f": 480
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 12.1,
+     "do": "saveCurveOnce",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 520
+       },
+       {
+        "t": 20,
+        "f": 520
+       }
+      ]
+     }
+    },
+    {
+     "t": 20.0,
+     "do": "sim.buttonStart"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.profile[1] == 241 && sim.presetTemp[1] == 480 && sim.hold[1] == 30",
+     "expect": "preset 1 is the old Custom curve again"
+    },
+    {
+     "rule": "sim.curveA[1].join(',') == '1,224,0,249,0,1,224,0,249,15,1,244,1,4,30'",
+     "expect": "old curve points 1-3, exact bytes"
+    },
+    {
+     "rule": "sim.curveB[1].every(x => x == 0)",
+     "expect": "old curve points 4-5 (empty)"
+    },
+    {
+     "rule": "!saved.curveRestoreV1 && log.has('ONE DAB: preset 1 is back')",
+     "expect": "confirmed, nothing owed"
+    },
+    {
+     "rule": "curveFrames.every(f => f.sessionWas == 0)",
+     "expect": "nothing was written while heating"
+    }
+   ]
   }
  ]
 }
