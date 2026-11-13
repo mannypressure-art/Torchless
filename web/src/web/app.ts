@@ -23,7 +23,7 @@ import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./
 import { HeatFX, heatSound, heatTrack, HEAT_SOUNDS, HEAT_TRACKS, validSound, validTrack } from "./heatfx";
 import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 
-const BUILD = "app-5.5";
+const BUILD = "app-5.6";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
