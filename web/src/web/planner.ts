@@ -205,7 +205,7 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
       stats.replaceChildren(...([["START", deg(steps[0].f)], ["PEAK", deg(hi)], ["LOW", deg(lo)], ["HOLD", `${steps[steps.length - 1].t}s`]] as const)
         .map(([k, v]) => h("div", {}, tag(k, "font-size:8.5px"), h("b", {}, v))));
       const why = RigController.curveProblem(steps);
-      problemLine.textContent = why ?? "";
+      problemLine.textContent = why ? why.replace(/ F a second/, "°F a second") : "";
       problemLine.hidden = !why;
       const p = steps[sel];
       pointRow.replaceChildren(
@@ -303,21 +303,22 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
       const linked = rig.connected && !!rig.live && rig.linkFresh;
       const heating = rig.sessionOn;
       const owed = rig.curveRestore;
-      const why = !linked ? "Link the rig first." : heating ? "Wait for heat to stop." : RigController.curveProblem(steps)
-        ?? (once ? rig.oneDabProblem(target) : null);
+      // A curve rule break already shows on the chart card: here it only disables SEND.
+      const bad = !!RigController.curveProblem(steps);
+      const why = !linked ? "Link the rig first." : heating ? "Wait for heat to stop." : once ? rig.oneDabProblem(target) : null;
+      const owedLine = owed ? (rig.puttingPresetBack ? `Putting P${owed.p} back…` : owed.used ? `P${owed.p} goes back when idle.` : `P${owed.p} is set for one dab.`) : null;
+      const line = status || why || owedLine || (once ? "Goes back after the dab." : "Stays on the preset.");
       sendBox.replaceChildren(...[
         h("div", { class: "seg", style: "grid-template-columns:1fr 1fr;margin-top:0" },
           h("button", { class: once ? "on" : "", "aria-pressed": String(once), onclick: () => { once = true; status = ""; redraw(); } }, "THIS DAB"),
           h("button", { class: once ? "" : "on", "aria-pressed": String(!once), onclick: () => { once = false; status = ""; redraw(); } }, "KEEP")),
         h("div", { class: "seg", style: "grid-template-columns:repeat(5,1fr);margin-top:0" },
           ...[1, 2, 3, 4, 5].map(n => h("button", { class: n === target ? "on" : "", "aria-label": `Preset ${n}`, onclick: () => { target = n; status = ""; redraw(); } }, `P${n}`))),
-        h("button", { class: "btn2 tall wide", style: "color:var(--gold);border-color:var(--gold)", disabled: !!why || sending, onclick: send },
+        h("button", { class: "btn2 tall wide", style: "color:var(--gold);border-color:var(--gold)", disabled: !!why || bad || sending, onclick: send },
           sending ? "SENDING…" : `SEND TO P${target}`),
-        h("p", { class: "mono dim", style: "font-size:10px;margin:0" },
-          status || why || (once ? "Goes back after the dab." : "Stays on the preset.")),
-        owed ? h("div", { class: "row", style: "gap:8px;align-items:center" },
-          h("p", { class: "mono", style: "font-size:10px;margin:0;flex:1" }, owed.used ? `P${owed.p} goes back when idle.` : `P${owed.p} is set for one dab.`),
-          h("button", { class: "chip", disabled: !linked || heating, onclick: () => { rig.putBackNow(); } }, "PUT BACK")) : null,
+        h("div", { class: "row", style: "gap:8px;align-items:center;min-height:34px" },
+          h("p", { class: "mono dim", style: "font-size:10px;margin:0;flex:1;min-width:0" }, line),
+          owed ? h("button", { class: "chip", style: "flex:none", disabled: !linked || heating || rig.puttingPresetBack, onclick: () => { rig.putBackNow(); } }, "PUT BACK") : null),
       ].filter((x): x is HTMLElement => x !== null));
     };
 

@@ -610,10 +610,9 @@
         <button id="owedBtn" class="btn2" style="flex:none">PUT BACK</button>
       </div>
 
-      <div id="careCard" class="careCard panel" hidden>
-        <div class="careCell" id="batteryCell"><span class="tag" style="font-size:9px">DABS LEFT</span><b id="dabsLeft" class="cond">--</b><small id="dabsLeftLine" class="mono"></small></div>
-        <div class="careCell" id="cleanCell"><span class="tag" style="font-size:9px" id="cleanTag">SINCE LAST CLEAN</span><b id="cleanCount" class="cond">--</b><small id="cleanLine" class="mono"></small>
-          <div class="row" style="gap:6px;margin-top:8px"><button id="cleanedBtn" class="chip">CLEANED</button><button id="cleanEveryBtn" class="chip"></button></div></div>
+      <div id="careCard" class="careRow panel" hidden>
+        <div style="flex:1;min-width:0"><span class="tag" style="font-size:9px;color:var(--gold)">TIME TO CLEAN</span><b id="cleanCount" class="cond"></b><small class="mono">Swab it, then tap CLEANED.</small></div>
+        <button id="cleanedBtn" class="btn2" style="flex:none">CLEANED</button>
       </div>
 
       <button class="strip panel" data-tab="lights">

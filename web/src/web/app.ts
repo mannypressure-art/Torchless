@@ -230,17 +230,12 @@ let againPreset: number | null = null;
 let againPlan: { t: number; f: number }[] = [];
 $("againBtn").onclick = () => { if (againPreset !== null) rig.selectPreset(againPreset); else if (againPlan.length) openPlannerWith(againPlan); };
 $("cleanedBtn").onclick = () => { extras.cleaned(heatCyclesFrom(ble.extra)); schedule(); };
-$("cleanEveryBtn").onclick = () => {
-  const i = CLEAN_CHOICES.indexOf(extras.cleanEvery);
-  extras.cleanEvery = CLEAN_CHOICES[(i + 1) % CLEAN_CHOICES.length];
-  schedule();
-};
 function renderExtras(heating: boolean) {
   const s = rig.live;
   const fresh = !!s && rig.linkFresh;
   // AT TEMP flash for four seconds.
   const at = extras.atTempAt;
-  show("atTemp", heating && at !== null && Date.now() - at < 4000);
+  show("atTemp", heating && !extras.preheating && at !== null && Date.now() - at < 4000);
   if (heating && at !== null && Date.now() - at < 4100) window.setTimeout(schedule, 500);
 
   const again = !heating && fresh ? doThatAgain(jars.current, rig) : null;
@@ -257,7 +252,7 @@ function renderExtras(heating: boolean) {
     againPlan = Math.abs(top - g) > 10 * hold || g - top > 3 * hold ? [{ t: 0, f: g }, { t: hold, f: g }] : [{ t: 0, f: g }, { t: hold, f: top }];
     const on = again.preset !== null && s?.preset === again.preset;
     setText("againBtn", again.preset === null ? "PLAN IT" : on ? `P${again.preset} SET` : `USE P${again.preset}`);
-    enable("againBtn", again.preset === null || (!on && rig.canControl));
+    enable("againBtn", again.preset === null || (!on && rig.canControl && !rig.sessionOn));
   }
 
   const owed = rig.curveRestore;
@@ -268,18 +263,16 @@ function renderExtras(heating: boolean) {
     enable("owedBtn", rig.canControl && !heating && !rig.puttingPresetBack);
   }
 
-  const left = fresh ? extras.dabsLeft(rig) : null;
   const cycles = heatCyclesFrom(ble.extra);
   const since = extras.dabsSinceClean(cycles), every = extras.cleanEvery;
-  show("careCard", fresh);
-  setText("dabsLeft", left ? `≈${left.left}` : s && chargingOf(s) ? "CHARGING" : "LEARNING");
-  setText("dabsLeftLine", left ? `~${left.per.toFixed(1)}% a dab` : "After 3 dabs.");
-  const due = since >= every;
-  $("cleanCell").classList.toggle("due", due);
-  setText("cleanTag", due ? "TIME TO CLEAN" : "DABS SINCE CLEAN");
-  setText("cleanCount", String(since));
-  setText("cleanLine", due ? "Clean it, then tap CLEANED." : `Reminder at ${every}.`);
-  setText("cleanEveryBtn", `EVERY ${every}`);
+  // Only when it's due; how often lives on the Rig tab.
+  show("careCard", fresh && !heating && since >= every);
+  setText("cleanCount", `${since} DABS SINCE CLEAN`);
+}
+/** Dabs left on this charge, for the header under the battery. */
+function dabsLeftText(): string | null {
+  const left = rig.live && rig.linkFresh ? extras.dabsLeft(rig) : null;
+  return left ? `≈${left.left} DABS` : null;
 }
 
 // MARK: Ride planner (Custom curves; sends only through rig.saveCurve, only while idle)
@@ -503,6 +496,12 @@ bright.oninput = () => {
 let lookAround = false;
 const rigUI = mountRig(ble, rig, {
   build: BUILD,
+  cleanEvery: () => extras.cleanEvery,
+  nextCleanEvery: () => {
+    const i = CLEAN_CHOICES.indexOf(extras.cleanEvery);
+    extras.cleanEvery = CLEAN_CHOICES[(i + 1) % CLEAN_CHOICES.length];
+    schedule();
+  },
   onFindRig: () => { lookAround = false; schedule(); },
   lookLabel: () => `${faceID.toUpperCase()} · ${(prefs.get("look") ?? "dark").replace("light", "bright").toUpperCase()}`,
   buildLook: (page) => {
@@ -627,7 +626,7 @@ function render() {
   setText("linkTag", linkText);
   $("linkDot").classList.toggle("live", linked && rig.linkFresh);
   setText("battery", s ? `${s.battery}%` : "");
-  setText("batteryTag", s ? (chargingOf(s) ? "CHARGING" : "BATTERY") : "");
+  setText("batteryTag", s ? (chargingOf(s) ? "CHARGING" : dabsLeftText() ?? "BATTERY") : "");
 
   // Notices (wording from the controller, unchanged)
   const m = rig.message;
@@ -654,8 +653,8 @@ function render() {
       if (t !== undefined) { targetText = `${t}°`; targetFrac = clamp01((t - lo) / (hi - lo)); }
       if (ps.profile !== undefined) profileText = HeatProfile.name(ps.profile);
     }
-    const eta = heating ? extras.heatUpETA(rig) : null;
-    status = !rig.linkFresh ? "WAITING ON THE RIG" : heating && extras.preheating ? (eta !== null ? `HEATING UP · AT TEMP IN ~${eta}S` : "HEATING UP")
+    const eta = heating && extras.atTempAt === null ? extras.heatUpETA(rig) : null;
+    status = !rig.linkFresh ? "WAITING ON THE RIG" : heating && extras.preheating && extras.atTempAt === null ? (eta !== null ? `HEATING UP · AT TEMP IN ~${eta}S` : "HEATING UP")
       : heating ? `HEATING · ${clockText(s.sessionTimeRemaining)} LEFT`
       : s.tempRaw > room + 50 ? "COOLING · HEAT OFF" : "COOL · READY";
   }

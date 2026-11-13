@@ -13,6 +13,9 @@ export interface RigUIHooks {
   lookLabel(): string;
   /** Fills the Look page (mode, faces, sound). */
   buildLook(page: HTMLElement): void;
+  /** Clean reminder: how many dabs between reminders (the user's pick; Dr. Dabber gives no number). */
+  cleanEvery(): number;
+  nextCleanEvery(): void;
 }
 
 const set = (e: Element, t: string) => { if (e.textContent !== t) e.textContent = t; };
@@ -40,6 +43,7 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
     return { b, upd: () => set(n, note()) };
   };
   const look = row("Look", "🎨", () => hooks.lookLabel(), "var(--dim)", openLook);
+  const clean = row("Clean reminder", "✦", () => `EVERY ${hooks.cleanEvery()} DABS`, "var(--dim)", () => { hooks.nextCleanEvery(); render(); });
   const log = row("Log", "≡", () => "SHARE IT", "var(--dim)", openLog);
   const dial = row("Ride the dial", "◐", () => "TEST", "var(--gold)", openDial);
   const raw = row("Raw status", "∿", () => "", "var(--dim)", openRaw);
@@ -49,7 +53,7 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
     linkCard,
     h("div", { class: "tiles" }, tBat.el, tPow.el, tUnit.el),
     h("div", { class: "stackS" }, unlink, unlinkNote, findRig),
-    h("div", { class: "panel toolList" }, look.b),
+    h("div", { class: "panel toolList" }, look.b, h("hr"), clean.b),
     h("div", {}, tag("SHOP TOOLS", "font-size:9.5px"), h("div", { class: "panel toolList", style: "margin-top:8px" }, log.b, h("hr"), dial.b, h("hr"), raw.b)),
     h("p", { class: "mono dim center", style: "font-size:9.5px;margin-top:6px" }, `Compatible with Dr. Dabber Switch 2. Not an official Dr. Dabber app. Build ${hooks.build}.`),
   );
@@ -70,7 +74,7 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
     set(unlink, rig.disconnectWaiting ? "UNLINK NOW" : "UNLINK");
     unlinkNote.hidden = !(l && rig.disconnectWaiting);
     findRig.hidden = l;
-    look.upd(); log.upd(); dial.upd(); raw.upd();
+    look.upd(); clean.upd(); log.upd(); dial.upd(); raw.upd();
     pageUpd?.();
   }
 
