@@ -149,6 +149,12 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
     const pill = h("div", { class: "plPill", role: "group", "aria-label": "Tune this point" });
     const tools = h("div", { class: "plTools" });
     const wrap = h("div", { class: "plWrap" }, svg, pill, tools);
+    // A tap anywhere off the chart's controls (outside the graph too) also lets go of the point.
+    body.addEventListener("pointerdown", e => {
+      const t = e.target as Element | null;
+      if (sel < 0 || !t || t.closest(".plSvg, .plPill, .plTools, button, input, select, textarea, a, label")) return;
+      sel = -1; redraw();
+    });
     const tmplRow = h("div", { class: "plChips" });
     const libBox = h("div", { class: "stackS" });
     const sendBox = h("div", { class: "stackS" });
@@ -180,7 +186,8 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
     svg.addEventListener("pointerdown", e => {
       const p = toLocal(e);
       const i = nearest(p.x, p.y);
-      if (i < 0) return;
+      // Manny 2026-11-13: a tap on empty chart lets go of the picked point (adds or moves nothing).
+      if (i < 0) { if (sel >= 0) { sel = -1; redraw(); } return; }
       sel = i; drag = { i, id: e.pointerId };
       try { svg.setPointerCapture(e.pointerId); } catch { /* fine */ }
       e.preventDefault();
@@ -209,6 +216,8 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
       const why = RigController.curveProblem(steps);
       problemLine.textContent = why ? why.replace(/ F a second/, "°F a second") : "";
       problemLine.hidden = !why;
+      pill.hidden = sel < 0;
+      if (sel < 0) return;
       const p = steps[sel], g = geo(span);
       const key = (label: string, aria: string, fn: () => void) => h("button", { "aria-label": aria, onclick: (e: Event) => { e.stopPropagation(); fn(); } }, label);
       pill.replaceChildren(
@@ -225,6 +234,7 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
         h("b", { class: "cond" }, v),
         h("button", { class: "btn2", "aria-label": `Raise ${what}`, disabled: locked, onclick: up }, "+"));
     const nudge = (dt: number, df: number) => {
+      if (sel < 0) return;
       const p = steps[sel];
       const lo = sel > 0 ? steps[sel - 1].t + 1 : 0, hi = sel > 0 ? (sel < steps.length - 1 ? steps[sel + 1].t - 1 : RigLimits.hold[1]) : 0;
       steps[sel] = { t: Math.min(hi, Math.max(lo, p.t + dt)), f: Math.min(RigLimits.tempF[1], Math.max(RigLimits.tempF[0], p.f + df)) };
@@ -244,7 +254,7 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
       redraw();
     };
     const removePoint = () => {
-      if (steps.length <= 2 || sel === 0) return;
+      if (steps.length <= 2 || sel <= 0) return;
       steps.splice(sel, 1);
       sel = Math.min(sel, steps.length - 1); span = spanFor(steps); status = "";
       redraw();
@@ -278,7 +288,7 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
       drawChart();
       tools.replaceChildren(
         h("button", { "aria-label": "Add a point", disabled: steps.length >= 5, onclick: addPoint }, "+ PT"),
-        h("button", { "aria-label": "Remove this point", disabled: steps.length <= 2 || sel === 0, onclick: removePoint }, "− PT"));
+        h("button", { "aria-label": "Remove this point", disabled: steps.length <= 2 || sel <= 0, onclick: removePoint }, "− PT"));
       tmplRow.replaceChildren(...CURVE_TEMPLATES.map(c => h("button", { class: "chip", onclick: () => {
         steps = clean(c.steps); sel = 0; span = spanFor(steps); status = ""; redraw();
       } }, c.name)));

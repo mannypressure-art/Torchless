@@ -30,7 +30,7 @@ import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 // The normal build leaves it out entirely, so the Switch app is unchanged until Manny says go live.
 declare const __PEAK__: boolean;
 const PEAK = typeof __PEAK__ !== "undefined" && __PEAK__;
-const BUILD = PEAK ? "app-5.7-peak.1" : "app-5.10";
+const BUILD = PEAK ? "app-5.7-peak.1" : "app-5.11";
 /** Set on the front page when this browser has no Web Bluetooth: what to do on this kind of device. */
 let noBtMessage = "";
 const clock = new RealClock();
