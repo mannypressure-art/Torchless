@@ -32,7 +32,7 @@ export interface TorchUI {
 
 // MARK: Setups (saved times)
 
-type Style = "hot" | "cold";
+type Style = "hot" | "cold" | "gauge";
 /** One stretch of torching. A setup has one to three: a slurper might go BOTTOM, MIDDLE, BOTTOM. */
 interface Step { cue: string; secs: number }
 interface Setup {
@@ -44,9 +44,15 @@ interface Setup {
   cool: number;
   /** Cold start: the seconds of the last time DONE TORCHING was tapped (a guide mark on the dial), if any. */
   cold?: number;
+  /** Gauge: the user's own "dab at" number for their banger thermometer (°F). Not a reading: the app never sees it. */
+  dabAt: number;
+  /** Gauge: optional "torch to" number (°F). */
+  torchTo?: number;
 }
 
-const LIMITS = { torch: [5, 120], cool: [0, 180], cold: [1, 90] } as const;
+const LIMITS = { torch: [5, 120], cool: [0, 180], cold: [1, 90], dabAt: [300, 900], torchTo: [300, 1000] } as const;
+const GAUGE_DAB = 550, GAUGE_TORCH = 650;
+const tens = (v: unknown, d: number, lim: readonly [number, number]) => Math.round(num(v, d, lim) / 10) * 10;
 const MAX_SETUPS = 4;
 const MAX_STEPS = 3;
 const NAME_MAX = 18;
@@ -70,7 +76,7 @@ const num = (v: unknown, d: number, [lo, hi]: readonly [number, number]) =>
   typeof v === "number" && Number.isFinite(v) ? clamp(Math.round(v), lo, hi) : d;
 const torchTotal = (s: { steps: Step[] }) => s.steps.reduce((a, x) => a + x.secs, 0);
 
-function freshSetup(name: string): Setup { return { name, style: "hot", steps: [{ cue: "ALL OVER", secs: 30 }], cool: 45 }; }
+function freshSetup(name: string): Setup { return { name, style: "hot", steps: [{ cue: "ALL OVER", secs: 30 }], cool: 45, dabAt: GAUGE_DAB }; }
 
 function readSetups(raw: string | null): Setup[] {
   let list: Setup[] = [];
@@ -83,9 +89,10 @@ function readSetups(raw: string | null): Setup[] {
         if (!steps.length) steps = [{ cue: "ALL OVER", secs: num(x.torch, 30, LIMITS.torch) }];   // first version kept one "torch" number
         const s: Setup = {
           name: (typeof x.name === "string" ? x.name.trim().slice(0, NAME_MAX) : "") || `SETUP ${i + 1}`,
-          style: x.style === "cold" ? "cold" : "hot",
-          steps, cool: num(x.cool, 45, LIMITS.cool),
+          style: x.style === "cold" ? "cold" : x.style === "gauge" ? "gauge" : "hot",
+          steps, cool: num(x.cool, 45, LIMITS.cool), dabAt: tens(x.dabAt, GAUGE_DAB, LIMITS.dabAt),
         };
+        if (typeof x.torchTo === "number") s.torchTo = tens(x.torchTo, GAUGE_TORCH, LIMITS.torchTo);
         // The first version kept a fixed cold-start time; a count-up only keeps a guide, and only once it was tapped.
         if (typeof x.cold === "number" && Array.isArray(x.steps)) s.cold = num(x.cold, 10, LIMITS.cold);
         return s;
@@ -305,17 +312,20 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
   // MARK: Controls
   const segHot = h("button", { onclick: () => setStyle("hot") }, "HOT DAB");
   const segCold = h("button", { onclick: () => setStyle("cold") }, "COLD START");
+  const segGauge = h("button", { onclick: () => setStyle("gauge") }, "GAUGE");
+  const readyNote = h("p", { class: "tm-note" });
   const styleSay = h("p", { class: "tm-say" });
   const keys = h("div", { class: "tm-keys" });
   const readyBox = h("div", { class: "tm-ready" },
-    h("div", { class: "seg", style: "grid-template-columns:1fr 1fr;margin-top:0", role: "group", "aria-label": "Style" }, segHot, segCold),
+    h("div", { class: "seg", style: "grid-template-columns:1fr 1fr .8fr;margin-top:0", role: "group", "aria-label": "Style" }, segHot, segCold, segGauge),
     styleSay,
     h("div", { class: "row", style: "margin-top:14px" }, tag("SETUPS", "font-size:9.5px"),
       h("button", { class: "edit tm-edit", onclick: () => editSetup(sel) }, "EDIT")),
     keys,
-    h("p", { class: "tm-note" }, "Torchless can't read your glass. These times are yours: tune them to your banger and torch."));
+    readyNote);
 
   const goBtn = h("button", { class: "bigBtn tm-go", onclick: start }, icon("torch"), "TORCH IT");
+  const logBtn = h("button", { class: "bigBtn tm-go", hidden: true, onclick: logGauge }, icon("check"), "LOG DAB");
   const torchRow = h("div", { hidden: true },
     h("button", { class: "bigBtn tm-stop", onclick: stop }, icon("stop"), "STOP"),
     h("button", { class: "tm-off", onclick: torchOffNow }, "TORCH OFF NOW"));
@@ -336,7 +346,7 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
   const nextSay = h("p", { class: "tm-say", style: "margin-top:10px" });
   const nextBox = h("div", { class: "panel tm-next", hidden: true },
     tag("NEXT TIME", "font-size:9px"), h("div", { class: "tm-nextRow", role: "group", "aria-label": "Next time" }, ...nextKeys), nextSay);
-  const actions = h("div", {}, goBtn, torchRow, coldRow, coolRow, doneBtn, hint, nextBox);
+  const actions = h("div", {}, goBtn, logBtn, torchRow, coldRow, coolRow, doneBtn, hint, nextBox);
 
   const jarBox = h("div", { class: "curJar panel" });
   root.replaceChildren(noteBox, card, readyBox, actions, jarBox, sr);
@@ -348,8 +358,9 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     saveSetups();
     paint();
   }
-  function keyText(s: Setup) { return s.style === "cold" ? (s.cold !== undefined ? `~${s.cold}s` : "COUNT") : `${torchTotal(s)}/${s.cool}`; }
+  function keyText(s: Setup) { return s.style === "gauge" ? `${s.dabAt}°` : s.style === "cold" ? (s.cold !== undefined ? `~${s.cold}s` : "COUNT") : `${torchTotal(s)}/${s.cool}`; }
   function keyLabel(s: Setup) {
+    if (s.style === "gauge") return `${s.name}: gauge, dab at ${s.dabAt} degrees` + (s.torchTo !== undefined ? `, torch to ${s.torchTo}` : "");
     if (s.style === "cold") return `${s.name}: cold start, counts up` + (s.cold !== undefined ? `, last time ${s.cold} seconds` : "");
     const st = s.steps.length > 1 ? s.steps.map(x => `${x.cue.toLowerCase()} ${x.secs}`).join(", ") + " seconds" : `${s.steps[0].secs} seconds`;
     return `${s.name}: torch ${st}, cool down ${s.cool} seconds`;
@@ -381,22 +392,22 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     document.addEventListener("keydown", onKey);
 
     /** A seconds value with − and + keys and a slider between them. */
-    function stepper(head: HTMLElement[], get: () => number, put: (v: number) => void, [lo, hi]: readonly [number, number], what: string, tail: HTMLElement | null = null): HTMLElement {
-      const val = h("b", {});
-      const range = h("input", { type: "range", min: lo, max: hi, step: 1, "aria-label": what, oninput: () => set(Number(range.value)) }) as HTMLInputElement;
+    function stepper(head: HTMLElement[], get: () => number, put: (v: number) => void, [lo, hi]: readonly [number, number], what: string, tail: HTMLElement | null = null, inc = 1, unit = "S"): HTMLElement {
+      const val = h("b", { style: "margin-left:auto" });
+      const range = h("input", { type: "range", min: lo, max: hi, step: inc, "aria-label": what, oninput: () => set(Number(range.value)) }) as HTMLInputElement;
       const set = (v: number) => {
-        put(clamp(Math.round(v), lo, hi));
+        put(clamp(Math.round(v / inc) * inc, lo, hi));
         const x = get();
         range.value = String(x);
-        val.replaceChildren(x === 0 ? "NONE" : String(x), x === 0 ? "" : h("small", {}, "S"));
+        val.replaceChildren(x === 0 ? "NONE" : String(x), x === 0 ? "" : h("small", {}, unit));
       };
       set(get());
       return h("div", { class: "field" },
         h("div", { class: "row" }, ...head, val, tail),
         h("div", { class: "row" },
-          h("button", { class: "step", "aria-label": `${what}: 1 second less`, onclick: () => set(get() - 1) }, "−"),
+          h("button", { class: "step", "aria-label": `${what}: ${inc === 1 ? "1 second" : `${inc} degrees`} less`, onclick: () => set(get() - inc) }, "−"),
           range,
-          h("button", { class: "step", "aria-label": `${what}: 1 second more`, onclick: () => set(get() + 1) }, "+")));
+          h("button", { class: "step", "aria-label": `${what}: ${inc === 1 ? "1 second" : `${inc} degrees`} more`, onclick: () => set(get() + inc) }, "+")));
     }
 
     function useTemplate(i: number) {
@@ -434,15 +445,34 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
         h("h3", {}, isNew ? "New setup" : "Setup"),
         h("div", { class: "field" }, tag("NAME"), name),
         h("div", { class: "field" }, tag("STYLE"),
-          h("div", { class: "seg", style: "grid-template-columns:1fr 1fr" }, pick("hot", "HOT DAB"), pick("cold", "COLD START"))),
+          h("div", { class: "seg", style: "grid-template-columns:1fr 1fr .8fr" }, pick("hot", "HOT DAB"), pick("cold", "COLD START"), pick("gauge", "GAUGE"))),
       ];
-      if (d.style === "hot") {
+      const chip = (label: string, on: boolean, onclick: () => void) =>
+        h("button", { class: "catKey" + (on ? " on" : ""), "aria-pressed": String(on), onclick }, label);
+      const gaugeChip = () => chip(`GAUGE ${GAUGE_DAB}`, tpl === 99, () => {
+        tpl = 99; d.style = "gauge"; d.dabAt = GAUGE_DAB; delete d.torchTo;
+        if (!named) d.name = `GAUGE ${GAUGE_DAB}`;
+        draw();
+      });
+      if (isNew && d.style === "gauge") {
+        kids.push(h("div", { class: "field" }, tag("STARTING POINT, TUNE IT", "color:var(--gold)"),
+          h("div", { class: "catGrid" }, ...TEMPLATES.map((t, i) => chip(t.label, false, () => useTemplate(i))), gaugeChip())));
+      }
+      if (d.style === "gauge") {
+        kids.push(h("p", { class: "tm-say", style: "margin:0 0 12px" },
+          "For a banger thermometer. Your gauge's numbers: Torchless can't read your glass. No timers."));
+        kids.push(stepper([tag("DAB AT")], () => d.dabAt, v => { d.dabAt = v; }, LIMITS.dabAt, "Dab at", null, 10, "°F"));
+        if (d.torchTo === undefined) {
+          kids.push(h("button", { class: "btn2 wide tm-addStep", onclick: () => { d.torchTo = Math.max(GAUGE_TORCH, d.dabAt + 50); draw(); } }, "+ TORCH TO"));
+        } else {
+          const x = h("button", { class: "step tm-x", "aria-label": "Remove torch to", onclick: () => { delete d.torchTo; draw(); } }, icon("close"));
+          kids.push(stepper([tag("TORCH TO")], () => d.torchTo ?? GAUGE_TORCH, v => { d.torchTo = v; }, LIMITS.torchTo, "Torch to", x, 10, "°F"));
+        }
+      } else if (d.style === "hot") {
         if (isNew) {
-          const chip = (label: string, on: boolean, onclick: () => void) =>
-            h("button", { class: "catKey" + (on ? " on" : ""), "aria-pressed": String(on), onclick }, label);
           kids.push(h("div", { class: "field" }, tag("STARTING POINT, TUNE IT", "color:var(--gold)"),
             h("div", { class: "catGrid" }, ...TEMPLATES.map((t, i) => chip(t.label, tpl === i, () => useTemplate(i))),
-              chip(`SMALL TORCH +${SMALL_TORCH}S`, small, toggleSmall))));
+              chip(`SMALL TORCH +${SMALL_TORCH}S`, small, toggleSmall), gaugeChip())));
         }
         const n = d.steps.length;
         d.steps.forEach((st, i) => {
@@ -492,9 +522,25 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     if (!on && timer) { clearInterval(timer); timer = 0; }
   }
 
+  /** GAUGE: no timer. One dab at the user's own "dab at" number, then the rating pop-up, same as DONE. */
+  function logGauge() {
+    const s = setup();
+    if (phase !== "ready" || s.style !== "gauge") return;
+    const dab: JarDab = { id: uid(), at: new Date().toISOString(), seconds: 0, unit: "F", profile: "Torch", medium: "torch", goal: s.dabAt };
+    let jarID: string | null = null;
+    const c = deps.jars.currentID;
+    if (c && deps.jars.addDab(dab, c)) jarID = c;
+    pending = { jarID, dab, at: Date.now() };
+    buzz([18, 70, 28]);
+    say("Dab logged.");
+    offerRating();
+    paint();
+  }
+
   function start() {
     if (phase !== "ready") return;
     const s = setup();
+    if (s.style === "gauge") return;
     const now = Date.now();
     const cold = s.style === "cold";
     const steps = cold ? [] : s.steps.map(x => ({ ...x }));
@@ -753,7 +799,7 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     if (show && style === "cold") {
       const ref = r ? r.coldRef : s.cold;
       if (ref !== undefined) list.push({ at: ref / COLD_CAP, ref: true });
-    } else if (show) {
+    } else if (show && style === "hot") {
       const steps = r ? r.steps : s.steps, total = torchTotal({ steps });
       let t = 0;
       for (const x of steps.slice(0, -1)) { t += x.secs; list.push({ at: t / total, ref: false }); }
@@ -793,7 +839,9 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     root.classList.toggle("tm-on", phase === "torch");
     root.classList.toggle("tm-dab", phase === "dab");
     readyBox.hidden = phase !== "ready";
-    goBtn.hidden = phase !== "ready";
+    const gauge = phase === "ready" && s.style === "gauge";
+    goBtn.hidden = phase !== "ready" || gauge;
+    logBtn.hidden = !gauge;
     torchRow.hidden = !(phase === "torch" && !cold);
     coldRow.hidden = !(phase === "torch" && cold);
     coolRow.hidden = phase !== "cool";
@@ -806,30 +854,39 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     const planTorch = r ? (cold ? 0 : Math.round(r.torchPlan / 1000)) : torchTotal(s);
     const torchSecs = r && phase !== "torch" ? Math.round(r.torchMs / 1000) : planTorch;
     const coolSecs = r ? (phase === "dab" || phase === "cool" ? Math.round((r.coolEnd - r.coolStart) / 1000) : r.coolSecs) : s.cool;
-    if (cold && (phase === "ready" || phase === "torch")) {
+    if (gauge) {
+      cTorch.t.textContent = "DAB AT";
+      cTorch.b.textContent = `${s.dabAt}°F`;
+    } else if (cold && (phase === "ready" || phase === "torch")) {
       cTorch.t.textContent = "LAST TIME";
       cTorch.b.textContent = ref !== undefined ? secs(ref) : "—";
     } else {
       cTorch.t.textContent = "TORCH";
       cTorch.b.textContent = secs(torchSecs);
     }
-    cCool.b.textContent = cold ? "NONE" : secs(coolSecs);
-    cStyle.b.textContent = cold ? "COLD" : (r ? r.steps : s.steps).length > 1 ? `HOT · ${(r ? r.steps : s.steps).length}` : "HOT";
-    cTotal.el.hidden = phase === "torch";   // the torch comes in from this corner
+    cCool.t.textContent = gauge ? "TORCH TO" : "COOL DOWN";
+    cCool.b.textContent = gauge ? (s.torchTo !== undefined ? `${s.torchTo}°F` : "—") : cold ? "NONE" : secs(coolSecs);
+    cStyle.b.textContent = gauge ? "GAUGE" : cold ? "COLD" : (r ? r.steps : s.steps).length > 1 ? `HOT · ${(r ? r.steps : s.steps).length}` : "HOT";
+    cTotal.el.hidden = phase === "torch" || gauge;   // the torch comes in from this corner
     cTotal.t.textContent = phase === "ready" ? (cold ? "STOPS AT" : "TOTAL") : "ELAPSED";
     cTotal.b.textContent = phase === "ready" ? (cold ? `${COLD_CAP}s` : clock(torchSecs + coolSecs))
       : r ? clock(Math.max(0, Math.round(((phase === "dab" ? Math.max(r.coolEnd, r.startAt + r.torchMs) : now) - r.startAt) / 1000))) : "";
 
     let big = "", top = "", status = "", word = false;
     if (phase === "ready") {
-      if (cold) { big = ref !== undefined ? clock(ref) : "0"; top = ref !== undefined ? "LAST TIME" : "COUNTS UP"; }
+      if (gauge) { big = `${s.dabAt}°`; top = "DAB AT"; }
+      else if (cold) { big = ref !== undefined ? clock(ref) : "0"; top = ref !== undefined ? "LAST TIME" : "COUNTS UP"; }
       else { big = clock(torchSecs); top = "TORCH TIME"; }
-      status = !cold && s.steps.length > 1 ? `READY · ${s.steps.length} STEPS` : "READY";
-      segHot.classList.toggle("on", s.style === "hot"); segCold.classList.toggle("on", s.style === "cold");
-      segHot.setAttribute("aria-pressed", String(s.style === "hot")); segCold.setAttribute("aria-pressed", String(s.style === "cold"));
-      styleSay.textContent = s.style === "hot" ? "Torch it. Let it cool. Then dab." : "Load first. Torch till it bubbles. Dab right away.";
+      status = gauge ? "YOUR GAUGE · °F" : !cold && s.steps.length > 1 ? `READY · ${s.steps.length} STEPS` : "READY";
+      segHot.classList.toggle("on", s.style === "hot"); segCold.classList.toggle("on", s.style === "cold"); segGauge.classList.toggle("on", gauge);
+      segHot.setAttribute("aria-pressed", String(s.style === "hot")); segCold.setAttribute("aria-pressed", String(s.style === "cold")); segGauge.setAttribute("aria-pressed", String(gauge));
+      styleSay.textContent = gauge ? (s.torchTo !== undefined ? `Torch to ${s.torchTo}°. ` : "") + `Watch your gauge. Dab when it reads ${s.dabAt}°.`
+        : s.style === "hot" ? "Torch it. Let it cool. Then dab." : "Load first. Torch till it bubbles. Dab right away.";
+      readyNote.textContent = gauge ? "Torchless can't read your glass. These are your numbers for your own gauge."
+        : "Torchless can't read your glass. These times are yours: tune them to your banger and torch.";
       renderKeys();
-      hint.textContent = theme() === "off" ? "SOUND IS OFF · WATCH THE DIAL" : cold ? "LOAD IT FIRST · IT COUNTS UP" : "SOUND WHEN IT'S TIME TO PULL THE TORCH";
+      hint.textContent = gauge ? (deps.jars.currentID ? "LOGS IT TO YOUR JAR · RATE IT NEXT" : "LOGS IT · RATE IT NEXT")
+        : theme() === "off" ? "SOUND IS OFF · WATCH THE DIAL" : cold ? "LOAD IT FIRST · IT COUNTS UP" : "SOUND WHEN IT'S TIME TO PULL THE TORCH";
     } else if (r && phase === "torch" && cold) {
       const el = Math.max(0, Math.floor((now - r.startAt) / 1000));
       big = clock(el); status = "TORCH ON";
@@ -877,7 +934,7 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     statusEl.textContent = status;
     statusEl.classList.toggle("tm-capIt", phase === "dab");
     statusEl.style.color = phase === "torch" || phase === "cool" ? "var(--gold)" : "";
-    const unit = phase === "ready" ? " seconds" : phase === "torch" && cold ? " seconds so far" : " left";
+    const unit = gauge ? " degrees Fahrenheit" : phase === "ready" ? " seconds" : phase === "torch" && cold ? " seconds so far" : " left";
     read.setAttribute("aria-label", phase === "dab" ? "Dab it. Cap it." : `${top}: ${big}${unit}`);
     paintMarks();
     paintDial(now);

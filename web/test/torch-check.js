@@ -369,6 +369,45 @@ const FAST = JSON.stringify([{ name: '25mm quartz', style: 'hot', torch: 5, cool
     await shot(p, 'w360-dabit', true);
     await p.context().close();
   }
+
+  // 11. GAUGE: the user's own thermometer numbers, no timer; LOG DAB logs one dab and asks for the rating
+  for (const theme of ['dark', 'light']) {
+    const G = JSON.stringify([{ name: 'Dabrite', style: 'gauge', steps: [{ cue: 'ALL OVER', secs: 30 }], cool: 45, dabAt: 550 }]);
+    const p = await open({ setups: G, theme });
+    ok(await num(p) === '550°' && await p.locator('.tm-top').innerText() === 'DAB AT', `${theme} gauge: dial shows DAB AT 550°`);
+    ok(await p.locator('.tm-ready .tm-say').first().innerText() === 'Watch your gauge. Dab when it reads 550°.', `${theme} gauge: says what to watch for`);
+    ok(await btn(p, 'TORCH IT').count() === 0 && await btn(p, 'LOG DAB').isVisible(), `${theme} gauge: LOG DAB, no TORCH IT`);
+    ok(await p.locator('.tm-arc').getAttribute('visibility') === 'hidden' && await p.locator('.tm-stepMark, .tm-refMark').count() === 0, `${theme} gauge: no countdown ring or marks`);
+    await shot(p, `${theme}-gauge-ready`, true);
+    await btn(p, 'LOG DAB').click(); await p.waitForTimeout(400);
+    const d = await p.evaluate(() => T.store.jar('jar1').dabs[0]);
+    ok(d && d.goal === 550 && d.seconds === 0 && d.unit === 'F' && d.profile === 'Torch' && d.medium === 'torch' && d.asked === true && d.cooledIn === undefined, `${theme} gauge: dab logged ${JSON.stringify(d)}`);
+    ok(await p.evaluate(() => T.watcher.prompt && T.watcher.prompt.jarID) === 'jar1', `${theme} gauge: rating pop-up opens`);
+    ok(await p.evaluate(() => T.torch.running) === false && !(await p.evaluate(() => T.log.includes('awake:true'))), `${theme} gauge: never keeps the screen awake`);
+    await shot(p, `${theme}-gauge-rate`);
+    await p.context().close();
+  }
+  {
+    // GAUGE 550 starting point, optional TORCH TO, and an old timer setup switched to GAUGE
+    const p = await open({});
+    await p.locator('.tm-keys .tm-add').click(); await p.waitForTimeout(200);
+    await p.locator('.tm-sheet .catKey', { hasText: 'GAUGE 550' }).click();
+    ok(await p.locator('.tm-sheet input[type=text]').inputValue() === 'GAUGE 550' && await p.locator('.tm-sheet .seg button.on').innerText() === 'GAUGE', 'GAUGE 550 starting point fills the setup');
+    await p.locator('.tm-sheet button[aria-label="Dab at: 10 degrees more"]').click();
+    await p.locator('.tm-sheet .tm-addStep', { hasText: 'TORCH TO' }).click();
+    await p.waitForTimeout(400); await shot(p, 'gauge-editor');
+    await p.locator('.tm-sheet button', { hasText: 'SAVE' }).click();
+    const s = await p.evaluate(() => JSON.parse(T.prefs.get('torch.setups'))[2]);
+    ok(s.style === 'gauge' && s.dabAt === 560 && s.torchTo === 650, `GAUGE saved ${JSON.stringify(s)}`);
+    ok(await p.locator('.tm-ready .tm-say').first().innerText() === 'Torch to 650°. Watch your gauge. Dab when it reads 560°.', 'TORCH TO shows on the ready line');
+    ok(await p.locator('.tm-keys .key.on').innerText() === 'GAUGE 550\n560°', 'gauge key shows its dab-at number');
+    await p.locator('.tm-keys .key').first().click();
+    ok(await num(p) === '5' && await btn(p, 'TORCH IT').isVisible(), 'old timer setup unchanged');
+    await btn(p, 'GAUGE').click();
+    ok(await num(p) === '550°' && await p.evaluate(() => JSON.parse(T.prefs.get('torch.setups'))[0].steps[0].secs) === 5, 'switching an old setup to GAUGE keeps its times');
+    ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'gauge: no horizontal scroll');
+    await p.context().close();
+  }
   await b.close();
   ok(errors.length === 0, `no page errors (${errors.length})`);
   console.log(failed ? `${failed} FAILED` : 'ALL OK');
