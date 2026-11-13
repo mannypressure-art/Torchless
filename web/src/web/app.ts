@@ -108,6 +108,41 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("pagehide", () => rig.appMovedToBackground());
 window.addEventListener("pageshow", () => { if (document.visibilityState === "visible") rig.appBecameActive(); });
+// Manny 2026-11-13: the Shortcut's Open URL makes Bluefy open a new tab each launch. A new Torchless tab tells
+// older ones; they let go of the rig and close themselves (or, if the browser won't let them, blank out).
+// Mid-dab the old tab waits for the dab to end first, same as the disconnect button.
+{
+  const me = Math.random().toString(36).slice(2);
+  let retired = false;
+  const retire = () => {
+    if (retired) return;
+    retired = true;
+    rig.askDisconnect();
+    const finish = () => {
+      try { window.close(); } catch { /* not allowed */ }
+      window.setTimeout(() => {
+        const msg = document.createElement("div");
+        msg.className = "mono sub";
+        msg.style.cssText = "position:fixed;inset:0;z-index:9999;background:var(--bg);padding:40vh 24px 0;text-align:center";
+        msg.textContent = "Torchless is open in another tab. You can close this one.";
+        document.body.append(msg);
+        document.body.style.overflow = "hidden";
+      }, 400);
+    };
+    let waited = 0;
+    const tick = () => { if (!rig.sessionOn || waited >= 90) { if (rig.sessionOn) rig.askDisconnect(); finish(); } else { waited++; window.setTimeout(tick, 1000); } };
+    tick();
+  };
+  const onHello = (from: string) => { if (from && from !== me) retire(); };
+  try {
+    const bc = new BroadcastChannel("torchless-tabs");
+    bc.onmessage = e => { if (e.data?.t === "hello") onHello(String(e.data.from)); };
+    bc.postMessage({ t: "hello", from: me });
+  } catch { /* no BroadcastChannel */ }
+  // Backup for browsers without BroadcastChannel: the storage event reaches other tabs.
+  window.addEventListener("storage", e => { if (e.key === "torchless.tabHello" && e.newValue) onHello(e.newValue.split("|")[0]); });
+  try { localStorage.setItem("torchless.tabHello", `${me}|${Date.now()}`); } catch { /* storage off */ }
+}
 // The browser drops the wake lock when the page is hidden; ask again when it comes back mid-dab.
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && (rig.sessionOn || ble.isConnected || torchAwake || (torchHandle?.running ?? false))) void keepAwake(true); });
 
