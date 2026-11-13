@@ -58,6 +58,12 @@ export interface Jar {
   productKey?: string;
   sentProductID?: string;
   sentScore?: number;
+  /** undefined or true = the cover photo goes up with the shared rating (default). false = it doesn't. */
+  shareCover?: boolean;
+  /** The cover that is up: "productID|photoKey|rowID|path". */
+  sentCover?: string;
+  /** "productID|photoKey" the server refused (limits, ban): not retried. */
+  coverRefused?: string;
   globalScore?: number;
   globalCount?: number;
   /** Ask for the jar's own rating once, after its next dab. */

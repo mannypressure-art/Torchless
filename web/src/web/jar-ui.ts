@@ -1072,6 +1072,9 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         h("span", { class: "cond dim", style: "font-size:18px" }, "/ 10")),
       j.globalScore === undefined ? h("p", { class: "mono dim", style: "margin:0" }, "No ratings from anyone yet.") : null,
       h("label", { class: "switchRow" }, h("b", { class: "cond", style: "font-size:20px;font-weight:500" }, "Share my rating"), box),
+      j.shareRating !== false && j.photo ? h("label", { class: "switchRow" }, h("b", { class: "cond", style: "font-size:20px;font-weight:500" }, "Share my cover photo"),
+        h("input", { type: "checkbox", checked: j.shareCover !== false,
+          onchange: (e: Event) => { const v = (e.target as HTMLInputElement).checked; void store.setServer(j.id, x => { if (v) delete x.shareCover; else x.shareCover = false; }); } })) : null,
       h("p", { class: "mono sub", style: "margin:0" }, status),
       a.state !== "ready" ? h("button", { class: "btn2 wide", style: "color:var(--gold)", onclick: openAccount }, "SIGN IN") : null);
   }

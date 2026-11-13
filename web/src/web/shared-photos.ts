@@ -119,6 +119,39 @@ export class PhotoShelf {
     return null;
   }
 
+  /** Auto-share (Manny 2026-11-13, same as JarSync.swift 22cdba63): the jar's cover goes up with its shared rating.
+   *  "refused" = the server said no (limits, ban): don't retry this photo. "retry" = network or other trouble. */
+  async autoShare(productID: string, file: Blob): Promise<{ id: string; path: string } | "refused" | "retry"> {
+    const me = this.userID();
+    if (!me) return "retry";
+    let pic: { blob: Blob; width: number; height: number };
+    try { pic = await sharePhotoFromFile(file); } catch { return "refused"; }
+    const path = `${me}/${crypto.randomUUID()}.jpg`;
+    const up = await this.fetchAs(`${SERVER_URL}/storage/v1/object/${BUCKET}/${path}`,
+      { method: "POST", body: pic.blob, headers: { "Content-Type": "image/jpeg", "x-upsert": "false" } }).catch(() => null);
+    if (!up?.ok) return "retry";
+    const ins = await this.fetchAs(`${SERVER_URL}/rest/v1/product_photos`, {
+      method: "POST", headers: { "Content-Type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ product_id: productID, user_id: me, path, width: pic.width, height: pic.height }) }).catch(() => null);
+    if (!ins?.ok) {
+      const why = ins ? await ins.text().catch(() => "") : "";
+      await this.removeFile(path);
+      return /photo_limit|rate_limited|account_banned|violates|check constraint|row-level security/.test(why) || (ins && ins.status >= 400 && ins.status < 500) ? "refused" : "retry";
+    }
+    const rows: { id: string }[] = await ins.json().catch(() => []);
+    this.forget(productID);
+    return rows[0]?.id ? { id: rows[0].id, path } : "retry";
+  }
+
+  /** Takes an auto-shared cover back down: the row, then the file. False if the row couldn't be removed. */
+  async autoDrop(id: string, path: string, productID: string): Promise<boolean> {
+    const r = await this.fetchAs(`${SERVER_URL}/rest/v1/product_photos?id=eq.${id}`, { method: "DELETE" }).catch(() => null);
+    if (!r?.ok) return false;
+    await this.removeFile(path);
+    this.forget(productID);
+    return true;
+  }
+
   async like(p: SharedPhoto, on: boolean): Promise<boolean> {
     if (!this.userID() || p.mine || p.liked === on) return false;
     const r = on

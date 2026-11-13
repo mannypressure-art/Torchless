@@ -6,6 +6,7 @@
 import { AuthClient, Session } from "@supabase/auth-js";
 import { PostgrestClient } from "@supabase/postgrest-js";
 import { JarStore, Jar } from "./jars";
+import { PhotoShelf } from "./shared-photos";
 
 export const SERVER_URL = "https://jaxwybhjvrqxsihcnxev.supabase.co";
 export const SERVER_KEY = "sb_publishable_b7eEes3g3e7EAd8bl8-1cQ_xXwvRj37";
@@ -219,8 +220,32 @@ export class JarSync {
       }
     }
 
+    if (uid) await this.coverPass(uid);
     if (uploaded || Date.now() - this.lastStats > 60_000) await this.refreshGlobal();
     this.lastProblem = problem;
+  }
+
+  /** The jar's cover photo follows its shared rating (on by default, per-jar switch). Moderated on the server. */
+  private shelf: PhotoShelf | null = null;
+  private async coverPass(_uid: string): Promise<void> {
+    this.shelf ??= new PhotoShelf(this.account.db.fetch, () => (this.account.state === "ready" ? this.account.userID : null));
+    for (const j of [...this.store.jars]) {
+      const pid = j.sentProductID;
+      const want = !!pid && j.shareRating !== false && j.rating !== undefined && j.shareCover !== false && !!j.photo;
+      const stem = want ? `${pid}|${j.photo}` : null;
+      const sent = j.sentCover?.split("|");
+      if (sent && sent.length === 4 && `${sent[0]}|${sent[1]}` !== stem) {
+        if (!(await this.shelf.autoDrop(sent[2], sent[3], sent[0]))) continue;
+        await this.store.setServer(j.id, x => { delete x.sentCover; });
+      } else if (sent && sent.length === 4) continue;  // already up
+      if (!stem || j.coverRefused === stem) continue;
+      const blob = await this.store.backend.getPhoto(j.photo!, false).catch(() => null);
+      if (!blob) continue;
+      const r = await this.shelf.autoShare(pid!, blob);
+      if (r === "retry") continue;
+      if (r === "refused") { await this.store.setServer(j.id, x => { x.coverRefused = stem; }); continue; }
+      await this.store.setServer(j.id, x => { x.sentCover = `${stem}|${r.id}|${r.path}`; });
+    }
   }
 
   /** Server refusals that stop the whole pass (moderation SQL): told once, not retried every kick. */
