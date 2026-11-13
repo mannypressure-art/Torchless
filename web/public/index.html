@@ -187,6 +187,19 @@
   .jarTab.tGrave.on { color: var(--grave); border-color: var(--grave); background: color-mix(in srgb, var(--grave) 13%, transparent); }
   .jarTab.tGlob.on { color: var(--glob); border-color: var(--glob); background: color-mix(in srgb, var(--glob) 13%, transparent); }
   .globCard { padding: 14px; border-color: color-mix(in srgb, var(--glob) 45%, var(--edge)); }
+  .globPhotos { display: flex; gap: 6px; overflow-x: auto; margin-top: 10px; scrollbar-width: none; }
+  .globPhotos:empty { margin-top: 0; }
+  .gph { position: relative; flex: 0 0 64px; height: 64px; padding: 0; border-radius: 10px; overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--glob) 35%, var(--edge)); background: color-mix(in srgb, var(--glob) 10%, var(--bg)); }
+  .gph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gph.wait img { opacity: .5; }
+  .gph.add { color: var(--glob); font-size: 26px; border-style: dashed; }
+  .gphLikes { position: absolute; left: 3px; bottom: 3px; font: 9px/1 var(--mono, monospace); padding: 2px 4px; border-radius: 6px;
+    background: rgba(0,0,0,.6); color: #fff; }
+  .gphView { padding: 0 16px 24px; }
+  .gphBig { border-radius: 14px; overflow: hidden; background: #000; min-height: 200px; display: flex; align-items: center; justify-content: center; }
+  .gphBig img { max-width: 100%; max-height: 70vh; display: block; }
+  .likeBtn.on { color: var(--glob); border-color: var(--glob); background: color-mix(in srgb, var(--glob) 14%, transparent); }
   .tCollBtn { color: var(--coll); border-color: var(--coll) !important; background: color-mix(in srgb, var(--coll) 12%, transparent); }
   .tGraveBtn { color: var(--grave); border-color: var(--grave) !important; background: color-mix(in srgb, var(--grave) 12%, transparent); }
   .photoSlots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }

@@ -8,6 +8,7 @@ import { cropPhoto } from "./crop";
 import { DabWatcher, DabPrompt } from "./dab-watcher";
 import type { Account, JarSync } from "./cloud";
 import { CatalogKey, SERVER_URL, SERVER_KEY } from "./cloud";
+import { PhotoShelf, SharedPhoto, SHARE_PER_PERSON } from "./shared-photos";
 
 // MARK: Tiny DOM helper (text always goes in as text, never as HTML)
 
@@ -166,6 +167,15 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
   const openPages = new Set<() => void>();   // re-renders for open jar pages
   const galleryAt = new Map<string, number>();   // which photo each jar page is showing
   const rerenderAll = () => { for (const f of openPages) f(); };
+  // Shared photos on Global cards. Signed out: look only.
+  const shelf = new PhotoShelf(cloud ? cloud.account.db.fetch : undefined,
+    () => (cloud && cloud.account.state === "ready" ? cloud.account.userID : null));
+  const strips = new Map<string, HTMLElement>();
+  const viewers = new Set<() => void>();
+  shelf.onChange = ids => { for (const id of ids) strips.get(id)?.replaceChildren(...stripKids(id)); for (const f of viewers) f(); };
+  const stripSeen = typeof IntersectionObserver === "function" ? new IntersectionObserver(es => {
+    for (const e of es) if (e.isIntersecting) { shelf.want((e.target as HTMLElement).dataset.pid!); stripSeen!.unobserve(e.target); }
+  }, { rootMargin: "300px" }) : null;
 
   // MARK: Home: the current jar card
   let justSet = false;
@@ -321,12 +331,93 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
           h("div", { class: "center" }, tag("GLOBAL", "font-size:8px;color:var(--glob)"),
             h("b", { class: "cond", style: `font-size:26px;display:block;color:${r.avg === undefined ? "var(--dim)" : "var(--glob)"}` }, Jars.ratingText(r.avg)),
             h("small", { class: "mono dim", style: "font-size:9px" }, r.count === 1 ? "1 rating" : `${r.count} ratings`))),
+        photoStrip(r.id),
         have ? h("p", { class: "mono dim", style: "font-size:10px;margin:8px 0 0" }, "Already on your shelf.") :
           h("div", { class: "row", style: "gap:8px;margin-top:10px" },
             h("button", { class: "btn2 tCollBtn", style: "flex:1", onclick: () => add(false) }, "+ COLLECTION"),
             h("button", { class: "btn2 tGraveBtn", style: "flex:1", onclick: () => add(true) }, "GRAVEYARD"))));
     }
     grid.replaceChildren(list);
+  }
+
+  function photoStrip(pid: string): HTMLElement {
+    const el = h("div", { class: "globPhotos", "data-pid": pid });
+    strips.set(pid, el);
+    el.replaceChildren(...stripKids(pid));
+    if (!shelf.photos(pid)) { if (stripSeen) stripSeen.observe(el); else shelf.want(pid); }
+    return el;
+  }
+  function stripKids(pid: string): HTMLElement[] {
+    const list = shelf.photos(pid);
+    if (!list) return [];
+    const kids: HTMLElement[] = list.map((p, i) => h("button", { class: "gph" + (p.mod_status !== "approved" ? " wait" : ""),
+      "aria-label": `Photo ${i + 1}, ${p.like_count} likes`, onclick: () => openShared(pid, i) },
+      p.url ? h("img", { src: p.url, alt: "", loading: "lazy" }) : h("span"),
+      p.like_count ? h("small", { class: "gphLikes" }, "👍 " + p.like_count) : null));
+    if (shelf.canPost && shelf.mineCount(pid) < SHARE_PER_PERSON) kids.push(addPhotoTile(pid));
+    return kids;
+  }
+  function addPhotoTile(pid: string): HTMLElement {
+    const file = h("input", { type: "file", accept: "image/*", hidden: true, onchange: async (e: Event) => {
+      const input = e.target as HTMLInputElement;
+      const f = input.files?.[0];
+      input.value = "";
+      if (!f) return;
+      btn.setAttribute("disabled", ""); btn.firstChild!.textContent = "…";
+      const why = await shelf.post(pid, f);
+      if (why) confirmSheet("Photo not shared", why, "OK", "Close", () => {});
+      else confirmSheet("Photo sent", "It shows for everyone once it's checked, usually within a minute.", "OK", "Close", () => {});
+      shelf.onChange([pid]);
+    } }) as HTMLInputElement;
+    const btn = h("button", { class: "gph add", "aria-label": "Add a photo", onclick: () => file.click() }, "+", file);
+    return btn;
+  }
+  function openShared(pid: string, start: number): void {
+    let at = start;
+    openSheet(close => {
+      const body = h("div", { class: "gphView" });
+      let drawn = false;
+      const draw = () => {
+        if (drawn && !body.isConnected) { viewers.delete(draw); return; }
+        drawn = true;
+        const list = shelf.photos(pid) ?? [];
+        if (!list.length) { close(); return; }
+        at = Math.min(at, list.length - 1);
+        const p = list[at];
+        const signed = shelf.canPost;
+        body.replaceChildren(
+          topBar(textBtn("CLOSE", close), h("span", { class: "mono dim" }, `${at + 1} / ${list.length}`), null),
+          h("div", { class: "gphBig", onclick: (ev: Event) => {
+            const e = ev as MouseEvent;
+            const left = e.offsetX < (e.currentTarget as HTMLElement).clientWidth / 2;
+            at = (at + (left ? list.length - 1 : 1)) % list.length; draw();
+          } }, p.url ? h("img", { src: p.url, alt: "Shared jar photo" }) : null),
+          p.mod_status !== "approved" ? h("p", { class: "mono dim center" }, "Only you see this until it's checked.") : "",
+          h("div", { class: "row", style: "gap:10px;margin-top:12px" },
+            h("button", { class: "btn2 likeBtn" + (p.liked ? " on" : ""), style: "flex:1",
+              disabled: !signed || p.mine || p.mod_status !== "approved",
+              "aria-pressed": p.liked ? "true" : "false",
+              onclick: () => void shelf.like(p, !p.liked) }, `👍 ${p.like_count}`),
+            p.mine
+              ? h("button", { class: "btn2 danger", style: "flex:1", onclick: () =>
+                  confirmSheet("Delete this photo?", "It comes off the Global shelf for everyone.", "Delete", "Keep", () => void shelf.remove(p)) }, "DELETE")
+              : signed ? h("button", { class: "btn2", style: "flex:1", onclick: () => reportPhoto(p) }, "REPORT") : null),
+          !signed ? h("p", { class: "mono dim center", style: "font-size:10px" }, "Sign in to like or report photos.") : "");
+      };
+      viewers.add(draw);
+      draw();
+      return body;
+    });
+  }
+  function reportPhoto(p: SharedPhoto): void {
+    openSheet(close => {
+      const pick = (why: string) => { close(); void shelf.report(p, why).then(ok =>
+        confirmSheet(ok ? "Thanks" : "Didn't send", ok ? "We'll take a look." : "Try again in a bit.", "OK", "Close", () => {})); };
+      return h("div", { class: "cardBody" }, h("h3", {}, "Report photo"),
+        ...["Not this jar", "Nudity or sexual", "Shows a person or private info", "Selling or contact info", "Something else"].map(r =>
+          h("button", { class: "btn2 wide", style: "margin-top:8px", onclick: () => pick(r) }, r.toUpperCase())),
+        h("button", { class: "textBtn", style: "margin-top:12px", onclick: close }, "Cancel"));
+    }, "card");
   }
 
   let backupNote = "Jars live on this phone, in this browser. Save a backup now and then so clearing the browser can't lose them.";
@@ -977,7 +1068,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
             h("button", { class: "btn2 wide", onclick: () => void a.signOut() }, "Sign out"),
             h("button", { class: "btn2 wide danger", style: "margin-top:24px", disabled: a.busy, onclick: () =>
               confirmSheet("Delete your account?", "This removes your sign-in, your name and every rating you shared. They drop out of GLOBAL right away. Your jars stay on this device. This can't be undone.",
-                "Delete account", "Keep it", () => void a.deleteAccount(store)) }, "Delete account"));
+                "Delete account", "Keep it", () => void shelf.removeAllMine().then(() => a.deleteAccount(store))) }, "Delete account"));
         }
         if (a.problem) kids.push(h("div", { class: "problem" }, a.problem));
         kids.push(h("p", { class: "mono dim", style: "margin-top:24px;font-size:10px" }, "Privacy: torchlessapp.github.io/privacy"));

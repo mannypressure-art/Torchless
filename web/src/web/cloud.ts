@@ -35,7 +35,7 @@ export const AccountRules = {
 };
 
 /** Just the two parts of Supabase the app uses (sign-in and tables), without realtime or storage. */
-export interface Server { auth: InstanceType<typeof AuthClient>; rest: PostgrestClient; from: PostgrestClient["from"]; rpc: PostgrestClient["rpc"] }
+export interface Server { auth: InstanceType<typeof AuthClient>; rest: PostgrestClient; from: PostgrestClient["from"]; rpc: PostgrestClient["rpc"]; fetch: typeof fetch }
 export function makeServer(): Server {
   const auth = new AuthClient({
     url: SERVER_URL + "/auth/v1", headers: { apikey: SERVER_KEY, Authorization: "Bearer " + SERVER_KEY },
@@ -49,7 +49,7 @@ export function makeServer(): Server {
     return fetch(input, { ...init, headers });
   };
   const rest = new PostgrestClient(SERVER_URL + "/rest/v1", { headers: { apikey: SERVER_KEY }, fetch: authed });
-  return { auth, rest, from: rest.from.bind(rest), rpc: rest.rpc.bind(rest) };
+  return { auth, rest, from: rest.from.bind(rest), rpc: rest.rpc.bind(rest), fetch: authed };
 }
 
 export interface Profile { id: string; display_name: string; ig_handle: string | null }
