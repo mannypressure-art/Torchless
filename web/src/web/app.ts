@@ -109,7 +109,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pagehide", () => rig.appMovedToBackground());
 window.addEventListener("pageshow", () => { if (document.visibilityState === "visible") rig.appBecameActive(); });
 // The browser drops the wake lock when the page is hidden; ask again when it comes back mid-dab.
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && (rig.sessionOn || torchAwake || (torchHandle?.running ?? false))) void keepAwake(true); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && (rig.sessionOn || ble.isConnected || torchAwake || (torchHandle?.running ?? false))) void keepAwake(true); });
 
 // Keep the screen on while heating where the browser allows it: a locked phone freezes the page.
 type Lock = { release(): Promise<void> };
@@ -126,7 +126,8 @@ async function keepAwake(on: boolean) {
 // Two things can want the screen on: a rig dab and a torch countdown. Neither lets go while the other still needs it.
 let torchAwake = false;
 let torchHandle: TorchUI | null = null;   // set once the Torch tab is mounted (it may ask for the screen while mounting)
-const syncAwake = () => void keepAwake(rig.sessionOn || torchAwake || (torchHandle?.running ?? false));
+// Manny 2026-11-13: also the whole time the rig is linked, not just mid-dab.
+const syncAwake = () => void keepAwake(rig.sessionOn || ble.isConnected || torchAwake || (torchHandle?.running ?? false));
 
 // MARK: Mode (how you dab): "rig" is the Switch 2 over Bluetooth, "torch" is glass and a butane torch (timer only, no rig).
 
@@ -699,6 +700,7 @@ function show(id: string, on: boolean) { const el = $(id); if (el.hidden === on)
 
 let queued = false;
 let wasHeating = false;
+let wasLinked = false;
 function render() {
   queued = false;
   if (connectAfterPick && ble.devices.length > 0) {
@@ -708,7 +710,7 @@ function render() {
   const s = rig.live;
   const linked = ble.isConnected;
   const heating = rig.sessionOn;
-  if (heating !== wasHeating) { wasHeating = heating; syncAwake(); }
+  if (heating !== wasHeating || linked !== wasLinked) { wasHeating = heating; wasLinked = linked; syncAwake(); }
   document.querySelectorAll<HTMLButtonElement>(".pvBtn").forEach(b => { if (b.disabled === rig.canPreview) b.disabled = !rig.canPreview; });
 
   // The first link after a tap on LINK IT plays the rig transition; the front page stays up until it swaps to Home.
