@@ -483,7 +483,7 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
       }
       if (phase === "torch") heatSound.torch(theme(), 1, clamp((now - r.startAt) / r.torchPlan, 0, 1), false);
       else if (phase === "cool") heatSound.torch(theme(), 3, 0, r.coolEnd - now <= 5000);
-      else if (phase === "dab" && pending && now >= pending.at && document.visibilityState !== "hidden") {
+      else if (phase === "dab" && pending && now >= pending.at && document.visibilityState !== "hidden" && shown) {
         // The moment has had its 15 seconds: back to Ready, and ask for the rating.
         toReady();
         offerRating();
