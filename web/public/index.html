@@ -203,6 +203,15 @@
   .plStep b { text-align: center; font-size: 22px; }
   .plChips { display: flex; gap: 8px; flex-wrap: wrap; }
   .plName { min-height: 44px; border-radius: 12px; border: 1px solid var(--edge); background: var(--cardBottom); color: var(--ink); padding: 0 12px; font: 600 17px var(--cond); letter-spacing: 1px; }
+  .atTemp { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); z-index: 4; padding: 7px 14px; border-radius: 999px; background: var(--gold); color: var(--goldInk); font: 700 15px/1 var(--cond); letter-spacing: 2px; white-space: nowrap; animation: atPop .5s cubic-bezier(.2,1.4,.4,1); pointer-events: none; }
+  @keyframes atPop { from { transform: translateX(-50%) scale(.6); opacity: 0; } to { transform: translateX(-50%) scale(1); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .atTemp { animation: none; } }
+  .careRow { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: 18px; }
+  .careRow b { display: block; font-size: 22px; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .careRow small { display: block; font-size: 10px; color: var(--dim); margin-top: 3px; }
+  .careCard { display: grid; grid-template-columns: 1fr 1fr; border-radius: 18px; overflow: hidden; }
+  .careCell { padding: 14px; } .careCell + .careCell { border-left: 1px solid var(--edge); }
+  .careCell b { display: block; font-size: 26px; margin-top: 5px; } .careCell small { display: block; font-size: 10px; color: var(--dim); margin-top: 3px; }
+  .careCell.due b, .careCell.due .tag { color: var(--gold); }
   .cvGrid { stroke: var(--edge); stroke-width: 1; }
   .cvBase { stroke: color-mix(in srgb, var(--dim) 55%, transparent); stroke-width: 1; }
   .cvTick { stroke: color-mix(in srgb, var(--dim) 55%, transparent); stroke-width: 1; }
@@ -537,6 +546,7 @@
           <g class="hub"><circle cx="130" cy="130" r="20" fill="url(#hubGrad)"/><text x="130" y="135.5">T</text></g>
         </svg>
         <div class="readout"><div id="gTemp">---</div><div id="gStatus"></div></div>
+        <div id="atTemp" class="atTemp" hidden aria-live="polite">AT TEMP · DAB NOW</div>
         <div class="corner tl"><span class="tag" style="font-size:9px">TARGET</span><b id="cTarget">---</b></div>
         <div class="corner tr"><span class="tag" style="font-size:9px">HOLD</span><b id="cHold">--</b></div>
         <div class="corner bl"><span class="tag" style="font-size:9px">PROFILE</span><b id="cProfile">--</b></div>
@@ -589,6 +599,17 @@
       </div>
 
       <div id="curJar" class="curJar panel"></div>
+
+      <div id="againStrip" class="careRow panel" hidden>
+        <div style="flex:1;min-width:0"><span class="tag" style="font-size:9px;color:var(--gold)">DO THAT AGAIN</span><b id="againTitle" class="cond"></b><small id="againLine" class="mono"></small></div>
+        <button id="againBtn" class="btn2" style="flex:none;color:var(--gold);border-color:var(--gold)"></button>
+      </div>
+
+      <div id="careCard" class="careCard panel" hidden>
+        <div class="careCell" id="batteryCell"><span class="tag" style="font-size:9px">DABS LEFT</span><b id="dabsLeft" class="cond">--</b><small id="dabsLeftLine" class="mono"></small></div>
+        <div class="careCell" id="cleanCell"><span class="tag" style="font-size:9px" id="cleanTag">SINCE LAST CLEAN</span><b id="cleanCount" class="cond">--</b><small id="cleanLine" class="mono"></small>
+          <div class="row" style="gap:6px;margin-top:8px"><button id="cleanedBtn" class="chip">CLEANED</button><button id="cleanEveryBtn" class="chip"></button></div></div>
+      </div>
 
       <button class="strip panel" data-tab="lights">
         <span id="stripOrb" class="orb" style="width:40px;height:40px"></span>

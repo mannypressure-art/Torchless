@@ -12,13 +12,14 @@ import { JarStore, IDBJarBackend, MemoryJarBackend } from "./jars";
 import { DabWatcher } from "./dab-watcher";
 import { mountJars, h, tag, openSheet, topBar, textBtn, confirmSheet } from "./jar-ui";
 import { openPlanner } from "./planner";
+import { RigExtras, heatCyclesFrom, doThatAgain, CLEAN_CHOICES } from "./extras";
 import { mountRig } from "./rig-ui";
 import { Account, JarSync } from "./cloud";
 import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
 import { HeatFX, heatSound, heatTrack, HEAT_SOUNDS, HEAT_TRACKS, validSound, validTrack } from "./heatfx";
 import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 
-const BUILD = "app-4g.0";
+const BUILD = "app-4h.0";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -222,6 +223,57 @@ function renderCurve(sel: number, celsius: boolean, heating: boolean) {
   svg.addEventListener("pointercancel", hide);
 }
 
+// MARK: Rig extras (no rig writes; "do that again" is the same preset tap as on Home)
+
+const extras = new RigExtras();
+let againPreset: number | null = null;
+let againPlan: { t: number; f: number }[] = [];
+$("againBtn").onclick = () => { if (againPreset !== null) rig.selectPreset(againPreset); else if (againPlan.length) openPlannerWith(againPlan); };
+$("cleanedBtn").onclick = () => { extras.cleaned(heatCyclesFrom(ble.extra)); schedule(); };
+$("cleanEveryBtn").onclick = () => {
+  const i = CLEAN_CHOICES.indexOf(extras.cleanEvery);
+  extras.cleanEvery = CLEAN_CHOICES[(i + 1) % CLEAN_CHOICES.length];
+  schedule();
+};
+function renderExtras(heating: boolean) {
+  const s = rig.live;
+  const fresh = !!s && rig.linkFresh;
+  // AT TEMP flash for four seconds.
+  const at = extras.atTempAt;
+  show("atTemp", heating && at !== null && Date.now() - at < 4000);
+  if (heating && at !== null && Date.now() - at < 4100) window.setTimeout(schedule, 500);
+
+  const again = !heating && fresh ? doThatAgain(jars.current, rig) : null;
+  show("againStrip", !!again);
+  if (again) {
+    const j = jars.current!;
+    setText("againTitle", again.text.toUpperCase());
+    setText("againLine", `Your best on ${j.strain || j.producer || "this jar"}: ${again.dab.rating!.toFixed(1)}`);
+    againPreset = again.preset;
+    const toF = (v: number) => again.dab.unit === "C" ? Math.round(v * 9 / 5 + 32) : v;
+    const g = toF(again.dab.goal!), top = again.dab.goalTop !== undefined ? toF(again.dab.goalTop) : g;
+    const hold = 30;
+    // No preset matches any more: open the planner on the same range (a straight line from goal to top).
+    againPlan = Math.abs(top - g) > 10 * hold || g - top > 3 * hold ? [{ t: 0, f: g }, { t: hold, f: g }] : [{ t: 0, f: g }, { t: hold, f: top }];
+    const on = again.preset !== null && s?.preset === again.preset;
+    setText("againBtn", again.preset === null ? "PLAN IT" : on ? `P${again.preset} SET` : `USE P${again.preset}`);
+    enable("againBtn", again.preset === null || (!on && rig.canControl));
+  }
+
+  const left = fresh ? extras.dabsLeft(rig) : null;
+  const cycles = heatCyclesFrom(ble.extra);
+  const since = extras.dabsSinceClean(cycles), every = extras.cleanEvery;
+  show("careCard", fresh);
+  setText("dabsLeft", left ? `≈${left.left}` : s && chargingOf(s) ? "CHARGING" : "LEARNING");
+  setText("dabsLeftLine", left ? `About ${left.per.toFixed(1)}% a dab, from your last ${left.seen}.` : "Shows after three dabs on battery.");
+  const due = since >= every;
+  $("cleanCell").classList.toggle("due", due);
+  setText("cleanTag", due ? "TIME TO CLEAN" : "DABS SINCE CLEAN");
+  setText("cleanCount", String(since));
+  setText("cleanLine", due ? `${since} dabs since the last clean. Clean the banger, then tap CLEANED.` : `Reminder at ${every}.`);
+  setText("cleanEveryBtn", `EVERY ${every}`);
+}
+
 // MARK: Ride planner (Custom curves; sends only through rig.saveCurve, only while idle)
 
 let plannerRefresh: (() => void) | null = null;
@@ -229,15 +281,17 @@ $("planBtn").onclick = () => {
   const sel = rig.live?.preset ?? 0;
   const p = sel >= 1 && sel <= 5 ? rig.presets[sel] : undefined;
   const start = p ? waypointsOf(p).map(w => ({ t: w.t, f: w.f })) : [];
-  const ok = start.length >= 2 && !RigController.curveProblem(start);
+  openPlannerWith(start.length >= 2 && !RigController.curveProblem(start) ? start : []);
+};
+function openPlannerWith(start: { t: number; f: number }[]) {
   plannerRefresh = openPlanner({
     rig,
     selected: () => rig.live?.preset ?? 0,
     celsius: () => rig.live?.unitByte === 12,
     currentJar: () => { const j = jars.current; return j ? { id: j.id, name: j.strain || j.producer || "this jar" } : null; },
     confirm: (title, body, yes, onYes) => confirmSheet(title, body, yes, "Not now", onYes),
-  }, ok ? start : []);
-};
+  }, start);
+}
 
 // MARK: Preset editor
 
@@ -591,7 +645,9 @@ function render() {
       if (t !== undefined) { targetText = `${t}°`; targetFrac = clamp01((t - lo) / (hi - lo)); }
       if (ps.profile !== undefined) profileText = HeatProfile.name(ps.profile);
     }
-    status = !rig.linkFresh ? "WAITING ON THE RIG" : heating ? `HEATING · ${clockText(s.sessionTimeRemaining)} LEFT`
+    const eta = heating ? extras.heatUpETA(rig) : null;
+    status = !rig.linkFresh ? "WAITING ON THE RIG" : heating && extras.preheating ? (eta !== null ? `HEATING UP · AT TEMP IN ~${eta}S` : "HEATING UP")
+      : heating ? `HEATING · ${clockText(s.sessionTimeRemaining)} LEFT`
       : s.tempRaw > room + 50 ? "COOLING · HEAT OFF" : "COOL · READY";
   }
   document.body.classList.toggle("heating", heating);
@@ -635,6 +691,7 @@ function render() {
   }
   const sel = s?.preset ?? 0;
   renderCurve(sel, celsius, heating);
+  renderExtras(heating);
   show("editBtn", sel >= 1 && sel <= 5);
   setText("editBtn", `EDIT ${sel}`);
   enable("editBtn", !locked);
@@ -756,7 +813,7 @@ $("dialUp").onclick = () => rig.dialNudge(RigController.dialStep);
 $("dialA").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMode = "live"; schedule(); } };
 $("dialB").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMode = "active"; schedule(); } };
 const heatFX = new HeatFX($("faceCard"), () => prefs.get("heatSound") ?? "chimes", () => prefs.get("heatTrack") ?? "look", () => faceID);
-rig.onChange = () => { watcher.update(rig); heatFX.update(rig); plannerRefresh?.(); schedule(); };
+rig.onChange = () => { watcher.update(rig); heatFX.update(rig); extras.update(rig); plannerRefresh?.(); schedule(); };
 // Audio can only start after a tap: unlock it on the first tap of any kind, and resume after an interruption.
 for (const ev of ["pointerdown", "pointerup", "touchend", "click"]) document.addEventListener(ev, () => heatSound.unlock(), { capture: true, passive: true });
 setInterval(schedule, 500);
