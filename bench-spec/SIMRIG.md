@@ -62,3 +62,18 @@ Slot temp report 163: `163, 8, slot, F>>8, F&255, C>>8, C&255, 163` with C = rou
 2026-11-12, matching the Swift sim (sim-bench/stubs/CoreBluetooth.swift, 2026-11-11):
 - Ascent (profile 177): once the countdown runs, the target climbs 1 F a second from the set temp, up to the hold length.
 - reportsLiveSlot = false by default. The connect dump lists presets 1 to 5 only, as the real rig does. presetsAndDial turns it on.
+
+2026-11-13, matching the Swift sim (switch app/curve-bench/CoreBluetooth.swift d97deb29):
+- `locksActiveTempMidDab` = true by default, as the real rig did (Log of 2026-11-12). A 179 frame for the slot
+  the rig is heating from changes nothing: event "TEMP slot n refused (heating from it), still t", and the 163
+  report carries the old temp. Other slots, and any slot while idle, are written as before.
+  dialActivePresetIfRigFollows and dialAfterLinkDrop turn the lock off.
+- 186 and 187 (Custom curve halves, 19 bytes: `cmd, 19, slot, 15 payload bytes, cmd`, slot 1 to 5). Wrong
+  shape: event "BAD curve frame n". While heating: event "CURVE frame n refused (heating)", nothing stored,
+  no report. Idle, 186: store the 15 bytes as `curveA[slot]`, event "CURVE A slot n", report
+  `170, 19, slot, payload, 170`. Idle, 187: store as `curveB[slot]`, event "CURVE B slot n", report
+  `171, 19, slot, payload, 171`; with `ignoreCurveB` on, store nothing, report nothing, event "CURVE B slot n lost".
+- Payload: three steps of `F>>8, F&255, C>>8, C&255, seconds`; an unused step is five zeros.
+- Custom (profile 241): once the countdown runs, the target follows the saved points (curveA then curveB, steps
+  with F > 0): the first point's temp up to its time, a straight line between points, the last point's temp
+  after it. No saved points: the slot temp, as Steady. This ramp is a guess; never seen on the real rig.

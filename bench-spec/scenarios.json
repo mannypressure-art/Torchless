@@ -1,6 +1,6 @@
 {
- "version": 1,
- "about": "The 33 rig scenarios every Presh version (Swift iPhone, web, Android) must pass before release. Ported from switch app/sim-bench/harness/main.swift as run on RigController.swift md5 5397d39849aa6890ec0a7eeadae91025, BLEManager 6a69fac9afbc8c2c86f9f8f476e3c60a, FrameDecoder 2f9b5bcb9bd9b76c2403ec9b7c11bd60 (33 of 33 passed). Times are seconds from the start of the scenario. Rules use the vocabulary in VOCAB.md; the simulated rig is in SIMRIG.md. Each port prints 'PASS <title>' or 'FAIL <title>: n problem(s)' with the title exactly as written here.",
+ "version": 2,
+ "about": "The 42 rig scenarios every Presh version (Swift iPhone, web, Android) must pass before release. Ported from switch app/sim-bench/harness/main.swift as run on RigController.swift md5 5397d39849aa6890ec0a7eeadae91025, BLEManager 6a69fac9afbc8c2c86f9f8f476e3c60a, FrameDecoder 2f9b5bcb9bd9b76c2403ec9b7c11bd60 (33 of 33 passed); grown to 42 on 2026-11-13 from switch app/curve-bench/main.swift 270c2b9e on RigController 9c54e613 (42 of 42). Times are seconds from the start of the scenario. Rules use the vocabulary in VOCAB.md; the simulated rig is in SIMRIG.md. Each port prints 'PASS <title>' or 'FAIL <title>: n problem(s)' with the title exactly as written here.",
  "defaults": {
   "connect": "scan at 0.2 s, tap the first rig found at 0.6 s",
   "allowedAppStarts": 0,
@@ -9,7 +9,7 @@
  "invariants": [
   {
    "expect": "only known-safe commands were ever sent (never reset, rename, firmware)",
-   "rule": "received.every(f => [177,178,179,181,183,185].includes(f.bytes[0]))"
+   "rule": "received.every(f => [177,178,179,181,183,185,186,187].includes(f.bytes[0]))"
   },
   {
    "expect": "every control frame is well formed",
@@ -816,7 +816,96 @@
   },
   {
    "id": "dialActivePreset",
-   "title": "ride the dial, mode B: the active preset moves mid-dab and is put back after",
+   "title": "ride the dial, mode B, real-rig behaviour: the rig refuses the active preset mid-dab and the app says no",
+   "allowedAppStarts": 1,
+   "finish": 52.0,
+   "setup": {
+    "sim.hold[3]": 40
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "selectPreset",
+     "args": {
+      "slot": 3
+     }
+    },
+    {
+     "t": 3.5,
+     "check": "sim.preset == 3",
+     "expect": "preset 3 selected"
+    },
+    {
+     "t": 3.5,
+     "do": "heatIt"
+    },
+    {
+     "t": 14.6,
+     "do": "dialNudge",
+     "args": {
+      "by": 5
+     }
+    },
+    {
+     "t": 16.1,
+     "do": "dialNudge",
+     "args": {
+      "by": 5
+     }
+    },
+    {
+     "t": 23.0,
+     "check": "received.filter(f => f.bytes[0] == 179 && f.sessionWas != 0).length == 2",
+     "expect": "both taps reached the rig"
+    },
+    {
+     "t": 23.0,
+     "check": "events.count('refused (heating from it)') == 2",
+     "expect": "the rig refused both"
+    },
+    {
+     "t": 23.0,
+     "check": "sim.presetTemp[3] == 520",
+     "expect": "preset 3 stayed at 520"
+    },
+    {
+     "t": 23.0,
+     "check": "Math.round(sim.temp) == 520",
+     "expect": "the rig's temp stayed at 520"
+    },
+    {
+     "t": 23.0,
+     "check": "log.count('result after 6 s: no') == 1 && log.count('result after 6 s: yes') == 0",
+     "expect": "the app said no"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.presetTemp[3] == 520",
+     "expect": "preset 3 at 520 after the dab"
+    },
+    {
+     "rule": "!saved.dialPendingV1 || Object.keys(saved.dialPendingV1).length == 0",
+     "expect": "nothing left owed"
+    },
+    {
+     "rule": "sim.sessionStarts == 1",
+     "expect": "one dab"
+    },
+    {
+     "rule": "events.count('STOP by its own timer') == 1 && stopsWhileHeating == 0",
+     "expect": "the dab ran to its own end"
+    },
+    {
+     "rule": "!log.has('SAFETY CUT')",
+     "expect": "no safety cut"
+    }
+   ],
+   "notes": "What the real rig did (web app Log of 2026-11-12): it answered both taps with the unchanged preset temp."
+  },
+  {
+   "id": "dialActivePresetIfRigFollows",
+   "title": "ride the dial, mode B, on a rig that takes the write: the active preset moves mid-dab and is put back after",
    "allowedAppStarts": 1,
    "finish": 52.0,
    "steps": [
@@ -912,9 +1001,591 @@
     }
    ],
    "setup": {
+    "sim.locksActiveTempMidDab": false,
     "sim.hold[3]": 40
    },
-   "notes": "Taps at 14.6 s: the temp reaches 520 at 7.5 s, so the verdict needs 7 s of settled temp behind the first tap. At exactly 14.0 the 7.0 s sample (500 F) lands on the window edge; the Swift bench passes there only because of real-clock jitter."
+   "notes": "NOT what the real rig did on 2026-11-12; keeps the 'yes' path covered. Taps at 14.6 s: the temp reaches 520 at 7.5 s, so the verdict needs 7 s of settled temp behind the first tap. At exactly 14.0 the 7.0 s sample (500 F) lands on the window edge; the Swift bench passes there only because of real-clock jitter."
+  },
+  {
+   "id": "customCurveSave",
+   "title": "save a Custom curve: five frames in the official order, the rig reads the same curve back",
+   "allowedAppStarts": 0,
+   "finish": 9.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       },
+       {
+        "t": 15,
+        "f": 450
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    }
+   ],
+   "final": [
+    {
+     "rule": "curveFrames.map(f => f.bytes[0]).join(',') == '179,183,181,186,187'",
+     "expect": "frames in order: temp, hold, profile, curve 1, curve 2"
+    },
+    {
+     "rule": "curveFrames.length == 5 && curveFrames[1].time - curveFrames[0].time >= 0.95 && curveFrames[2].time - curveFrames[1].time >= 0.95",
+     "expect": "temp, hold and profile a second apart"
+    },
+    {
+     "rule": "curveFrames.length == 5 && [3,4].every(i => { const g = curveFrames[i].time - curveFrames[i-1].time; return g >= 0.25 && g < 0.9; })",
+     "expect": "curve frames 0.3 s apart"
+    },
+    {
+     "rule": "curveFrames.length == 5 && curveFrames[3].bytes.join(',') == '186,19,3,1,194,0,232,0,1,194,0,232,15,1,244,1,4,30,186'",
+     "expect": "curve frame 1 bytes exact"
+    },
+    {
+     "rule": "curveFrames.length == 5 && curveFrames[4].bytes.join(',') == '187,19,3,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,187'",
+     "expect": "curve frame 2 is all zero steps"
+    },
+    {
+     "rule": "curveFrames.length == 5 && curveFrames[2].bytes.join(',') == '181,5,3,241,181'",
+     "expect": "profile frame says Custom"
+    },
+    {
+     "rule": "sim.presetTemp[3] == 450 && sim.hold[3] == 30 && sim.profile[3] == 241",
+     "expect": "rig holds 450 F, 30 s, Custom"
+    },
+    {
+     "rule": "app.presets[3].tempF == 450 && app.presets[3].hold == 30 && app.presets[3].profile == 241",
+     "expect": "the app shows the same"
+    },
+    {
+     "rule": "log.has('CURVE CHECK preset 3: ok') && app.curveCheckResult == 'ok'",
+     "expect": "read-back check passed"
+    },
+    {
+     "rule": "sim.sessionStarts == 0",
+     "expect": "no heat"
+    }
+   ],
+   "notes": "Test curve: 450 F at 0 s, 450 F at 15 s, 500 F at 30 s. Custom curves were never sent to a real rig; the sim follows the official app's code."
+  },
+  {
+   "id": "customCurveRefusedHeating",
+   "title": "a curve save while heating sends nothing",
+   "allowedAppStarts": 1,
+   "finish": 20.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 5.0,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       },
+       {
+        "t": 15,
+        "f": 450
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 6.0,
+     "check": "curveFrames.length == 0",
+     "expect": "no preset or curve frame reached the rig"
+    },
+    {
+     "t": 6.0,
+     "check": "app.message != null",
+     "expect": "he is told why"
+    }
+   ],
+   "final": [
+    {
+     "rule": "curveFrames.length == 0",
+     "expect": "still nothing"
+    },
+    {
+     "rule": "sim.sessionStarts == 1 && stopsWhileHeating == 0",
+     "expect": "the dab was left alone"
+    }
+   ]
+  },
+  {
+   "id": "customCurveInterrupted",
+   "title": "heat starts from the rig button half way through a curve save: the rest is dropped and he is told",
+   "allowedAppStarts": 0,
+   "finish": 9.0,
+   "steps": [
+    {
+     "t": 2.1,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       },
+       {
+        "t": 15,
+        "f": 450
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 2.6,
+     "do": "sim.buttonStart"
+    }
+   ],
+   "final": [
+    {
+     "rule": "curveFrames.map(f => f.bytes[0]).join(',') == '179'",
+     "expect": "only the temp frame went out"
+    },
+    {
+     "rule": "curveFrames.every(f => f.sessionWas == 0)",
+     "expect": "nothing was written into the running dab"
+    },
+    {
+     "rule": "log.count('did not finish') == 1",
+     "expect": "he is told once that the save did not finish"
+    },
+    {
+     "rule": "!log.has('CURVE CHECK')",
+     "expect": "no read-back verdict for a save that never completed"
+    },
+    {
+     "rule": "stopsWhileHeating == 0",
+     "expect": "the dab was left alone"
+    }
+   ],
+   "notes": "The save is at 2.1 s, not 2.0 as in main.swift 270c2b9e: the rig's status goes out every half second (2.5, 3.0, ...), so a save at 2.0 puts the hold frame at exactly 3.0, the same instant as the first status that shows heat. On a virtual clock that tie sends the hold frame into the dab; the Swift bench passes at 2.0 only through real-clock jitter. At 2.1 the hold frame is due at 3.1, after that status, on every port."
+  },
+  {
+   "id": "customCurveBadInput",
+   "title": "curves outside the limits are refused before anything is sent",
+   "allowedAppStarts": 0,
+   "finish": 6.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       }
+      ]
+     },
+     "notes": "one point"
+    },
+    {
+     "t": 2.2,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       },
+       {
+        "t": 10,
+        "f": 450
+       },
+       {
+        "t": 20,
+        "f": 450
+       },
+       {
+        "t": 30,
+        "f": 450
+       },
+       {
+        "t": 40,
+        "f": 450
+       },
+       {
+        "t": 50,
+        "f": 450
+       }
+      ]
+     },
+     "notes": "six points"
+    },
+    {
+     "t": 2.4,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 5,
+        "f": 450
+       },
+       {
+        "t": 30,
+        "f": 450
+       }
+      ]
+     },
+     "notes": "first point not at 0 s"
+    },
+    {
+     "t": 2.6,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       },
+       {
+        "t": 20,
+        "f": 450
+       },
+       {
+        "t": 20,
+        "f": 460
+       }
+      ]
+     },
+     "notes": "times not rising"
+    },
+    {
+     "t": 2.8,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       },
+       {
+        "t": 9,
+        "f": 450
+       }
+      ]
+     },
+     "notes": "ends under 10 s"
+    },
+    {
+     "t": 3.0,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       },
+       {
+        "t": 91,
+        "f": 450
+       }
+      ]
+     },
+     "notes": "ends over 90 s"
+    },
+    {
+     "t": 3.2,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       },
+       {
+        "t": 30,
+        "f": 651
+       }
+      ]
+     },
+     "notes": "too hot"
+    },
+    {
+     "t": 3.4,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 249
+       },
+       {
+        "t": 30,
+        "f": 300
+       }
+      ]
+     },
+     "notes": "too cold"
+    },
+    {
+     "t": 3.6,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       },
+       {
+        "t": 5,
+        "f": 501
+       },
+       {
+        "t": 30,
+        "f": 501
+       }
+      ]
+     },
+     "notes": "climbs over 10 F a second"
+    },
+    {
+     "t": 3.8,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 500
+       },
+       {
+        "t": 10,
+        "f": 469
+       },
+       {
+        "t": 30,
+        "f": 469
+       }
+      ]
+     },
+     "notes": "drops over 3 F a second"
+    },
+    {
+     "t": 4.0,
+     "do": "saveCurve",
+     "args": {
+      "slot": 0,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       },
+       {
+        "t": 15,
+        "f": 450
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     },
+     "notes": "slot 0"
+    },
+    {
+     "t": 4.2,
+     "do": "saveCurve",
+     "args": {
+      "slot": 6,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       },
+       {
+        "t": 15,
+        "f": 450
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     },
+     "notes": "slot 6"
+    },
+    {
+     "t": 5.0,
+     "check": "curveProblem([{t:0,f:450},{t:5,f:500},{t:15,f:470},{t:90,f:470}]) == null",
+     "expect": "+10 and -3 F a second, ending at 90 s, is allowed"
+    },
+    {
+     "t": 5.0,
+     "check": "curveProblem([{t:0,f:250},{t:10,f:250}]) == null",
+     "expect": "two points ending at 10 s is allowed"
+    }
+   ],
+   "final": [
+    {
+     "rule": "curveFrames.length == 0",
+     "expect": "nothing reached the rig"
+    },
+    {
+     "rule": "log.count('NOTICE:') == 12",
+     "expect": "each one got a plain-words reason"
+    }
+   ]
+  },
+  {
+   "id": "customCurveReadbackMismatch",
+   "title": "the rig loses the second curve frame: the app's read-back check catches it",
+   "allowedAppStarts": 0,
+   "finish": 9.0,
+   "setup": {
+    "sim.ignoreCurveB": true
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "saveCurve",
+     "args": {
+      "slot": 4,
+      "steps": [
+       {
+        "t": 0,
+        "f": 430
+       },
+       {
+        "t": 10,
+        "f": 430
+       },
+       {
+        "t": 20,
+        "f": 480
+       },
+       {
+        "t": 40,
+        "f": 480
+       },
+       {
+        "t": 60,
+        "f": 450
+       }
+      ]
+     }
+    }
+   ],
+   "final": [
+    {
+     "rule": "curveFrames.length == 5",
+     "expect": "all five frames were sent"
+    },
+    {
+     "rule": "log.has('CURVE CHECK preset 4: MISMATCH') && app.curveCheckResult == 'MISMATCH'",
+     "expect": "the check says MISMATCH"
+    },
+    {
+     "rule": "app.message != null",
+     "expect": "he is told to check the preset"
+    }
+   ]
+  },
+  {
+   "id": "customCurveHeats",
+   "title": "save a curve, pick it, HEAT IT: the pretend rig ramps along the saved points",
+   "allowedAppStarts": 1,
+   "finish": 48.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 450
+       },
+       {
+        "t": 15,
+        "f": 450
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 8.0,
+     "do": "selectPreset",
+     "args": {
+      "slot": 3
+     }
+    },
+    {
+     "t": 9.5,
+     "do": "heatIt"
+    },
+    {
+     "t": 21.5,
+     "check": "Math.round(sim.temp) == 450",
+     "expect": "holding 450 F 10 s into the hold"
+    },
+    {
+     "t": 34.5,
+     "check": "Math.round(sim.temp) > 465 && Math.round(sim.temp) < 490",
+     "expect": "part way up the ramp 23 s into the hold"
+    },
+    {
+     "t": 40.5,
+     "check": "Math.round(sim.temp) >= 493",
+     "expect": "near 500 F at the end"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.sessionStarts == 1 && events.count('STOP by its own timer') == 1",
+     "expect": "one dab, ended by the rig's own timer after 30 s"
+    },
+    {
+     "rule": "sim.presetTemp[3] == 450 && sim.profile[3] == 241",
+     "expect": "the preset is unchanged after the dab"
+    },
+    {
+     "rule": "!log.has('SAFETY CUT')",
+     "expect": "no safety cut"
+    }
+   ],
+   "notes": "Heat-up is 2 s in the sim, so the hold starts near 11.5 s. The ramp is a guess; never seen on the real rig."
   },
   {
    "id": "extendWithShow",
@@ -1650,6 +2321,7 @@
    "allowedAppStarts": 1,
    "finish": 75.0,
    "setup": {
+    "sim.locksActiveTempMidDab": false,
     "sim.hold[3]": 60
    },
    "steps": [
@@ -1729,7 +2401,7 @@
      "expect": "the dab was never cut"
     }
    ],
-   "notes": "Found in review 2026-11-11 (Fable): after a link drop or relaunch mid-dab the app forgot which slots it had touched but still owed the original. The next tap saved the already-shifted temp as the original. Fixed in RigController.swift d1c73db8. Fails on a51d4a83."
+   "notes": "Found in review 2026-11-11 (Fable): after a link drop or relaunch mid-dab the app forgot which slots it had touched but still owed the original. The next tap saved the already-shifted temp as the original. Fixed in RigController.swift d1c73db8. Fails on a51d4a83. The put-back logic is only exercised on a rig that takes the write, so the lock is off here."
   },
   {
    "id": "dialOwedAfterRelaunch",

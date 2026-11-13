@@ -1,8 +1,9 @@
 // Heat-up sound, rendered on the audio thread (AudioWorklet). Line-for-line port of HeatSynth in
-// HeatFX.swift (3e4eb24a). Made live from code: no recorded or licensed music. Never touches the rig.
+// HeatFX.swift (b85d09fa). Made live from code: no recorded or licensed music. Never touches the rig.
 // Messages in: {ctl:[theme, phase, energy, lastFive]}, {ev:[name, theme]}, {pv:theme}.
+// Themes: 0 off, 1 chimes (Clean), 2 ember, 3 ignition, 4 torch, 5 lofi, 6 arcade, 7 reactor, 8 kettle, 9 zen, 10 storm.
 
-const PI = Math.PI;
+const PI = Math.PI, TWO_PI = 2 * Math.PI;
 function coef(fc, sr) { return 2 * Math.sin(PI * Math.min(Math.max(fc, 20), sr * 0.16) / sr); }
 function svf() { return { low: 0, band: 0 }; }
 // Returns low/band/high in the shared scratch object (no allocation on the audio thread).
@@ -17,6 +18,8 @@ function run(f, x, c, damp) {
 
 const SINE = 0, TRI = 1, SAW = 2, SQUARE = 3, NOISE = 4;
 const F_NONE = 0, F_HP = 1, F_BP = 2, F_LP = 3;
+const OFF = 0, CHIMES = 1, EMBER = 2, IGNITION = 3, TORCH = 4, LOFI = 5, ARCADE = 6, REACTOR = 7, KETTLE = 8, ZEN = 9, STORM = 10;
+const PENT = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
 
 class HeatSynth {
   constructor(sr) {
@@ -30,11 +33,17 @@ class HeatSynth {
     this.padHz = hz;
     this.padPh = hz.map(() => 0);
     this.padSVF = svf(); this.roarSVF = svf(); this.hissSVF = svf(); this.riserSVF = svf();
+    this.rainSVF = svf(); this.rumbleSVF = svf(); this.vinylSVF = svf(); this.humSVF = svf();
     this.padG = 0; this.padCut = 300; this.torchG = 0; this.riserG = 0;
+    this.rainG = 0; this.rumbleG = 0; this.whistleG = 0; this.humG = 0; this.vinylG = 0; this.bowlG = 0;
     this.roarG = 1; this.roarGT = 1; this.hissG = 0.4; this.hissGT = 0.4;
+    this.whistlePh = 0; this.humPh1 = 0; this.humPh2 = 0; this.humSubPh = 0; this.humHz = 40;
+    this.bowlPh1 = 0; this.bowlPh2 = 0; this.bowlPh3 = 0;
     this.flutterLeft = 0; this.lfoPh = 0; this.clock = 0;
     this.seqLeft = 0; this.step = 0;
-    this.previewTheme = -1; this.previewT = 0; this.previewReadyDone = false;
+    this.timerA = 0; this.timerB = 0;
+    this.phaseT = 0; this.lastPhase = 0;
+    this.previewTheme = -1; this.previewT = 0; this.previewMarks = 0;
     this.pendingPreview = null; this.fadeLeft = 0; this.fadeLen = 1;
     this.theme = 1; this.phase = 0; this.energy = 0; this.lastFive = false;
   }
@@ -46,23 +55,28 @@ class HeatSynth {
     return (x >>> 0) / 4294967296 * 2 - 1;
   }
   rand() { return (this.noise() + 1) / 2; }
+  chance(perSecond, blockSec) { return this.rand() < perSecond * blockSec; }
+
+  // voice helpers
 
   add(v) {
-    if (this.voices.length >= 120) this.voices.shift();
+    if (this.voices.length >= 150) this.voices.shift();
     this.voices.push(v);
   }
-  voice() { return { wave: SINE, f0: 440, f1: 440, peak: 0.1, attack: 0.005, decay: 0.4, filt: F_NONE, fc: 0, damp: 1, wait: 0, t: 0, ph: 0, svf: svf() }; }
+  voice() { return { wave: SINE, f0: 440, f1: 440, peak: 0.1, attack: 0.005, decay: 0.4, filt: F_NONE, fc: 0, damp: 1, wait: 0, vibRate: 0, vibDepth: 0, t: 0, ph: 0, svf: svf() }; }
   tone(f, o) {
-    if (f >= this.sr * 0.45) return;
+    if (!(f < this.sr * 0.45)) return;
     const v = this.voice();
     v.wave = o.wave ?? SINE; v.f0 = f; v.f1 = o.to ?? f; v.peak = o.peak; v.attack = o.a ?? 0.005; v.decay = o.d; v.wait = o.wait ?? 0;
+    v.vibRate = o.vib ?? 0; v.vibDepth = o.vibDepth ?? 0;
     if (o.lp !== undefined) { v.filt = F_LP; v.fc = coef(o.lp, this.sr); v.damp = 1 / (o.q ?? 1); }
     this.add(v);
   }
   burst(o) {
     const v = this.voice();
-    v.wave = NOISE; v.peak = o.peak; v.attack = 0.002; v.decay = o.d; v.wait = o.wait ?? 0;
+    v.wave = NOISE; v.peak = o.peak; v.attack = o.a ?? 0.002; v.decay = o.d; v.wait = o.wait ?? 0;
     if (o.bp !== undefined) { v.filt = F_BP; v.fc = coef(o.bp, this.sr); v.damp = 1 / 1.2; }
+    else if (o.lp !== undefined) { v.filt = F_LP; v.fc = coef(o.lp, this.sr); v.damp = 1; }
     else { v.filt = F_HP; v.fc = coef(o.hp ?? 6000, this.sr); v.damp = 1.2; }
     this.add(v);
   }
@@ -72,6 +86,22 @@ class HeatSynth {
   glass(f, peak = 0.08, d = 1.4, wait = 0) {
     for (const [r, a] of [[1, 1], [2.32, 0.45], [4.1, 0.2], [6.7, 0.08]]) this.tone(f * r, { a: 0.002, peak: peak * a, d: d / Math.sqrt(r), wait });
   }
+  thunder(peak, wait = 0) {
+    this.burst({ hp: 1800, peak: peak * 0.35, d: 0.25, wait });
+    this.burst({ lp: 160, peak, d: 3.2, wait: wait + 0.05, a: 0.08 });
+    this.burst({ lp: 400, peak: peak * 0.5, d: 1.4, wait: wait + 0.02, a: 0.03 });
+  }
+  musicBox(f, peak, wait = 0) {
+    this.tone(f, { a: 0.002, peak, d: 1.3, wait });
+    this.tone(f * 2, { a: 0.002, peak: peak * 0.3, d: 0.6, wait });
+    this.tone(f * 3.01, { a: 0.002, peak: peak * 0.12, d: 0.3, wait });
+  }
+  pentNote(base, i) {
+    const k = Math.min(Math.max(i, 0), PENT.length - 1);
+    return base * Math.pow(2, PENT[k] / 12);
+  }
+
+  // moments
 
   requestPreview(t) {
     this.pendingPreview = t;
@@ -80,62 +110,214 @@ class HeatSynth {
   }
   silenceAll() {
     this.voices.length = 0;
-    this.padG = 0; this.torchG = 0; this.riserG = 0;
+    this.padG = 0; this.torchG = 0; this.riserG = 0; this.rainG = 0; this.rumbleG = 0; this.whistleG = 0; this.humG = 0; this.vinylG = 0; this.bowlG = 0;
     this.padSVF = svf(); this.roarSVF = svf(); this.hissSVF = svf(); this.riserSVF = svf();
-    this.seqLeft = 0; this.step = 0;
+    this.rainSVF = svf(); this.rumbleSVF = svf(); this.vinylSVF = svf(); this.humSVF = svf();
+    this.seqLeft = 0; this.step = 0; this.timerA = 0; this.timerB = 0;
   }
 
   apply(e, t) {
-    if (t === 0) return;
-    if (e === "start") {
-      if (t === 4) {
+    if (t === OFF) return;
+    switch (e) {
+      case "start": this.start(t); break;
+      case "ready": this.ready(t); break;
+      case "tick": this.tick(t); break;
+      case "done": this.done(t); break;
+      case "cut":
+        this.tone(110, { to: 50, wave: TRI, peak: 0.45, d: 0.22 });
+        this.burst({ bp: 300, peak: 0.12, d: 0.12 });
+        this.padG *= 0.15; this.torchG *= 0.15; this.riserG = 0; this.whistleG = 0; this.humG *= 0.3; this.rumbleG *= 0.3; this.bowlG *= 0.3;
+        break;
+      case "sweep":
+        this.tone(330, { to: 990, a: 0.05, peak: 0.04, d: 0.6 });
+        this.tone(990, { to: 330, a: 0.05, peak: 0.03, d: 0.7, wait: 0.75 });
+        break;
+      case "cooled": this.cooled(t); break;
+    }
+  }
+
+  start(t) {
+    switch (t) {
+      case TORCH:
         for (const w of [0, 0.07, 0.13]) this.burst({ hp: 3500, peak: 0.3, d: 0.012, wait: w });
         this.burst({ bp: 220, peak: 0.45, d: 0.35, wait: 0.2 });
         this.tone(70, { to: 130, wave: TRI, peak: 0.3, d: 0.3, wait: 0.2 });
-      } else {
+        break;
+      case LOFI:
+        this.burst({ bp: 400, peak: 0.12, d: 0.05 });
+        this.burst({ hp: 2500, peak: 0.05, d: 0.3, wait: 0.03 });
+        break;
+      case ARCADE:
+        this.tone(659.25, { wave: SQUARE, peak: 0.04, d: 0.06, lp: 6000 });
+        this.tone(880, { wave: SQUARE, peak: 0.04, d: 0.12, wait: 0.08, lp: 6000 });
+        break;
+      case REACTOR:
+        this.tone(55, { to: 220, wave: SAW, a: 0.05, peak: 0.08, d: 0.9, lp: 1500 });
+        this.tone(440, { to: 880, a: 0.2, peak: 0.03, d: 0.6 });
+        break;
+      case KETTLE:
+        this.burst({ hp: 3000, peak: 0.2, d: 0.012 });
+        this.tone(1800, { peak: 0.05, d: 0.03 });
+        break;
+      case ZEN:
+        this.bell(330, 0.06, 3);
+        break;
+      case STORM:
+        this.thunder(0.2);
+        break;
+      default:
         this.tone(220, { to: 440, a: 0.02, peak: 0.08, d: 0.35 });
         this.burst({ bp: 900, peak: 0.06, d: 0.3 });
-      }
-    } else if (e === "ready") {
-      if (t === 4) {
+    }
+  }
+
+  ready(t) {
+    switch (t) {
+      case TORCH:
         this.torchG *= 0.3;
         this.burst({ hp: 1800, peak: 0.12, d: 0.22 });
         this.glass(2350, 0.09, 1.4, 0.28); this.glass(3140, 0.06, 1.4, 0.5);
-      } else if (t === 3) {
+        break;
+      case IGNITION:
         this.tone(160, { to: 38, peak: 0.8, d: 0.5 });
         this.burst({ hp: 3000, peak: 0.18, d: 1.8 });
         for (const f of [146.83, 220, 293.66, 349.23]) this.tone(f, { wave: SAW, peak: 0.05, d: 0.9, lp: 3000 });
-      } else {
-        this.bell(880, t === 2 ? 0.1 : 0.14); this.bell(1318.5, t === 2 ? 0.08 : 0.11, 2.4, 0.16);
+        break;
+      case LOFI:
+        this.burst({ bp: 1800, peak: 0.15, d: 0.15 });
+        this.tone(180, { peak: 0.12, d: 0.08 });
+        for (const f of [174.61, 220, 261.63, 329.63, 392]) this.tone(f, { wave: TRI, a: 0.01, peak: 0.05, d: 2.4, lp: 1800 });
+        break;
+      case ARCADE:
+        [783.99, 1046.5, 1318.5, 1567.98].forEach((f, i) => this.tone(f, { wave: SQUARE, peak: 0.05, d: 0.09, wait: i * 0.07, lp: 7000 }));
+        this.tone(2093, { wave: SQUARE, peak: 0.045, d: 0.5, wait: 0.3, lp: 7000 });
+        this.tone(1046.5, { wave: TRI, peak: 0.06, d: 0.6, wait: 0.3 });
+        this.tone(1318.5, { wave: TRI, peak: 0.05, d: 0.6, wait: 0.3 });
+        break;
+      case REACTOR:
+        [400, 1000, 2500, 5000].forEach((f, i) => this.burst({ bp: f, peak: 0.09, d: 0.25, wait: i * 0.09, a: 0.04 }));
+        this.tone(70, { to: 30, peak: 0.7, d: 0.9, wait: 0.36 });
+        this.tone(2000, { peak: 0.06, d: 1.2, wait: 0.36 });
+        break;
+      case KETTLE:
+        this.tone(2050, { a: 0.3, peak: 0.08, d: 0.8, vib: 5.5, vibDepth: 0.012 });
+        break;
+      case ZEN:
+        this.bell(220, 0.16, 6);
+        this.bell(330, 0.06, 4, 0.02);
+        break;
+      case STORM:
+        this.thunder(0.7);
+        break;
+      default: {
+        const soft = t === EMBER;
+        this.bell(880, soft ? 0.1 : 0.14);
+        this.bell(1318.5, soft ? 0.08 : 0.11, 2.4, 0.16);
       }
-    } else if (e === "tick") {
-      if (t === 4) this.glass(3600, 0.035, 0.25);
-      else if (t === 3) this.tone(1760, { wave: SQUARE, peak: 0.04, d: 0.05, lp: 5000 });
-      else this.tone(1500, { peak: 0.07, d: 0.07 });
-    } else if (e === "done") {
-      if (t === 4) {
+    }
+  }
+
+  tick(t) {
+    switch (t) {
+      case TORCH: this.glass(3600, 0.035, 0.25); break;
+      case IGNITION: this.tone(1760, { wave: SQUARE, peak: 0.04, d: 0.05, lp: 5000 }); break;
+      case LOFI: this.burst({ bp: 2500, peak: 0.12, d: 0.02 }); break;
+      case ARCADE: this.tone(1318.5, { wave: SQUARE, peak: 0.04, d: 0.04, lp: 7000 }); break;
+      case REACTOR: this.tone(1900, { peak: 0.06, d: 0.15 }); break;
+      case KETTLE: this.tone(1400, { to: 800, peak: 0.06, d: 0.06 }); break;
+      case ZEN: this.tone(2637, { peak: 0.03, d: 0.5 }); break;
+      case STORM: this.burst({ hp: 5000, peak: 0.08, d: 0.015 }); break;
+      default: this.tone(1500, { peak: 0.07, d: 0.07 });
+    }
+  }
+
+  done(t) {
+    switch (t) {
+      case TORCH:
         this.glass(1760, 0.08, 2.2); this.glass(2637, 0.06, 2.2, 0.22);
         for (const f of [293.66, 440, 587.33]) this.tone(f, { wave: TRI, a: 0.03, peak: 0.04, d: 2.4 });
-      } else if (t === 3) {
+        break;
+      case IGNITION:
         [146.83, 185, 220, 293.66, 369.99].forEach((f, i) => this.tone(f, { wave: SAW, a: 0.02, peak: 0.05, d: 2.6, wait: i * 0.04, lp: 2400 }));
-      } else {
+        break;
+      case LOFI:
+        for (const f of [174.61, 220, 261.63, 329.63]) this.tone(f, { to: f * 0.45, wave: TRI, a: 0.01, peak: 0.06, d: 1.0, lp: 1500 });
+        this.tone(87.31, { to: 40, peak: 0.2, d: 1.0 });
+        break;
+      case ARCADE:
+        [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => this.tone(f, { wave: SQUARE, peak: 0.045, d: 0.09, wait: i * 0.09, lp: 7000 }));
+        for (const f of [1046.5, 1318.5, 1567.98]) this.tone(f, { wave: TRI, peak: 0.04, d: 0.9, wait: 0.38 });
+        for (let i = 0; i < 6; i++) this.tone(880 * Math.pow(0.8, i), { wave: SQUARE, peak: 0.03, d: 0.06, wait: 1.6 + i * 0.35, lp: 5000 });
+        break;
+      case REACTOR:
+        this.tone(900, { to: 50, wave: SAW, a: 0.01, peak: 0.08, d: 2.4, lp: 2000 });
+        this.tone(400, { to: 40, peak: 0.1, d: 2.0 });
+        break;
+      case KETTLE:
+        this.whistleG = 0;
+        this.tone(2050, { to: 900, peak: 0.06, d: 0.6 });
+        this.burst({ hp: 3000, peak: 0.15, d: 0.012, wait: 0.5 });
+        break;
+      case ZEN:
+        this.bell(98, 0.2, 7);
+        this.bell(147, 0.06, 5, 0.03);
+        break;
+      case STORM:
+        this.thunder(0.45, 0.2);
+        break;
+      default:
         [293.66, 369.99, 440, 587.33].forEach((f, i) => this.tone(f, { wave: TRI, a: 0.02, peak: 0.07, d: 2.6, wait: i * 0.04 }));
         this.bell(1174.66, 0.06, 3, 0.25);
+        [1760, 1318.5, 1174.66, 880, 659.25].forEach((f, i) => this.musicBox(f, 0.03, 0.6 + i * 0.18));
+    }
+  }
+
+  cooled(t) {
+    switch (t) {
+      case ARCADE:
+        this.tone(880, { wave: SQUARE, peak: 0.035, d: 0.06, lp: 7000 });
+        this.tone(1174.66, { wave: SQUARE, peak: 0.035, d: 0.25, wait: 0.08, lp: 7000 });
+        break;
+      case ZEN:
+        this.bell(880, 0.05, 3);
+        break;
+      case TORCH: case KETTLE:
+        this.glass(2093, 0.04, 1.2); this.glass(2793, 0.03, 1.2, 0.12);
+        break;
+      default:
+        this.bell(1318.5, 0.05, 1.6);
+        this.bell(1760, 0.04, 1.6, 0.12);
+    }
+  }
+
+  // sequenced themes
+
+  stepSeconds() {
+    const e = this.energy;
+    switch (this.theme) {
+      case LOFI: {
+        const base = 60 / 80 / 4;
+        return this.step % 2 === 0 ? base * 1.24 : base * 0.76;     // swing
       }
-    } else if (e === "cut") {
-      this.tone(110, { to: 50, wave: TRI, peak: 0.45, d: 0.22 });
-      this.burst({ bp: 300, peak: 0.12, d: 0.12 });
-      this.padG *= 0.15; this.torchG *= 0.15; this.riserG = 0;
-    } else if (e === "sweep") {
-      this.tone(330, { to: 990, a: 0.05, peak: 0.04, d: 0.6 });
-      this.tone(990, { to: 330, a: 0.05, peak: 0.03, d: 0.7, wait: 0.75 });
+      case ARCADE: return 60 / (this.phase === 2 ? 140 : 120 + e * 20) / 4;
+      default: return 60 / (100 + e * 28) / 4;
     }
   }
 
   sequence() {
+    switch (this.theme) {
+      case IGNITION: this.seqIgnition(); break;
+      case LOFI: this.seqLofi(); break;
+      case ARCADE: this.seqArcade(); break;
+    }
+    this.step += 1;
+  }
+
+  seqIgnition() {
     const on = this.phase === 1 || this.phase === 2, hold = this.phase === 2, e = this.energy, step = this.step;
+    const outro = this.phase === 3 && this.phaseT < 4 ? 1 - this.phaseT / 4 : 0;
     if (on) {
-      const roots = [73.42, 58.27, 87.31, 65.41];      // D Bb F C
+      const roots = [73.42, 58.27, 87.31, 65.41];
       const root = roots[Math.floor(step / 16) % 4];
       if (step % 2 === 0) this.tone(root * (step % 8 === 6 ? 2 : 1), { wave: SAW, a: 0.004, peak: 0.16, d: 0.16, lp: 180 + e * 1600, q: 6 });
       if (e > 0.35 && step % 2 === 1) this.burst({ hp: 7000, peak: 0.05 + (this.lastFive ? 0.05 : 0), d: 0.035 });
@@ -145,60 +327,209 @@ class HeatSynth {
         const pent = [0, 3, 5, 7, 10, 12, 15, 17], idx = [0, 2, 4, 5, 7, 5, 4, 2][step % 8];
         this.tone(root * 4 * Math.pow(2, pent[idx] / 12), { wave: SQUARE, peak: 0.025, d: 0.09, lp: 4000 });
       }
+    } else if (outro > 0) {
+      if (step % 4 === 0) this.tone(150, { to: 42, peak: 0.45 * outro, d: 0.28 });
+      if (step % 2 === 1) this.burst({ hp: 7000, peak: 0.04 * outro, d: 0.035 });
     }
-    this.step += 1;
   }
+
+  seqLofi() {
+    const on = this.phase === 1 || this.phase === 2, hold = this.phase === 2, e = this.energy;
+    if (!on) return;
+    const s = this.step % 16;
+    const bar = Math.floor(this.step / 16) % 4;
+    const chords = [[174.61, 220, 261.63, 329.63], [164.81, 196, 246.94, 293.66], [146.83, 174.61, 220, 261.63], [130.81, 164.81, 196, 246.94]];
+    const roots = [87.31, 82.41, 73.42, 65.41];
+    if (s === 0 || (hold && s === 8)) {
+      const pk = hold ? (s === 0 ? 0.045 : 0.03) : 0.02 + 0.025 * e;
+      const cut = 600 + e * 1400;
+      for (const f of chords[bar]) {
+        this.tone(f, { wave: TRI, a: 0.01, peak: pk, d: 2.2, lp: cut });
+        this.tone(f * 2, { a: 0.01, peak: pk * 0.3, d: 1.2 });
+      }
+    }
+    const groove = e > 0.5 || hold;
+    if (groove && (s === 0 || s === 10)) {
+      this.tone(110, { to: 45, peak: 0.45, d: 0.22 });
+      this.tone(roots[bar], { peak: 0.22, d: 0.5 });
+    }
+    if (hold && (s === 4 || s === 12)) {
+      this.burst({ bp: 1800, peak: 0.12, d: 0.14 });
+      this.tone(190, { peak: 0.1, d: 0.06 });
+    }
+    if (hold && s % 2 === 0) this.burst({ hp: 7000, peak: s % 4 === 2 ? 0.04 : 0.025, d: 0.03 });
+  }
+
+  seqArcade() {
+    const e = this.energy, step = this.step;
+    const notes = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.5, 1567.98, 1760, 2093];
+    if (this.phase === 1) {
+      const idx = Math.min(10, Math.floor(e * 6.99) + step % 4);
+      this.tone(notes[idx], { wave: SQUARE, peak: 0.028, d: 0.07, lp: 6000 });
+      if (e > 0.5 && step % 2 === 0) this.tone(130.81, { wave: SQUARE, peak: 0.05, d: 0.1, lp: 1500 });
+    } else if (this.phase === 2) {
+      const roots = [130.81, 110, 87.31, 98];
+      const root = roots[Math.floor(step / 16) % 4];
+      if (step % 2 === 0) this.tone(root * (step % 4 === 2 ? 2 : 1), { wave: SQUARE, peak: 0.05, d: 0.1, lp: 1600 });
+      const arp = [1, 1.25, 1.5, 2];
+      this.tone(root * 4 * arp[step % 4], { wave: SQUARE, peak: 0.025, d: 0.06, lp: 6000 });
+      if (step % 8 === 0) this.tone(160, { to: 50, peak: 0.4, d: 0.12 });
+      if (step % 8 === 4) this.burst({ bp: 3000, peak: 0.08, d: 0.06 });
+    }
+  }
+
+  // random and timed sparkle, decided once per buffer
+
+  sparkle(blockSec) {
+    const e = this.energy, ph = this.phase, phaseT = this.phaseT;
+    const heating = ph === 1, hold = ph === 2, cool = ph === 3;
+    switch (this.theme) {
+      case CHIMES:
+        this.timerA -= blockSec;
+        if (this.timerA <= 0) {
+          if (heating) {
+            const i = Math.floor(e * 7) + (this.rand() < 0.5 ? 0 : 1);
+            this.musicBox(this.pentNote(523.25, i), 0.045);
+            this.timerA = 1.1 - 0.5 * e;
+          } else if (hold) {
+            const chord = [1046.5, 1318.5, 1567.98, 2093];
+            this.musicBox(chord[Math.floor(this.rand() * 3.99)], 0.028);
+            this.timerA = 2.2;
+          } else {
+            this.timerA = 0.3;
+          }
+        }
+        break;
+      case EMBER: {
+        let rate = 0;
+        if (heating || hold) rate = e * 7; else if (cool && phaseT < 8) rate = 1.5 * (1 - phaseT / 8);
+        if (this.chance(rate, blockSec)) this.burst({ hp: 2500 + this.rand() * 3000, peak: 0.02 + this.rand() * 0.05 * Math.max(e, 0.3), d: 0.008 + this.rand() * 0.02 });
+        break;
+      }
+      case TORCH:
+        if (hold && this.chance(1.5, blockSec)) this.burst({ hp: 4500 + this.rand() * 3000, peak: 0.02 + this.rand() * 0.03, d: 0.006 });
+        if (cool && phaseT < 12 && this.chance(1.6 * (1 - phaseT / 12), blockSec)) this.glass(2800 + this.rand() * 2500, 0.02 + this.rand() * 0.03, 0.3);
+        break;
+      case LOFI:
+        if (this.vinylG > 0.002 && this.chance(3, blockSec)) this.burst({ hp: 1500, peak: 0.03 + this.rand() * 0.03, d: 0.004 });
+        break;
+      case REACTOR:
+        if (heating && this.chance(1 + 8 * e, blockSec)) this.tone(900 + 1500 * e, { peak: 0.035, d: 0.05 });
+        this.timerB -= blockSec;
+        if (hold && this.timerB <= 0) {
+          this.tone(1450, { peak: 0.06, d: 0.5 });
+          this.tone(1450, { peak: 0.025, d: 0.4, wait: 0.28 });
+          this.timerB = 1.6;
+        }
+        break;
+      case KETTLE: {
+        let rate = 0;
+        if (heating) rate = 2 + 18 * e * e; else if (hold) rate = 10; else if (cool && phaseT < 4) rate = 10 * (1 - phaseT / 4);
+        if (this.chance(rate, blockSec)) {
+          const f = 250 + this.rand() * 500;
+          this.tone(f, { to: f * 2.2, a: 0.002, peak: 0.04 + this.rand() * 0.05, d: 0.04 });
+        }
+        if (cool && phaseT > 2 && phaseT < 10 && this.chance(0.8, blockSec)) this.tone(1400, { to: 700, peak: 0.05, d: 0.08 });
+        break;
+      }
+      case ZEN: {
+        let rate = 0;
+        if (heating) rate = 0.4 + 0.6 * e; else if (hold) rate = 0.8; else if (cool && phaseT < 10) rate = 0.5 * (1 - phaseT / 10);
+        if (this.chance(rate, blockSec)) this.bell(this.pentNote(1046.5, Math.floor(this.rand() * 7.99)), 0.03, 2.5);
+        break;
+      }
+      case STORM: {
+        let drops = 0;
+        if (heating) drops = 6 + 20 * e; else if (hold) drops = 26; else if (cool && phaseT < 12) drops = 26 * (1 - phaseT / 12);
+        if (this.chance(drops, blockSec)) this.burst({ hp: 4000, peak: 0.02 + this.rand() * 0.04, d: 0.01 });
+        if (heating && e > 0.5 && this.chance(0.08, blockSec)) this.thunder(0.2);
+        if (hold && this.chance(0.05, blockSec)) this.thunder(0.3);
+        break;
+      }
+    }
+  }
+
+  // render
+
+  coolLeft(len) { return this.phase === 3 ? Math.max(0, 1 - this.phaseT / len) : 0; }
 
   render(out, count) {
     const sr = this.sr;
     const blockSec = count / sr;
-    if (this.previewTheme >= 0) {
-      // A preview overrides the live state for its few seconds.
-      this.previewT += blockSec;
-      this.theme = this.previewTheme;
-      if (this.previewT < 2.5) { this.phase = 1; this.energy = 0.3 + 0.7 * this.previewT / 2.5; }
-      else if (this.previewT < 4.0) {
-        if (!this.previewReadyDone) { this.previewReadyDone = true; this.apply("ready", this.previewTheme); }
-        this.phase = 2; this.energy = 1;
-      } else {
-        this.phase = 0; this.energy = 0;
-        if (this.previewT > 7) this.previewTheme = -1;
-      }
-      this.lastFive = false;
+    this.runPreview(blockSec);
+    if (this.phase !== this.lastPhase) { this.phaseT = 0; this.lastPhase = this.phase; } else this.phaseT += blockSec;
+    const ph = this.phase, e = this.energy, th = this.theme, phaseT = this.phaseT;
+    const on = ph === 1 || ph === 2;
+
+    // bed targets
+    let padT = 0;
+    let cutT = 220 + e * e * 2600;
+    if (th === EMBER) {
+      if (on) padT = 0.035 + e * 0.05;
+      else if (ph === 3) { padT = 0.06 * this.coolLeft(8); cutT = 220 + 1200 * this.coolLeft(8); }
     }
-    const theme = this.theme, phase = this.phase;
-    const on = phase === 1 || phase === 2, e = this.energy;
-    const padT = (theme === 2 && on) ? 0.035 + e * 0.05 : 0;
-    const cutT = 220 + e * e * 2600 + Math.sin(this.clock * 0.7) * 80;
-    const torchT = (theme === 4 && phase === 1) ? 0.5 : 0;
-    const riserT = (theme === 3 && phase === 1) ? 0.01 + e * 0.05 : 0;
-    if (theme === 2 && on && this.rand() < e * 0.12 * blockSec * 60) {
-      this.burst({ hp: 2500 + this.rand() * 3000, peak: 0.02 + this.rand() * 0.05 * e, d: 0.008 + this.rand() * 0.02 });
+    cutT += Math.sin(this.clock * 0.7) * 80;
+    const torchT = (th === TORCH && ph === 1) ? 0.5 : 0;
+    let riserT = 0;
+    if (ph === 1 && th === IGNITION) riserT = 0.01 + e * 0.05;
+    if (ph === 1 && th === REACTOR) riserT = 0.008 + e * 0.03;
+    let rainT = 0;
+    if (th === STORM) {
+      if (ph === 1) rainT = 0.02 + 0.1 * e; else if (ph === 2) rainT = 0.11; else rainT = 0.11 * this.coolLeft(12);
     }
-    if (theme === 4 && phase === 2 && this.rand() < 0.025 * blockSec * 60) {
-      this.burst({ hp: 4500 + this.rand() * 3000, peak: 0.02 + this.rand() * 0.03, d: 0.006 });
+    let rumbleT = 0, whistleT = 0;
+    if (th === KETTLE) {
+      if (ph === 1) rumbleT = 0.05 + 0.25 * e; else if (ph === 2) rumbleT = 0.15; else rumbleT = 0.15 * this.coolLeft(5);
+      if (ph === 2) whistleT = phaseT < 1.5 ? 0.12 : 0.045;
     }
+    let humT = 0, humHzT = 40;
+    if (th === REACTOR) {
+      if (ph === 1) { humT = 0.05 + 0.07 * e; humHzT = 38 + 18 * e; }
+      else if (ph === 2) { humT = 0.12; humHzT = 55; }
+      else if (ph === 3) { humT = 0.12 * this.coolLeft(6); humHzT = 55 * (1 - 0.5 * Math.min(1, phaseT / 6)); }
+    }
+    let vinylT = 0;
+    if (th === LOFI) vinylT = on ? 0.02 : 0.02 * this.coolLeft(10);
+    let bowlT = 0;
+    if (th === ZEN) {
+      if (ph === 1) bowlT = 0.02 + 0.06 * e; else if (ph === 2) bowlT = 0.07; else bowlT = 0.07 * this.coolLeft(8);
+    }
+
+    this.sparkle(blockSec);
+
     const kPad = 1 - Math.exp(-1 / (sr * 0.3));
     const kT = 1 - Math.exp(-1 / (sr * (torchT > this.torchG ? 0.05 : 0.09)));
     const kF = 1 - Math.exp(-1 / (sr * 0.15));
     const kFl = 1 - Math.exp(-1 / (sr * 0.03));
+    const kSlow = 1 - Math.exp(-1 / (sr * 0.5));
     const padC = coef(this.padCut, sr);
     const roarC = coef(320 + e * 260, sr);
     const hissC = coef(1700 + e * 1500, sr);
-    const riserC = coef(400 + e * 5000, sr);
+    const riserC = coef(th === REACTOR ? 300 + e * 2500 : 400 + e * 5000, sr);
+    const rainC = coef(2600, sr);
+    const rumbleC = coef(260, sr);
+    const vinylC = coef(3500, sr);
+    const humC = coef(200 + e * 1500, sr);
     const dt = 1 / sr;
-    const stepLen = sr * 60 / (100 + e * 28) / 4;
+    const seqOn = th === IGNITION || th === LOFI || th === ARCADE;
     const padHz = this.padHz, padPh = this.padPh;
 
     for (let i = 0; i < count; i++) {
-      if (this.theme === 3) {
+      if (seqOn) {
         this.seqLeft -= 1;
-        if (this.seqLeft <= 0) { this.sequence(); this.seqLeft += stepLen; }
+        if (this.seqLeft <= 0) { this.sequence(); this.seqLeft += sr * this.stepSeconds(); }
       }
       this.padG += (padT - this.padG) * kPad;
       this.padCut += (cutT - this.padCut) * kF;
       this.torchG += (torchT - this.torchG) * kT;
       this.riserG += (riserT - this.riserG) * kF;
+      this.rainG += (rainT - this.rainG) * kSlow;
+      this.rumbleG += (rumbleT - this.rumbleG) * kF;
+      this.whistleG += (whistleT - this.whistleG) * kF;
+      this.humG += (humT - this.humG) * kSlow;
+      this.humHz += (humHzT - this.humHz) * kSlow;
+      this.vinylG += (vinylT - this.vinylG) * kSlow;
+      this.bowlG += (bowlT - this.bowlG) * kSlow;
       this.flutterLeft -= 1;
       if (this.flutterLeft <= 0) {
         this.flutterLeft = Math.floor(sr * 0.03);
@@ -221,11 +552,38 @@ class HeatSynth {
       if (this.torchG > 0.0005) {
         this.lfoPh += 23 * dt;
         if (this.lfoPh >= 1) this.lfoPh -= 1;
-        const roar = run(this.roarSVF, this.noise(), roarC, 1 / 0.8).low * this.roarG * (1 + 0.28 * Math.sin(2 * PI * this.lfoPh));
+        const roar = run(this.roarSVF, this.noise(), roarC, 1 / 0.8).low * this.roarG * (1 + 0.28 * Math.sin(TWO_PI * this.lfoPh));
         const hiss = run(this.hissSVF, this.noise(), hissC, 1 / 0.6).band * this.hissG;
         s += (roar + hiss) * this.torchG;
       }
       if (this.riserG > 0.0005) s += run(this.riserSVF, this.noise(), riserC, 0.25).band * this.riserG;
+      if (this.rainG > 0.0005) s += run(this.rainSVF, this.noise(), rainC, 1.6).band * this.rainG;
+      if (this.rumbleG > 0.0005) {
+        const bub = 0.7 + 0.3 * Math.sin(TWO_PI * this.clock * 7.3);
+        s += run(this.rumbleSVF, this.noise(), rumbleC, 1).low * this.rumbleG * bub * 3;
+      }
+      if (this.whistleG > 0.0005) {
+        const vib = 1 + 0.012 * Math.sin(TWO_PI * 5.5 * this.clock);
+        this.whistlePh += 2050 * vib * dt;
+        if (this.whistlePh >= 1) this.whistlePh -= 1;
+        s += (Math.sin(TWO_PI * this.whistlePh) + 0.15 * this.noise()) * this.whistleG;
+      }
+      if (this.humG > 0.0005) {
+        this.humPh1 += this.humHz * dt; if (this.humPh1 >= 1) this.humPh1 -= 1;
+        this.humPh2 += this.humHz * 1.004 * dt; if (this.humPh2 >= 1) this.humPh2 -= 1;
+        this.humSubPh += this.humHz * 0.5 * dt; if (this.humSubPh >= 1) this.humSubPh -= 1;
+        const raw = (2 * this.humPh1 - 1) + (2 * this.humPh2 - 1);
+        const pulse = ph === 2 ? 0.8 + 0.2 * Math.sin(TWO_PI * 2 * this.clock) : 1;
+        const body = run(this.humSVF, raw * 0.5, humC, 0.7).low + 0.6 * Math.sin(TWO_PI * this.humSubPh);
+        s += body * this.humG * pulse;
+      }
+      if (this.vinylG > 0.0005) s += run(this.vinylSVF, this.noise(), vinylC, 1.2).high * this.vinylG * 0.5;
+      if (this.bowlG > 0.0005) {
+        this.bowlPh1 += 196 * dt; if (this.bowlPh1 >= 1) this.bowlPh1 -= 1;
+        this.bowlPh2 += 197.47 * dt; if (this.bowlPh2 >= 1) this.bowlPh2 -= 1;
+        this.bowlPh3 += 531.2 * dt; if (this.bowlPh3 >= 1) this.bowlPh3 -= 1;
+        s += (Math.sin(TWO_PI * this.bowlPh1) + Math.sin(TWO_PI * this.bowlPh2) + 0.3 * Math.sin(TWO_PI * this.bowlPh3)) * this.bowlG * 0.5;
+      }
 
       const vs = this.voices;
       for (let k = 0; k < vs.length; k++) {
@@ -233,22 +591,23 @@ class HeatSynth {
         if (v.wait > 0) { v.wait -= dt; continue; }
         const tot = v.attack + v.decay;
         const env = v.t < v.attack ? v.peak * v.t / v.attack : v.peak * Math.exp(-(v.t - v.attack) * 6.9 / v.decay);
-        const f = v.f0 === v.f1 ? v.f0 : v.f0 * Math.pow(v.f1 / v.f0, Math.min(1, v.t / tot));
-        let ph = v.ph + f * dt;
-        if (ph >= 1) ph -= Math.floor(ph);
+        let f = v.f0 === v.f1 ? v.f0 : v.f0 * Math.pow(v.f1 / v.f0, Math.min(1, v.t / tot));
+        if (v.vibDepth > 0) f *= 1 + v.vibDepth * Math.sin(TWO_PI * v.vibRate * v.t);
+        let p = v.ph + f * dt;
+        if (p >= 1) p -= Math.floor(p);
         let x;
         switch (v.wave) {
-          case SINE: x = Math.sin(2 * PI * ph); break;
-          case TRI: x = 4 * Math.abs(ph - 0.5) - 1; break;
-          case SAW: x = 2 * ph - 1; break;
-          case SQUARE: x = ph < 0.5 ? 1 : -1; break;
+          case SINE: x = Math.sin(TWO_PI * p); break;
+          case TRI: x = 4 * Math.abs(p - 0.5) - 1; break;
+          case SAW: x = 2 * p - 1; break;
+          case SQUARE: x = p < 0.5 ? 1 : -1; break;
           default: x = this.noise();
         }
         if (v.filt === F_HP) x = run(v.svf, x, v.fc, v.damp).high;
         else if (v.filt === F_BP) x = run(v.svf, x, v.fc, v.damp).band;
         else if (v.filt === F_LP) x = run(v.svf, x, v.fc, v.damp).low;
         s += x * env;
-        v.ph = ph;
+        v.ph = p;
         v.t += dt;
       }
       if (this.fadeLeft > 0) {
@@ -258,14 +617,40 @@ class HeatSynth {
           const t = this.pendingPreview;
           this.pendingPreview = null;
           this.silenceAll();
-          if (t > 0) { this.previewTheme = t; this.previewT = 0; this.previewReadyDone = false; this.apply("start", t); }
+          if (t > 0) { this.previewTheme = t; this.previewT = 0; this.previewMarks = 0; this.apply("start", t); }
           else this.previewTheme = -1;
         }
       }
       out[i] = Math.tanh(s * 1.2) * 0.9;
+      this.clock += dt;
     }
-    this.clock += blockSec;
     this.voices = this.voices.filter(v => !(v.t > v.attack + v.decay));
+  }
+
+  // Preview script: heats for 2.5 s, at temp, holds 2.5 s, done, then 4 s of cooldown.
+  runPreview(blockSec) {
+    if (this.previewTheme < 0) return;
+    this.previewT += blockSec;
+    const t = this.previewT;
+    this.theme = this.previewTheme;
+    this.lastFive = false;
+    if (t < 2.5) {
+      this.phase = 1; this.energy = 0.3 + 0.7 * t / 2.5;
+    } else if (t < 5.0) {
+      this.previewMark(1, "ready");
+      this.phase = 2; this.energy = 1;
+      if (t > 4.0) this.previewMark(2, "tick");
+      if (t > 4.5) this.previewMark(4, "tick");
+    } else if (t < 9.0) {
+      this.previewMark(8, "done");
+      this.phase = 3; this.energy = 1 - (t - 5.0) / 4.0;
+    } else {
+      this.phase = 0; this.energy = 0;
+      if (t > 11) this.previewTheme = -1;
+    }
+  }
+  previewMark(bit, e) {
+    if (!(this.previewMarks & bit)) { this.previewMarks |= bit; this.apply(e, this.previewTheme); }
   }
 }
 

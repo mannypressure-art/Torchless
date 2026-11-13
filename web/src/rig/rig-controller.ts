@@ -3,7 +3,7 @@
 
 import { Clock, Cancel, DISTANT_PAST } from "./clock";
 import { Store } from "./storage";
-import { LiveStatus, decodeFrame, hapticsOf } from "./frames";
+import { LiveStatus, decodeFrame, hapticsOf, hexString } from "./frames";
 import type { BLEManager } from "./ble-manager";
 
 // MARK: Light modes
@@ -98,6 +98,8 @@ export interface PresetInfo {
   tempF?: number; tempC?: number; hold?: number; profile?: number;
   custom170?: number[]; custom171?: number[];
 }
+
+export interface CurveStep { t: number; f: number }
 
 export interface ShowStep { id: string; atStart: boolean; secondsRemaining: number; lightMode: number; brightness: number }
 
@@ -934,6 +936,134 @@ export class RigController {
     } else {
       this.log("Profile left unchanged (not a writable profile in this build).");
     }
+  }
+
+  // MARK: Actions: custom heat curve (ride planner). Matches RigController.swift 9c54e613.
+
+  /** Changes with every curve save, so a newer save (or a dropped frame) silences the older one's follow-ups. */
+  private curveSaveToken = 0;
+  /** Outcome of the last curve save's read-back check: "ok", "MISMATCH" or "no report". Null until one has run. */
+  curveCheckResult: "ok" | "MISMATCH" | "no report" | null = null;
+
+  /** Plain-words reason a curve can't be saved, or null when it is fine. 2 to 5 points, first at 0 s, times
+   *  rising, last at 10 to 90 s, 250 to 650 F, and no ramp steeper than the official editor allows. */
+  static curveProblem(steps: CurveStep[]): string | null {
+    if (steps.length < 2 || steps.length > 5) return "A curve needs 2 to 5 points.";
+    // Swift takes whole numbers only by type; here anything else is refused before the rules run.
+    if (steps.some(st => !Number.isInteger(st.t) || !Number.isInteger(st.f))) return "Use whole seconds and whole degrees.";
+    if (steps[0].t !== 0) return "The first point must sit at 0 seconds.";
+    for (const st of steps) {
+      if (!inRange(st.f, RigLimits.tempF[0], RigLimits.tempF[1]) ||
+          !inRange(RigLimits.celsius(st.f), RigLimits.tempC[0], RigLimits.tempC[1])) return "Every point must be 250 to 650 F.";
+    }
+    for (let i = 1; i < steps.length; i++) {
+      const dt = steps[i].t - steps[i - 1].t, df = steps[i].f - steps[i - 1].f;
+      if (dt <= 0) return "Each point must come later than the one before it.";
+      if (df > 10 * dt) return "The rig can't climb faster than 10 F a second.";
+      if (df < -3 * dt) return "The rig can't cool faster than 3 F a second.";
+    }
+    const last = steps[steps.length - 1].t;
+    if (!inRange(last, RigLimits.hold[0], RigLimits.hold[1])) return "The last point must sit between 10 and 90 seconds.";
+    return null;
+  }
+
+  /** The 15 payload bytes of each curve frame: three steps of F hi, F lo, C hi, C lo, seconds. Unused steps are zero. */
+  static curvePayloads(steps: CurveStep[]): { a: number[]; b: number[] } {
+    const all: number[] = [];
+    for (let i = 0; i < 6; i++) {
+      const st = steps[i];
+      if (st) { const c = RigLimits.celsius(st.f); all.push(st.f >> 8, st.f & 255, c >> 8, c & 255, st.t); }
+      else all.push(0, 0, 0, 0, 0);
+    }
+    return { a: all.slice(0, 15), b: all.slice(15, 30) };
+  }
+
+  /** Saves a Custom heat curve into preset `p`, in the official app's order: temp (first point), hold (last
+   *  point's time), profile Custom, then the two curve frames. Only with heat off: every frame is dropped
+   *  if the rig is heating when its turn comes. Never starts heat. NOT YET SENT TO A REAL RIG. */
+  saveCurve(p: number, steps: CurveStep[]) {
+    if (!inRange(p, 1, 5)) { this.say("Preset must be 1 to 5."); return; }
+    const why = RigController.curveProblem(steps);
+    if (why) { this.say(why); return; }
+    const s = this.gate();
+    if (s === null) return;
+    if (s.sessionByte !== 0) { this.say("Can't edit presets while heating."); return; }
+
+    const tempF = steps[0].f, c = RigLimits.celsius(tempF), hold = steps[steps.length - 1].t;
+    const parts = RigController.curvePayloads(steps);
+    this.log(`Saving curve to preset ${p}: ${steps.map(x => `${x.f} F at ${x.t} s`).join(", ")}.`);
+
+    this.curveSaveToken += 1;
+    const token = this.curveSaveToken;
+    const dropped = () => {
+      if (this.curveSaveToken !== token) return;
+      this.curveSaveToken += 1;   // say it once, however many frames were still waiting
+      this.say(`Curve save for preset ${p} did not finish. Save it again before you use that preset.`);
+    };
+    this.enqueue(this.item({
+      label: `Curve ${p} temp ${tempF}F`, kind: { t: "raw", bytes: [179, 8, p, tempF >> 8, tempF & 255, c >> 8, c & 255, 179] },
+      gapBefore: 0.12, requireSessionOff: true, onDrop: dropped,
+      onSent: () => { this.presets[p].tempF = tempF; this.presets[p].tempC = c; },
+    }));
+    this.enqueue(this.item({
+      label: `Curve ${p} hold ${hold}s`, kind: { t: "raw", bytes: [183, 6, p, hold >> 8, hold & 255, 183] },
+      gapBefore: 1.0, requireSessionOff: true, onDrop: dropped, onSent: () => { this.presets[p].hold = hold; },
+    }));
+    this.enqueue(this.item({
+      label: `Curve ${p} profile Custom`, kind: { t: "raw", bytes: [181, 5, p, 241, 181] },
+      gapBefore: 1.0, requireSessionOff: true, onDrop: dropped, onSent: () => { this.presets[p].profile = 241; },
+    }));
+    this.enqueue(this.item({
+      label: `Curve ${p} points 1-3`, kind: { t: "raw", bytes: [186, 19, p, ...parts.a, 186] },
+      gapBefore: 0.3, requireSessionOff: true, onDrop: dropped,
+      // Forget the old read-back so the check below can only pass on what the rig reports from here on.
+      onSent: () => { this.presets[p].custom170 = undefined; this.presets[p].custom171 = undefined; },
+    }));
+    this.enqueue(this.item({
+      label: `Curve ${p} points 4-5`, kind: { t: "raw", bytes: [187, 19, p, ...parts.b, 187] },
+      gapBefore: 0.3, requireSessionOff: true, onDrop: dropped,
+      onSent: () => {
+        this.clock.after(2.5, () => {
+          if (this.curveSaveToken !== token) return;
+          this.curveCheck(p, parts.a, parts.b);
+        });
+      },
+    }));
+  }
+
+  /** Compares the rig's own read-back (0xAA / 0xAB) with the curve that was just sent. */
+  private curveCheck(p: number, sentA: number[], sentB: number[]) {
+    const payload = (b: number[] | undefined | null): number[] | null => (b && b.length >= 18 ? Array.from(b.slice(3, 18)) : null);
+    const same = (x: number[] | null, y: number[]) => x !== null && x.length === y.length && x.every((v, i) => v === y[i]);
+    const gotA = payload(this.presets[p].custom170), gotB = payload(this.presets[p].custom171);
+    if (gotA === null && gotB === null) {
+      this.curveCheckResult = "no report";
+      this.log(`CURVE CHECK preset ${p}: no report. The rig sent no curve read-back within 2.5 s.`);
+    } else if (same(gotA, sentA) && same(gotB, sentB)) {
+      this.curveCheckResult = "ok";
+      this.log(`CURVE CHECK preset ${p}: ok. The rig read back the same curve.`);
+    } else {
+      this.curveCheckResult = "MISMATCH";
+      this.log(`CURVE CHECK preset ${p}: MISMATCH. Sent ${hexString(sentA)} | ${hexString(sentB)}, rig reports ${gotA ? hexString(gotA) : "nothing"} | ${gotB ? hexString(gotB) : "nothing"}.`);
+      this.say(`The rig's copy of that curve doesn't match what was sent. Check preset ${p} before you heat it.`);
+    }
+    this.changed();
+  }
+
+  /** The curve the rig last reported for a slot (0xAA + 0xAB), or null if it has not reported one. */
+  reportedCurve(p: number): CurveStep[] | null {
+    const pr = this.presets[p];
+    if (!pr?.custom170) return null;
+    const out: CurveStep[] = [];
+    for (const fr of [pr.custom170, pr.custom171]) {
+      if (!fr) continue;
+      for (let o = 3; o + 4 < fr.length - 1; o += 5) {
+        const f = (fr[o] << 8) | fr[o + 1];
+        if (f === 0 && ((fr[o + 2] << 8) | fr[o + 3]) === 0) continue;
+        out.push({ t: fr[o + 4], f });
+      }
+    }
+    return out.sort((a, b) => a.t - b.t);
   }
 
   // MARK: Actions: lights

@@ -87,6 +87,8 @@ function runScenario(sc: Scenario): boolean {
       saved: savedProxy,
       received, b9s, saves,
       stopsWhileHeating: stopsHeating.length,
+      curveFrames: received.filter(f => [179, 183, 181, 186, 187].includes(f.bytes[0])),
+      curveProblem: (steps: { t: number; f: number }[]) => RigController.curveProblem(steps),
       firstStopWhileHeating: stopsHeating[0] ?? null,
       firstB9Off: b9s.find(f => f.bytes[10] === 0) ?? null,
       appStarts: count(sim.events.map(e => e.what), "START by app frame"),
@@ -125,6 +127,7 @@ function runScenario(sc: Scenario): boolean {
       case "setLightMode": rig.setLightMode(a.mode); break;
       case "savePreset": rig.savePreset(a.slot, a.tempF, a.hold, a.profile); break;
       case "selectPreset": rig.selectPreset(a.slot); break;
+      case "saveCurve": rig.saveCurve(a.slot, a.steps); break;
       case "dialNudge": rig.dialNudge(a.by); break;
       case "setDialMode": rig.dialMode = a.mode; break;
       case "askDisconnect": rig.askDisconnect(); break;

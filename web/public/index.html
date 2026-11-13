@@ -18,7 +18,7 @@
 <style>
   :root {
     --bgTop: #0D1114; --bg: #060708; --cardTop: #101317; --cardBottom: #0A0C0E; --edge: #1D232A;
-    --ink: #F4F6F8; --dim: #8D96A3; --sub: #AAB2BD; --live: #19E3FF; --gold: #E8B24A;
+    --ink: #F4F6F8; --dim: #8D96A3; --sub: #AAB2BD; --live: #19E3FF; --gold: #E8B24A; --zoneYou: #3DDC97; --zoneAll: #A78BFA;
     --faceTop: #11161B; --faceBottom: #040506; --bezel: #15191D; --bezelEdge: #2C333B;
     --tickMinor: #4A525C; --tickMajor: #C9D1DB; --needleIdle: #C9D1DB; --selFill: #0B2F38;
     --warn: #FF8A3D; --warnFill: #24130A; --noteFill: #1A1508; --bar: #0A0C0E;
@@ -29,7 +29,7 @@
   }
   :root[data-theme="light"] {
     --bgTop: #FFFFFF; --bg: #EEF0F2; --cardTop: #FFFFFF; --cardBottom: #F6F7F8; --edge: #D9DDE2;
-    --ink: #0C1014; --dim: #5B6570; --sub: #4A525C; --live: #00718A; --gold: #855A08;
+    --ink: #0C1014; --dim: #5B6570; --sub: #4A525C; --live: #00718A; --gold: #855A08; --zoneYou: #0B7A4B; --zoneAll: #6D4BD0;
     --faceTop: #FFFFFF; --faceBottom: #E9EDF0; --bezel: #DFE3E8; --bezelEdge: #B9C0C9;
     --tickMinor: #9AA3AF; --tickMajor: #1A2026; --needleIdle: #1A2026; --selFill: #D9F8FD;
     --warn: #B04A08; --warnFill: #FFF1E6; --noteFill: #FFF7E3; --bar: #FFFFFF;
@@ -38,7 +38,7 @@
   @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
       --bgTop: #FFFFFF; --bg: #EEF0F2; --cardTop: #FFFFFF; --cardBottom: #F6F7F8; --edge: #D9DDE2;
-      --ink: #0C1014; --dim: #5B6570; --sub: #4A525C; --live: #00718A; --gold: #855A08;
+      --ink: #0C1014; --dim: #5B6570; --sub: #4A525C; --live: #00718A; --gold: #855A08; --zoneYou: #0B7A4B; --zoneAll: #6D4BD0;
       --faceTop: #FFFFFF; --faceBottom: #E9EDF0; --bezel: #DFE3E8; --bezelEdge: #B9C0C9;
       --tickMinor: #9AA3AF; --tickMajor: #1A2026; --needleIdle: #1A2026; --selFill: #D9F8FD;
       --warn: #B04A08; --warnFill: #FFF1E6; --noteFill: #FFF7E3; --bar: #FFFFFF;
@@ -108,7 +108,7 @@
   .dialKey { flex: 1; min-height: 64px; border-radius: 16px; color: var(--gold); font: 700 30px var(--cond); }
   .dialKey:disabled { opacity: .4; }
   .seg button:disabled { opacity: .5; }
-  .heatFX { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; }
+  .heatFX { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3; border: 0; background: transparent; color-scheme: normal; border-radius: inherit; }
   .soundRow { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 14px; border-radius: 16px; border: 1px solid var(--edge); background: var(--cardBottom); color: var(--ink); text-align: left; }
   .soundRow.on { border-color: var(--live); background: color-mix(in srgb, var(--live) 10%, var(--cardBottom)); }
   .soundRow b { display: block; font-size: 20px; letter-spacing: 2px; font-weight: 600; }
@@ -170,6 +170,54 @@
 
   /* Presets */
   .row { display: flex; align-items: center; gap: 8px; }
+  .curveCard { margin-top: 12px; padding: 14px 14px 12px; border: 1px solid var(--edge); border-radius: 18px; background: linear-gradient(var(--cardTop), var(--cardBottom)); }
+  .curveHead { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+  .curveTitle { font: 700 22px/1 var(--cond); letter-spacing: 2px; color: var(--ink); margin-top: 5px; }
+  .curveHero { font: 700 30px/0.9 var(--cond); letter-spacing: 1px; color: var(--ink); white-space: nowrap; }
+  .curveHero small { font: 600 10px/1 var(--mono); letter-spacing: 1.6px; color: var(--dim); display: block; text-align: right; margin-bottom: 5px; }
+  .curveCard svg { display: block; width: 100%; height: auto; margin-top: 6px; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+  .curveStats { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 8px; border-top: 1px solid var(--edge); }
+  .curveStats div { padding: 9px 0 0; text-align: center; border-left: 1px solid var(--edge); }
+  .curveStats div:first-child { border-left: 0; }
+  .curveStats b { display: block; font: 700 19px/1 var(--cond); letter-spacing: .5px; color: var(--ink); margin-top: 5px; }
+  .curveNote { font: 500 10.5px/1.4 var(--mono); color: var(--dim); margin-top: 10px; display: flex; align-items: center; gap: 7px; }
+  .curveNote i { flex: none; width: 16px; border-top: 2px dashed var(--gold); }
+  .cvZone.you { fill: var(--zoneYou); opacity: .17; }
+  .cvZone.community { fill: var(--zoneAll); opacity: .13; }
+  .cvZoneEdge { stroke-width: 1; stroke-dasharray: 3 3; opacity: .7; }
+  .cvZoneEdge.you { stroke: var(--zoneYou); }
+  .cvZoneEdge.community { stroke: var(--zoneAll); }
+  .curveZones { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font: 600 10.5px/1.2 var(--mono); letter-spacing: .6px; color: var(--sub); }
+  .curveZones span { display: inline-flex; align-items: center; gap: 7px; }
+  .curveZones i { width: 14px; height: 10px; border-radius: 3px; border: 1px dashed; }
+  .curveZones i.you { background: color-mix(in srgb, var(--zoneYou) 25%, transparent); border-color: var(--zoneYou); }
+  .curveZones i.community { background: color-mix(in srgb, var(--zoneAll) 22%, transparent); border-color: var(--zoneAll); }
+  .curveZones b { color: var(--ink); font-weight: 700; }
+  .cvGrid { stroke: var(--edge); stroke-width: 1; }
+  .cvBase { stroke: color-mix(in srgb, var(--dim) 55%, transparent); stroke-width: 1; }
+  .cvTick { stroke: color-mix(in srgb, var(--dim) 55%, transparent); stroke-width: 1; }
+  .cvAxis { fill: var(--dim); font: 500 9.5px var(--mono); }
+  .cvAxisStrong { fill: var(--sub); font-weight: 700; }
+  .cvStopTop { stop-color: var(--live); stop-opacity: .26; }
+  .cvStopBottom { stop-color: var(--live); stop-opacity: 0; }
+  .cvExtTop { stop-color: var(--gold); stop-opacity: .13; }
+  .cvExtZone { opacity: .55; }
+  .cvExtZone.on { opacity: 1; }
+  .cvExtEdge { stroke: color-mix(in srgb, var(--gold) 45%, transparent); stroke-width: 1; }
+  .cvExtTag { fill: var(--sub); font: 700 9px var(--mono); letter-spacing: 1px; }
+  .cvLine { fill: none; stroke: var(--live); stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
+  .cvGlow { fill: none; stroke: var(--live); stroke-width: 7; stroke-linejoin: round; stroke-linecap: round; opacity: .16; }
+  .cvExt { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 2 5; stroke-linecap: round; opacity: .7; }
+  .cvExt.on { opacity: 1; stroke-dasharray: none; }
+  .cvPt { fill: var(--live); stroke: var(--cardTop); stroke-width: 2; }
+  .cvVal { fill: var(--ink); font: 700 12.5px var(--cond); letter-spacing: .4px; paint-order: stroke; stroke: var(--cardTop); stroke-width: 3.5px; stroke-linejoin: round; }
+  .cvNow { stroke: color-mix(in srgb, var(--gold) 60%, transparent); stroke-width: 1; }
+  .cvDot { fill: var(--gold); stroke: var(--cardTop); stroke-width: 2; }
+  .cvDotHalo { fill: var(--gold); opacity: .22; }
+  .cvScrubLine { stroke: var(--sub); stroke-width: 1; }
+  .cvScrubDot { fill: var(--ink); stroke: var(--cardTop); stroke-width: 2; }
+  .cvTipBox { fill: var(--ink); }
+  .cvTipText { fill: var(--cardTop); font: 700 11px var(--mono); }
   .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 8px; }
   .key { min-height: 56px; border-radius: 12px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); text-align: center; }
   .key small { display: block; font: 500 9.5px var(--mono); color: var(--dim); }
@@ -594,6 +642,20 @@
           <button id="p3" class="key"><small>3</small><span id="p3t">—</span></button>
           <button id="p4" class="key"><small>4</small><span id="p4t">—</span></button>
           <button id="p5" class="key"><small>5</small><span id="p5t">—</span></button>
+        </div>
+        <div id="curveCard" class="curveCard" hidden>
+          <div class="curveHead">
+            <div><span id="curveTag" class="tag" style="font-size:9.5px">HEAT CURVE</span><div id="curveTitle" class="curveTitle"></div></div>
+            <div class="curveHero"><small id="curveHeroTag">RANGE</small><span id="curveRange"></span></div>
+          </div>
+          <svg id="curveSvg" viewBox="0 0 340 168" role="img" aria-label="Heat curve for the selected preset"></svg>
+          <div class="curveStats">
+            <div><span class="tag" style="font-size:8.5px">START</span><b id="cvStart"></b></div>
+            <div><span class="tag" style="font-size:8.5px">PEAK</span><b id="cvPeak"></b></div>
+            <div><span class="tag" style="font-size:8.5px">LOW</span><b id="cvLow"></b></div>
+            <div><span class="tag" style="font-size:8.5px">HOLD</span><b id="cvHold"></b></div>
+          </div>
+          <div class="curveNote"><i></i><span id="curveNote"></span></div>
         </div>
       </div>
 

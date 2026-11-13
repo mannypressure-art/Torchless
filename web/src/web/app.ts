@@ -17,9 +17,10 @@ import { playTransition } from "./transition";
 import { mountRig } from "./rig-ui";
 import { Account, JarSync } from "./cloud";
 import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
-import { HeatFX, heatSound, HEAT_SOUNDS } from "./heatfx";
+import { HeatFX, heatSound, heatTrack, HEAT_SOUNDS, HEAT_TRACKS, validSound, validTrack } from "./heatfx";
+import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 
-const BUILD = "app-4d.2";
+const BUILD = "app-4k.0";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -216,6 +217,64 @@ $("cut").onclick = () => rig.cutIt();
 $("extend").onclick = () => rig.extendTen();
 $("gotIt").onclick = () => { rig.awayNote = null; schedule(); };
 for (let n = 1; n <= 5; n++) $(`p${n}`).onclick = () => rig.selectPreset(n);
+
+// MARK: Preset curve chart (the rig's own waypoints for the selected preset; nothing is sent)
+
+let curveKey = "";
+let curveView: CurveView | null = null;
+function renderCurve(sel: number, celsius: boolean, heating: boolean) {
+  const p = sel >= 1 && sel <= 5 ? rig.presets[sel] : undefined;
+  const pts = p ? waypointsOf(p) : [];
+  const s = rig.live;
+  const extend = heating && s ? s.sessionExtend : 0;
+  const total = pts.length ? pts[pts.length - 1].t + 10 * extend : 0;
+  // The rig's countdown only runs once it is at temp, so total - remaining is the place on the curve.
+  const elapsed = heating && s && pts.length && s.sessionTimeRemaining < total ? total - s.sessionTimeRemaining : null;
+  const key = `${sel}|${celsius}|${extend}|${elapsed}|${p?.custom170?.join(",")}|${p?.custom171?.join(",")}|${p?.profile}`;
+  if (key === curveKey) return;
+  curveKey = key;
+  const view = drawCurve(pts, celsius, elapsed, extend, p?.profile === 177);
+  curveView = view;
+  $("curveCard").hidden = !view;
+  if (!view || !p) return;
+  $("curveSvg").innerHTML = view.svg;
+  const deg = (x: number) => `${Math.round(x)}°`;
+  $("curveTag").textContent = `PRESET ${sel} · HEAT CURVE`;
+  $("curveTitle").textContent = p.profile !== undefined ? HeatProfile.name(p.profile).toUpperCase() : "—";
+  $("curveHeroTag").textContent = view.low === view.peak ? "HOLDS AT" : "RANGE";
+  $("curveRange").textContent = view.low === view.peak ? deg(view.peak) : `${Math.round(view.low)}–${deg(view.peak)}`;
+  $("cvStart").textContent = deg(view.start);
+  $("cvPeak").textContent = deg(view.peak);
+  $("cvLow").textContent = deg(view.low);
+  $("cvHold").textContent = `${view.seconds}s`;
+  $("curveNote").textContent = extend > 0
+    ? `+${10 * extend} s added to this dab.`
+    : p.profile === 161 || p.profile === 177
+      ? "What +10 s adds. Drag across the chart to read any moment."
+      : "+10 s on this profile hasn't been measured yet. Drag to read any moment.";
+}
+{
+  // Touch readout: drag across the chart to read time and temp. Vertical drags still scroll the page.
+  const svg = $("curveSvg") as unknown as SVGSVGElement;
+  const hide = () => svg.querySelector("#cvScrub")?.setAttribute("visibility", "hidden");
+  const move = (e: PointerEvent) => {
+    const g = svg.querySelector("#cvScrub"), r = svg.getBoundingClientRect();
+    const hit = curveView?.probe((e.clientX - r.left) / Math.max(r.width, 1));
+    if (!g || !hit) { hide(); return; }
+    g.setAttribute("visibility", "visible");
+    const ln = g.querySelector("line")!, dot = g.querySelector("circle")!, tip = g.querySelector("#cvScrubTip")!;
+    ln.setAttribute("x1", String(hit.x)); ln.setAttribute("x2", String(hit.x));
+    dot.setAttribute("cx", String(hit.x)); dot.setAttribute("cy", String(hit.y));
+    const tx = Math.min(Math.max(hit.x - 37, 40), CURVE_W - 14 - 74);
+    tip.setAttribute("transform", `translate(${tx} ${hit.y > 62 ? hit.y - 34 : hit.y + 12})`);
+    tip.querySelector("text")!.textContent = `${hit.t}s · ${Math.round(hit.v)}°`;
+  };
+  svg.addEventListener("pointerdown", move);
+  svg.addEventListener("pointermove", e => { if (e.pointerType === "mouse" || e.buttons || e.pressure > 0) move(e); });
+  svg.addEventListener("pointerleave", hide);
+  svg.addEventListener("pointerup", e => { if (e.pointerType !== "mouse") window.setTimeout(hide, 1400); });
+  svg.addEventListener("pointercancel", hide);
+}
 
 // MARK: Preset editor
 
@@ -448,21 +507,29 @@ const rigUI = mountRig(ble, rig, {
     buildSoundPicker(page);
   },
 });
-// Heat-up sound picker (Rig > Look), same rows and words as HeatSoundPicker.
+// Heat-up look and soundtrack picker (Rig > Look), same rows and words as HeatSoundPicker.
 function buildSoundPicker(page: HTMLElement) {
-  const box = h("div", { class: "stackS" });
+  const box = h("div", { class: "stackS" }), trackBox = h("div", { class: "stackS" });
+  const row = (c: { id: string; name: string; line: string }, on: boolean, label: string, pick: () => void) =>
+    h("button", { class: "soundRow" + (on ? " on" : ""), "aria-label": label + (on ? ", on" : ""), onclick: pick },
+      h("div", { style: "flex:1;min-width:0" }, h("b", { class: "cond" }, c.name), h("small", { class: "mono" }, c.line)), on ? tag("ON", "color:var(--live);font-size:9px") : null);
   const draw = () => {
-    const cur = prefs.get("heatSound") ?? "chimes";
-    box.replaceChildren(...HEAT_SOUNDS.map(c => {
-      const on = cur === c.id;
-      return h("button", { class: "soundRow" + (on ? " on" : ""), "aria-label": `${c.name} sound${on ? ", on" : ""}`, onclick: () => {
-        prefs.set("heatSound", c.id); heatSound.preview(c.id); draw(); rigUI.render();
-      } }, h("div", { style: "flex:1;min-width:0" }, h("b", { class: "cond" }, c.name), h("small", { class: "mono" }, c.line)), on ? tag("ON", "color:var(--live);font-size:9px") : null);
-    }));
+    const cur = validSound(prefs.get("heatSound")), track = validTrack(prefs.get("heatTrack"));
+    box.replaceChildren(...HEAT_SOUNDS.map(c => row(c, cur === c.id, `${c.name} sound`, () => {
+      prefs.set("heatSound", c.id); heatTrack.stopPreview(); heatSound.preview(c.id); draw(); rigUI.render();
+    })));
+    trackBox.replaceChildren(...HEAT_TRACKS.map(c => row(c, track === c.id, c.name, () => {
+      prefs.set("heatTrack", c.id);
+      heatSound.preview(c.id === "look" ? validSound(prefs.get("heatSound")) : "off");
+      heatTrack.preview(c.id);
+      draw(); rigUI.render();
+    })));
   };
   draw();
-  page.append(tag("HEAT-UP SOUND", "font-size:9.5px;margin-top:8px"), box,
-    h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "Tap one to hear a short preview; tapping another cuts it off. Follows the silent switch on iPhone where the browser allows it, and plays over your own music. Phone taps happen with every option on Android."));
+  page.append(tag("HEAT-UP LOOK", "font-size:9.5px;margin-top:8px"), box,
+    h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "Tap one to hear a short heat-up, hold and cooldown. Tapping another cuts it off. Follows the silent switch on iPhone where the browser allows it, and plays over your own music. Phone taps happen with every option on Android."),
+    tag("SOUNDTRACK", "font-size:9.5px;margin-top:8px"), trackBox,
+    h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "A soundtrack replaces the look's own sound and keeps its motion. The beat drops the moment the rig reaches temp."));
 }
 $("lookAround").onclick = () => { linkTapped = false; lookAround = true; showTab("home"); };
 $("linkJarsBig").onclick = () => {
@@ -637,6 +704,7 @@ function render() {
     enable(`p${n}`, !locked);
   }
   const sel = s?.preset ?? 0;
+  renderCurve(sel, celsius, heating);
   show("editBtn", sel >= 1 && sel <= 5);
   setText("editBtn", `EDIT ${sel}`);
   enable("editBtn", !locked);
@@ -758,7 +826,7 @@ $("dialDown").onclick = () => rig.dialNudge(-RigController.dialStep);
 $("dialUp").onclick = () => rig.dialNudge(RigController.dialStep);
 $("dialA").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMode = "live"; schedule(); } };
 $("dialB").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMode = "active"; schedule(); } };
-const heatFX = new HeatFX($("faceCard"), () => prefs.get("heatSound") ?? "chimes", () => faceID);
+const heatFX = new HeatFX($("faceCard"), () => prefs.get("heatSound") ?? "chimes", () => prefs.get("heatTrack") ?? "look", () => faceID);
 rig.onChange = () => { watcher.update(rig); heatFX.update(rig); schedule(); };
 // Audio can only start after a tap: unlock it on the first tap of any kind, and resume after an interruption.
 for (const ev of ["pointerdown", "pointerup", "touchend", "click"]) document.addEventListener(ev, () => heatSound.unlock(), { capture: true, passive: true });
