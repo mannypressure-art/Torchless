@@ -177,9 +177,12 @@ const FAST = JSON.stringify([{ name: '25mm quartz', style: 'hot', torch: 5, cool
   // 5. Setups: add, edit, persist, limit of four
   {
     const p = await open({ fast: false });
-    ok(await num(p) === '30' && await p.locator('.tm-keys .key').count() === 2, 'defaults: 30 s torch, one setup plus NEW');
+    ok(await num(p) === '550°' && await p.locator('.tm-keys .key').count() === 2, 'defaults: opens on TEMP 550, one setup plus NEW');
     await shot(p, 'default-ready', true);
+    await btn(p, 'TIMER').click(); await p.waitForTimeout(200);
+    ok(await num(p) === '30', 'TIMER: 30 s torch by default');
     await p.locator('.tm-keys .tm-add').click();
+    await p.locator('.tm-sheet .seg button', { hasText: 'TIMER' }).click();
     await p.locator('.tm-sheet input[type=text]').fill('Opal bucket');
     await p.locator('.tm-sheet button[aria-label="Torch time: 1 second more"]').click();
     await p.locator('.tm-sheet input[type=range]').nth(1).fill('60');
@@ -339,6 +342,7 @@ const FAST = JSON.stringify([{ name: '25mm quartz', style: 'hot', torch: 5, cool
     const p = await open({ fast: false });
     await btn(p, 'EDIT').click();
     ok(await p.locator('.tm-sheet', { hasText: 'STARTING POINT' }).count() === 0, 'EDIT of a saved setup: no starting points');
+    await p.locator('.tm-sheet .seg button', { hasText: 'TIMER' }).click();
     await p.locator('.tm-sheet .tm-addStep').click();
     ok(await p.locator('.tm-sheet select.tm-cue').count() === 2, '+ ADD STEP adds a second step');
     await p.locator('.tm-sheet select.tm-cue').nth(1).selectOption('TOP');
@@ -391,8 +395,8 @@ const FAST = JSON.stringify([{ name: '25mm quartz', style: 'hot', torch: 5, cool
     // GAUGE 550 starting point, optional TORCH TO, and an old timer setup switched to GAUGE
     const p = await open({});
     await p.locator('.tm-keys .tm-add').click(); await p.waitForTimeout(200);
-    await p.locator('.tm-sheet .catKey', { hasText: 'GAUGE 550' }).click();
-    ok(await p.locator('.tm-sheet input[type=text]').inputValue() === 'GAUGE 550' && await p.locator('.tm-sheet .seg button.on').innerText() === 'GAUGE', 'GAUGE 550 starting point fills the setup');
+    await p.locator('.tm-sheet .catKey', { hasText: 'TEMP 550' }).click();
+    ok(await p.locator('.tm-sheet input[type=text]').inputValue() === 'TEMP 550' && await p.locator('.tm-sheet .seg button.on').innerText() === 'TEMP', 'GAUGE 550 starting point fills the setup');
     await p.locator('.tm-sheet button[aria-label="Dab at: 10 degrees more"]').click();
     await p.locator('.tm-sheet .tm-addStep', { hasText: 'TORCH TO' }).click();
     await p.waitForTimeout(400); await shot(p, 'gauge-editor');
@@ -400,10 +404,10 @@ const FAST = JSON.stringify([{ name: '25mm quartz', style: 'hot', torch: 5, cool
     const s = await p.evaluate(() => JSON.parse(T.prefs.get('torch.setups'))[2]);
     ok(s.style === 'gauge' && s.dabAt === 560 && s.torchTo === 650, `GAUGE saved ${JSON.stringify(s)}`);
     ok(await p.locator('.tm-ready .tm-say').first().innerText() === 'Torch to 650°. Watch your gauge. Dab when it reads 560°.', 'TORCH TO shows on the ready line');
-    ok(await p.locator('.tm-keys .key.on').innerText() === 'GAUGE 550\n560°', 'gauge key shows its dab-at number');
+    ok(await p.locator('.tm-keys .key.on').innerText() === 'TEMP 550\n560°', 'gauge key shows its dab-at number');
     await p.locator('.tm-keys .key').first().click();
     ok(await num(p) === '5' && await btn(p, 'TORCH IT').isVisible(), 'old timer setup unchanged');
-    await btn(p, 'GAUGE').click();
+    await btn(p, 'TEMP').click();
     ok(await num(p) === '550°' && await p.evaluate(() => JSON.parse(T.prefs.get('torch.setups'))[0].steps[0].secs) === 5, 'switching an old setup to GAUGE keeps its times');
     ok(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'gauge: no horizontal scroll');
     await p.context().close();
