@@ -19,7 +19,7 @@ import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./
 import { HeatFX, heatSound, heatTrack, HEAT_SOUNDS, HEAT_TRACKS, validSound, validTrack } from "./heatfx";
 import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 
-const BUILD = "app-4h.0";
+const BUILD = "app-4i.0";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -248,7 +248,7 @@ function renderExtras(heating: boolean) {
   if (again) {
     const j = jars.current!;
     setText("againTitle", again.text.toUpperCase());
-    setText("againLine", `Your best on ${j.strain || j.producer || "this jar"}: ${again.dab.rating!.toFixed(1)}`);
+    setText("againLine", `Best on ${j.strain || j.producer || "this jar"}: ${again.dab.rating!.toFixed(1)}`);
     againPreset = again.preset;
     const toF = (v: number) => again.dab.unit === "C" ? Math.round(v * 9 / 5 + 32) : v;
     const g = toF(again.dab.goal!), top = again.dab.goalTop !== undefined ? toF(again.dab.goalTop) : g;
@@ -260,23 +260,32 @@ function renderExtras(heating: boolean) {
     enable("againBtn", again.preset === null || (!on && rig.canControl));
   }
 
+  const owed = rig.curveRestore;
+  show("owedStrip", !!owed);
+  if (owed) {
+    setText("owedTitle", `P${owed.p} · CUSTOM CURVE`);
+    setText("owedLine", rig.puttingPresetBack ? "Putting it back…" : owed.used ? "Goes back when idle." : "Goes back after the dab.");
+    enable("owedBtn", rig.canControl && !heating && !rig.puttingPresetBack);
+  }
+
   const left = fresh ? extras.dabsLeft(rig) : null;
   const cycles = heatCyclesFrom(ble.extra);
   const since = extras.dabsSinceClean(cycles), every = extras.cleanEvery;
   show("careCard", fresh);
   setText("dabsLeft", left ? `≈${left.left}` : s && chargingOf(s) ? "CHARGING" : "LEARNING");
-  setText("dabsLeftLine", left ? `About ${left.per.toFixed(1)}% a dab, from your last ${left.seen}.` : "Shows after three dabs on battery.");
+  setText("dabsLeftLine", left ? `~${left.per.toFixed(1)}% a dab` : "After 3 dabs.");
   const due = since >= every;
   $("cleanCell").classList.toggle("due", due);
   setText("cleanTag", due ? "TIME TO CLEAN" : "DABS SINCE CLEAN");
   setText("cleanCount", String(since));
-  setText("cleanLine", due ? `${since} dabs since the last clean. Clean the banger, then tap CLEANED.` : `Reminder at ${every}.`);
+  setText("cleanLine", due ? "Clean it, then tap CLEANED." : `Reminder at ${every}.`);
   setText("cleanEveryBtn", `EVERY ${every}`);
 }
 
 // MARK: Ride planner (Custom curves; sends only through rig.saveCurve, only while idle)
 
 let plannerRefresh: (() => void) | null = null;
+$("owedBtn").onclick = () => rig.putBackNow();
 $("planBtn").onclick = () => {
   const sel = rig.live?.preset ?? 0;
   const p = sel >= 1 && sel <= 5 ? rig.presets[sel] : undefined;

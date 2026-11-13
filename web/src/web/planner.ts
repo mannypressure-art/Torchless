@@ -3,7 +3,7 @@
 // only writes while the rig is idle and then checks the rig's own read-back (RigController.saveCurve).
 // Nothing here starts heat.
 
-import { RigController, RigLimits, type CurveStep } from "../rig/rig-controller";
+import { RigController, RigLimits, type CurveStep, type CurveResult } from "../rig/rig-controller";
 import { h, tag, openSheet, topBar, textBtn } from "./jar-ui";
 
 const W = 340, H = 220, L = 40, Rm = 14, T = 22, B = 30;
@@ -128,6 +128,8 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
   let target = Math.min(5, Math.max(1, hooks.selected() || 1));
   let sending = false;
   let status = "";
+  /** THIS DAB: one dab, then the preset goes back. KEEP: the preset keeps the curve. */
+  let once = true;
   let redraw = () => {};
   let closeIt = () => {};
   let open = true;
@@ -208,7 +210,7 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
       const p = steps[sel];
       pointRow.replaceChildren(
         stepper(`POINT ${sel + 1} · TEMP`, deg(p.f), "temperature", () => nudge(0, -SNAP_F), () => nudge(0, SNAP_F)),
-        stepper(sel === 0 ? "TIME · ALWAYS 0 S" : `POINT ${sel + 1} · TIME`, `${p.t}s`, "time", () => nudge(-1, 0), () => nudge(1, 0), sel === 0));
+        stepper(sel === 0 ? "TIME · 0 S" : `POINT ${sel + 1} · TIME`, `${p.t}s`, "time", () => nudge(-1, 0), () => nudge(1, 0), sel === 0));
     };
     const stepper = (label: string, v: string, what: string, down: () => void, up: () => void, locked = false) =>
       h("div", { class: "plStep" }, h("span", { class: "tag", style: "font-size:8.5px" }, label),
@@ -244,24 +246,23 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
     const send = () => {
       const why = RigController.curveProblem(steps);
       if (why || sending) return;
-      const p = target;
-      const text = steps.map(s => `${s.f} F at ${s.t} s`).join(", ");
-      hooks.confirm(`Send to preset ${p}?`,
-        `Preset ${p} becomes a Custom curve: ${text}. Its old temperature, hold time and heat profile are replaced. ` +
-        `Nothing heats. Afterwards the app reads the curve back from the rig to check it.`,
-        `SEND TO PRESET ${p}`, () => {
+      const p = target, one = once;
+      hooks.confirm(one ? `Use on P${p} for one dab?` : `Replace P${p}?`,
+        one ? `P${p} goes back after the dab.` : `P${p} keeps this curve.`,
+        "SEND", () => {
           sending = true; status = "Sending…"; redraw();
-          hooks.rig.saveCurve(p, steps.map(s => ({ ...s })));
-          // Five frames over about 2.6 s, then the 2.5 s read-back check.
-          window.setTimeout(() => {
+          const done = (r: CurveResult) => {
             sending = false;
-            const r = hooks.rig.curveCheckResult;
-            status = r === "ok" ? `Preset ${p} has your curve. The rig read back the same points.`
-              : r === "MISMATCH" ? `The rig's copy of preset ${p} doesn't match. Check it before you heat it.`
-              : r === "no report" ? `Sent, but the rig didn't read the curve back. Check preset ${p} before you heat it.`
-              : `The save didn't finish. Try again with the rig idle.`;
-            redraw();
-          }, 6000);
+            status = r === "ok" ? (one ? `Ready. Heat P${p}.` : `P${p} saved.`)
+              : r === "MISMATCH" ? `Rig didn't match. Check P${p}.`
+              : r === "no report" ? `Sent. Rig didn't confirm.`
+              : `Didn't finish. Try again.`;
+            if (open) redraw();
+          };
+          const copy = steps.map(s => ({ ...s }));
+          const went = one ? hooks.rig.saveCurveOnce(p, copy, done) : hooks.rig.saveCurve(p, copy, done);
+          if (!went) { sending = false; status = ""; }
+          redraw();
         });
     };
 
@@ -300,25 +301,33 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
       const rig = hooks.rig;
       const linked = rig.connected && !!rig.live && rig.linkFresh;
       const heating = rig.sessionOn;
-      const why = !linked ? "Link the rig to send a curve." : heating ? "Wait until the rig stops heating." : RigController.curveProblem(steps);
-      sendBox.replaceChildren(
+      const owed = rig.curveRestore;
+      const why = !linked ? "Link the rig first." : heating ? "Wait for heat to stop." : RigController.curveProblem(steps)
+        ?? (once ? rig.oneDabProblem(target) : null);
+      sendBox.replaceChildren(...[
+        h("div", { class: "seg", style: "grid-template-columns:1fr 1fr;margin-top:0" },
+          h("button", { class: once ? "on" : "", "aria-pressed": String(once), onclick: () => { once = true; status = ""; redraw(); } }, "THIS DAB"),
+          h("button", { class: once ? "" : "on", "aria-pressed": String(!once), onclick: () => { once = false; status = ""; redraw(); } }, "KEEP")),
         h("div", { class: "seg", style: "grid-template-columns:repeat(5,1fr);margin-top:0" },
-          ...[1, 2, 3, 4, 5].map(n => h("button", { class: n === target ? "on" : "", "aria-label": `Preset ${n}`, onclick: () => { target = n; redraw(); } }, String(n)))),
+          ...[1, 2, 3, 4, 5].map(n => h("button", { class: n === target ? "on" : "", "aria-label": `Preset ${n}`, onclick: () => { target = n; status = ""; redraw(); } }, `P${n}`))),
         h("button", { class: "btn2 tall wide", style: "color:var(--gold);border-color:var(--gold)", disabled: !!why || sending, onclick: send },
-          sending ? "SENDING…" : `SEND TO PRESET ${target}`),
+          sending ? "SENDING…" : `SEND TO P${target}`),
         h("p", { class: "mono dim", style: "font-size:10px;margin:0" },
-          status || why || "Only sent while the rig is idle. The app then reads the curve back from the rig to check it."),
-      );
+          status || why || (once ? "Goes back after the dab." : "Stays on the preset.")),
+        owed ? h("div", { class: "row", style: "gap:8px;align-items:center" },
+          h("p", { class: "mono", style: "font-size:10px;margin:0;flex:1" }, owed.used ? `P${owed.p} goes back when idle.` : `P${owed.p} is set for one dab.`),
+          h("button", { class: "chip", disabled: !linked || heating, onclick: () => { rig.putBackNow(); } }, "PUT BACK")) : null,
+      ].filter((x): x is HTMLElement => x !== null));
     };
 
     body.append(
       topBar(textBtn("Done", () => { closeIt(); }), h("b", { class: "cond", style: "font-size:20px;letter-spacing:2px" }, "RIDE PLANNER"), null),
       h("div", { class: "curveCard", style: "margin-top:4px" }, head, svg, stats, problemLine,
-        h("p", { class: "mono dim", style: "font-size:10px;margin:8px 0 0" }, "Drag a point. The first point always sits at 0 s; the hold ends at the last point.")),
+        h("p", { class: "mono dim", style: "font-size:10px;margin:8px 0 0" }, "Drag the points.")),
       pointRow, tools,
       tag("START FROM", "font-size:9.5px;margin-top:4px"), tmplRow,
       tag("MY CURVES", "font-size:9.5px;margin-top:4px"), libBox,
-      tag("SEND TO THE RIG", "font-size:9.5px;margin-top:4px"), sendBox,
+      tag("SEND", "font-size:9.5px;margin-top:4px"), sendBox,
     );
     redraw();
     return body;

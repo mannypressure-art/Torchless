@@ -101,6 +101,20 @@ export interface PresetInfo {
 
 export interface CurveStep { t: number; f: number }
 
+/** How a curve save ended: the read-back check's verdict, or "dropped" when a frame never went out. */
+export type CurveResult = "ok" | "MISMATCH" | "no report" | "dropped";
+
+/** A preset's settings from before a one-dab curve, owed back to the rig once that dab is over. */
+export interface CurveRestore {
+  p: number; tempF: number; hold: number; profile: number;
+  /** The old Custom curve (profile 241 only). */
+  steps: CurveStep[] | null;
+  /** The rig's raw curve read-back (0xAA / 0xAB payloads) from before, used to confirm the put-back. */
+  a: number[] | null; b: number[] | null;
+  /** True once a dab has started on that preset (or the one-dab save failed): put it back when idle. */
+  used: boolean;
+}
+
 export interface ShowStep { id: string; atStart: boolean; secondsRemaining: number; lightMode: number; brightness: number }
 
 export interface LightShow {
@@ -277,6 +291,11 @@ export class RigController {
       }
       this.dialPending = loaded;
     }
+    const cr = store.get<CurveRestore>("curveRestoreV1");
+    if (cr && typeof cr === "object" && inRange(cr.p, 1, 5) && Number.isInteger(cr.tempF) && Number.isInteger(cr.hold) && Number.isInteger(cr.profile)) {
+      this._curveRestore = { p: cr.p, tempF: cr.tempF, hold: cr.hold, profile: cr.profile, steps: Array.isArray(cr.steps) ? cr.steps : null,
+        a: Array.isArray(cr.a) ? cr.a : null, b: Array.isArray(cr.b) ? cr.b : null, used: cr.used === true };
+    }
     const lr = store.get<number[]>("lightRestoreV1");
     if (Array.isArray(lr) && lr.length === 2 && inRange(lr[0], 0, 33) && inRange(lr[1], 0, 100)) {
       this.pendingRestore = { mode: lr[0], brightness: lr[1] };
@@ -340,7 +359,7 @@ export class RigController {
   private watchdogTick() {
     const now = this.now();
     const fresh = this.liveTime !== null ? now - this.liveTime <= 3.0 : false;
-    if (this.linkFresh !== fresh) { this.linkFresh = fresh; this.changed(); }
+    if (this.linkFresh !== fresh) { this.linkFresh = fresh; if (fresh) this.putBackTries = 0; this.changed(); }
     if (this.startPendingAt !== null && now - this.startPendingAt > 3.0) this.startPendingAt = null;
 
     if (this.waitingForStatus && this.queue.length > 0 && this.liveTime !== null && now - this.liveTime > 1.0) {
@@ -355,6 +374,11 @@ export class RigController {
     }
     if (this.quietSince === null) this.quietSince = now;
     const quietFor = now - this.quietSince;
+    if (this._curveRestore?.used && quietFor >= 3.0 && this.linkFresh && this.putBackTries < 2 && !this.puttingBack) {
+      this.quietSince = null;
+      this.putBack(false);
+      return;
+    }
     if (this.disconnectWaiting && quietFor >= 2.0) {
       this.disconnectWaiting = false;
       this.log("Dab is done and everything is put back. Disconnecting now, as asked.");
@@ -906,14 +930,19 @@ export class RigController {
   }
 
   savePreset(p: number, tempF: number, hold: number, profile: number) {
-    if (!inRange(p, 1, 5)) { this.say("Preset must be 1 to 5."); return; }
-    if (!inRange(tempF, RigLimits.tempF[0], RigLimits.tempF[1])) { this.say("Temperature must be 250 to 650 F."); return; }
+    this.writePreset(p, tempF, hold, profile);
+  }
+
+  private writePreset(p: number, tempF: number, hold: number, profile: number, hooks?: { first?: () => void; last?: () => void; drop?: () => void }): boolean {
+    if (!inRange(p, 1, 5)) { this.say("Preset must be 1 to 5."); return false; }
+    if (!inRange(tempF, RigLimits.tempF[0], RigLimits.tempF[1])) { this.say("Temperature must be 250 to 650 F."); return false; }
     const c = RigLimits.celsius(tempF);
-    if (!inRange(c, RigLimits.tempC[0], RigLimits.tempC[1])) { this.say("Temperature out of range."); return; }
-    if (!inRange(hold, RigLimits.hold[0], RigLimits.hold[1])) { this.say("Hold time must be 10 to 90 seconds."); return; }
+    if (!inRange(c, RigLimits.tempC[0], RigLimits.tempC[1])) { this.say("Temperature out of range."); return false; }
+    if (!inRange(hold, RigLimits.hold[0], RigLimits.hold[1])) { this.say("Hold time must be 10 to 90 seconds."); return false; }
     const s = this.gate();
-    if (s === null) return;
-    if (s.sessionByte !== 0) { this.say("Can't edit presets while heating."); return; }
+    if (s === null) return false;
+    if (s.sessionByte !== 0) { this.say("Can't edit presets while heating."); return false; }
+    if (!hooks) this.forgetRestore(p, "a new save replaced it");
 
     const tempFrame = [179, 8, p, tempF >> 8, tempF & 255, c >> 8, c & 255, 179];
     const holdFrame = [183, 6, p, hold >> 8, hold & 255, 183];
@@ -921,21 +950,23 @@ export class RigController {
 
     this.enqueue(this.item({
       label: `Preset ${p} temp ${tempF}F`, kind: { t: "raw", bytes: tempFrame }, gapBefore: 0.12, requireSessionOff: true,
-      onSent: () => { this.presets[p].tempF = tempF; this.presets[p].tempC = c; },
+      onDrop: hooks?.drop, onSent: () => { this.presets[p].tempF = tempF; this.presets[p].tempC = c; hooks?.first?.(); },
     }));
+    const writeProfile = HeatProfile.isWritable(profile);
     this.enqueue(this.item({
       label: `Preset ${p} hold ${hold}s`, kind: { t: "raw", bytes: holdFrame }, gapBefore: 1.0, requireSessionOff: true,
-      onSent: () => { this.presets[p].hold = hold; },
+      onDrop: hooks?.drop, onSent: () => { this.presets[p].hold = hold; if (!writeProfile) hooks?.last?.(); },
     }));
-    if (HeatProfile.isWritable(profile)) {
+    if (writeProfile) {
       const profFrame = [181, 5, p, profile, 181];
       this.enqueue(this.item({
         label: `Preset ${p} profile ${HeatProfile.name(profile)}`, kind: { t: "raw", bytes: profFrame }, gapBefore: 1.0,
-        requireSessionOff: true, onSent: () => { this.presets[p].profile = profile; },
+        requireSessionOff: true, onDrop: hooks?.drop, onSent: () => { this.presets[p].profile = profile; hooks?.last?.(); },
       }));
     } else {
       this.log("Profile left unchanged (not a writable profile in this build).");
     }
+    return true;
   }
 
   // MARK: Actions: custom heat curve (ride planner). Matches RigController.swift 9c54e613.
@@ -981,13 +1012,21 @@ export class RigController {
   /** Saves a Custom heat curve into preset `p`, in the official app's order: temp (first point), hold (last
    *  point's time), profile Custom, then the two curve frames. Only with heat off: every frame is dropped
    *  if the rig is heating when its turn comes. Never starts heat. NOT YET SENT TO A REAL RIG. */
-  saveCurve(p: number, steps: CurveStep[]) {
-    if (!inRange(p, 1, 5)) { this.say("Preset must be 1 to 5."); return; }
+  saveCurve(p: number, steps: CurveStep[], onResult?: (r: CurveResult) => void): boolean {
+    const ok = this.writeCurve(p, steps, onResult);
+    if (ok) this.forgetRestore(p, "a new save replaced it");
+    return ok;
+  }
+
+  private writeCurve(p: number, steps: CurveStep[], onResult?: (r: CurveResult) => void): boolean {
+    if (!inRange(p, 1, 5)) { this.say("Preset must be 1 to 5."); return false; }
     const why = RigController.curveProblem(steps);
-    if (why) { this.say(why); return; }
+    if (why) { this.say(why); return false; }
     const s = this.gate();
-    if (s === null) return;
-    if (s.sessionByte !== 0) { this.say("Can't edit presets while heating."); return; }
+    if (s === null) return false;
+    if (s.sessionByte !== 0) { this.say("Can't edit presets while heating."); return false; }
+    // Web only: the last verdict belongs to the last save, so a newer save starts with none.
+    this.curveCheckResult = null;
 
     const tempF = steps[0].f, c = RigLimits.celsius(tempF), hold = steps[steps.length - 1].t;
     const parts = RigController.curvePayloads(steps);
@@ -999,6 +1038,7 @@ export class RigController {
       if (this.curveSaveToken !== token) return;
       this.curveSaveToken += 1;   // say it once, however many frames were still waiting
       this.say(`Curve save for preset ${p} did not finish. Save it again before you use that preset.`);
+      onResult?.("dropped");
     };
     this.enqueue(this.item({
       label: `Curve ${p} temp ${tempF}F`, kind: { t: "raw", bytes: [179, 8, p, tempF >> 8, tempF & 255, c >> 8, c & 255, 179] },
@@ -1026,9 +1066,11 @@ export class RigController {
         this.clock.after(2.5, () => {
           if (this.curveSaveToken !== token) return;
           this.curveCheck(p, parts.a, parts.b);
+          if (this.curveCheckResult) onResult?.(this.curveCheckResult);
         });
       },
     }));
+    return true;
   }
 
   /** Compares the rig's own read-back (0xAA / 0xAB) with the curve that was just sent. */
@@ -1064,6 +1106,116 @@ export class RigController {
       }
     }
     return out.sort((a, b) => a.t - b.t);
+  }
+
+  // MARK: Actions: one-dab curve (web only for now; contract sent to the build 3 thread)
+
+  private _curveRestore: CurveRestore | null = null;
+  private putBackTries = 0;
+  private puttingBack = false;
+  /** The preset owed back after a one-dab curve, or null. */
+  get curveRestore(): CurveRestore | null { return this._curveRestore; }
+  private setRestore(r: CurveRestore | null) {
+    this._curveRestore = r;
+    if (r) this.store.set("curveRestoreV1", r); else this.store.remove("curveRestoreV1");
+    this.changed();
+  }
+  private forgetRestore(p: number, why: string) {
+    if (this.puttingBack || this._curveRestore?.p !== p) return;
+    this.log(`ONE DAB: preset ${p} no longer owed back (${why}).`);
+    this.setRestore(null);
+  }
+
+  /** Why a one-dab curve can't go to preset `p`, or null. Short, for the planner. */
+  oneDabProblem(p: number): string | null {
+    const r = this._curveRestore;
+    if (this.puttingBack && r) return `Putting P${r.p} back…`;
+    if (r && r.p !== p) return `Put P${r.p} back first.`;
+    if (r) return null;   // same preset: the original is already saved
+    const pr = this.presets[p];
+    if (!pr || pr.tempF === undefined || pr.hold === undefined || pr.profile === undefined) return `P${p} not read yet.`;
+    if (pr.profile === 241) {
+      const old = this.reportedCurve(p);
+      if (!old || RigController.curveProblem(old)) return `P${p} can't be put back. Use KEEP.`;
+    } else if (!HeatProfile.isWritable(pr.profile)) return `P${p} can't be put back. Use KEEP.`;
+    return null;
+  }
+
+  /** Sends a curve to preset `p` for one dab. The preset's settings from before are saved (once, never
+   *  overwritten by a later one-dab send) and written back with heat off after that preset's next dab. */
+  saveCurveOnce(p: number, steps: CurveStep[], onResult?: (r: CurveResult) => void): boolean {
+    const why = this.oneDabProblem(p);
+    if (why) { this.say(why); return false; }
+    const had = this._curveRestore;
+    let snap: CurveRestore | null = null;
+    if (!had) {
+      const pr = this.presets[p];
+      const pay = (b: number[] | undefined) => (b && b.length >= 18 ? Array.from(b.slice(3, 18)) : null);
+      snap = { p, tempF: pr.tempF!, hold: pr.hold!, profile: pr.profile!, steps: pr.profile === 241 ? this.reportedCurve(p) : null,
+        a: pay(pr.custom170), b: pay(pr.custom171), used: false };
+    }
+    const sent = this.writeCurve(p, steps, r => {
+      // A save that didn't land leaves the preset half changed: put it back at the next quiet moment.
+      if ((r === "dropped" || r === "MISMATCH") && this._curveRestore?.p === p) {
+        this.log(`ONE DAB: save ${r === "dropped" ? "did not finish" : "did not match"}, putting preset ${p} back.`);
+        this.setRestore({ ...this._curveRestore, used: true });
+      }
+      onResult?.(r);
+    });
+    if (!sent) return false;
+    if (snap) {
+      this.log(`ONE DAB: preset ${p} saved for later: ${snap.tempF} F, hold ${snap.hold} s, profile ${HeatProfile.name(snap.profile)}.`);
+      this.setRestore(snap);
+    } else if (had) this.setRestore({ ...had, used: false });
+    return true;
+  }
+
+  get puttingPresetBack(): boolean { return this.puttingBack; }
+
+  /** Writes the owed preset back now (heat off only). */
+  putBackNow() { this.putBack(true); }
+
+  private putBack(manual: boolean) {
+    const r = this._curveRestore;
+    if (!r || this.puttingBack) return;
+    const s = this.gate();
+    if (s === null) return;
+    if (s.sessionByte !== 0) { if (manual) this.say("Wait for heat to stop."); return; }
+    this.putBackTries += 1;
+    this.puttingBack = true;
+    this.changed();
+    this.log(`ONE DAB: putting preset ${r.p} back: ${r.tempF} F, hold ${r.hold} s, profile ${HeatProfile.name(r.profile)}.`);
+    const finish = (res: CurveResult) => {
+      if (!this.puttingBack) return;
+      this.puttingBack = false;
+      if (res === "ok" || res === "no report") {
+        this.log(res === "ok" ? `ONE DAB: preset ${r.p} is back. The rig read back the old curve.`
+          : `ONE DAB: preset ${r.p} written back. The rig sent no curve read-back to confirm it.`);
+        this.setRestore(null);
+      } else {
+        this.log(`ONE DAB: put-back of preset ${r.p} ${res === "dropped" ? "did not finish" : "did not match"} (try ${this.putBackTries}).`);
+        if (manual || this.putBackTries >= 2) this.say(`P${r.p} isn't back yet. Tap PUT BACK with the rig idle.`);
+        this.changed();
+      }
+    };
+    if (r.profile === 241 && r.steps) {
+      if (!this.writeCurve(r.p, r.steps, finish)) this.puttingBack = false;
+      return;
+    }
+    const ok = this.writePreset(r.p, r.tempF, r.hold, r.profile, {
+      // Only a read-back that arrives after this write can confirm it.
+      first: () => { this.presets[r.p].custom170 = undefined; this.presets[r.p].custom171 = undefined; },
+      last: () => this.clock.after(2.5, () => {
+        if (!r.a) { finish("no report"); return; }
+        const pay = (b: number[] | undefined) => (b && b.length >= 18 ? Array.from(b.slice(3, 18)) : null);
+        const same = (x: number[] | null, y: number[] | null) => !!x && !!y && x.length === y.length && x.every((v, i) => v === y[i]);
+        const gotA = pay(this.presets[r.p].custom170), gotB = pay(this.presets[r.p].custom171);
+        if (gotA === null && gotB === null) finish("no report");
+        else finish(same(gotA, r.a) && (r.b === null || same(gotB, r.b)) ? "ok" : "MISMATCH");
+      }),
+      drop: () => finish("dropped"),
+    });
+    if (!ok) this.puttingBack = false;
   }
 
   // MARK: Actions: lights
@@ -1298,6 +1450,11 @@ export class RigController {
     this.sessionStartDate = this.now();
     this.sessionPeakF = 0;
     const s = this.live;
+    const owed = this._curveRestore;
+    if (owed && !owed.used && s?.preset === owed.p) {
+      this.log(`ONE DAB: dab on preset ${owed.p}. It goes back when the heat is off.`);
+      this.setRestore({ ...owed, used: true });
+    }
     if (s) {
       const p: PresetInfo = inRange(s.preset, 0, 5) ? this.presets[s.preset] : {};
       const tgt = p.tempF !== undefined ? String(p.tempF) : "?";
@@ -1334,6 +1491,7 @@ export class RigController {
       this.log(`SESSION END duration=${(this.now() - this.sessionStartDate).toFixed(0)} peak=${this.sessionPeakF}`);
     }
     this.sessionStartDate = null;
+    this.putBackTries = 0;
     if (this.dialTouched.size > 0) this.log("DIAL TEST: session ended. Putting temps back.");
     this.dialStart = null;
     this.dialCurrent = null;

@@ -128,6 +128,8 @@ function runScenario(sc: Scenario): boolean {
       case "savePreset": rig.savePreset(a.slot, a.tempF, a.hold, a.profile); break;
       case "selectPreset": rig.selectPreset(a.slot); break;
       case "saveCurve": rig.saveCurve(a.slot, a.steps); break;
+      case "saveCurveOnce": rig.saveCurveOnce(a.slot, a.steps); break;
+      case "putBackNow": rig.putBackNow(); break;
       case "dialNudge": rig.dialNudge(a.by); break;
       case "setDialMode": rig.dialMode = a.mode; break;
       case "askDisconnect": rig.askDisconnect(); break;
