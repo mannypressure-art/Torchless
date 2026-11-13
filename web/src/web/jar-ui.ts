@@ -218,25 +218,13 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     const dock = h("button", { class: "dockBtn", "aria-label": docked ? "Pin the jar to the top" : "Move the jar to the bottom",
       onclick: () => { prefSet("jarDock", docked ? "no" : "yes"); renderHome(); } });
     dock.innerHTML = docked ? '<svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
-    // Manny 2026-11-13: session counter. A session is the run of dabs (any jar) with under 2 hours between
-    // them, still open if the last dab was under 2 hours ago. Tap to start a new count.
-    const sess = sessionDabs();
-    // Fable review: says what it counts; reset is the small ×, not the whole key.
-    const counter = h("div", { class: "sessKey", "aria-label": `${sess} dabs this session` },
-      h("b", {}, String(sess)), h("small", {}, sess === 1 ? "DAB" : "DABS"),
-      sess ? h("button", { class: "x", "aria-label": "Reset the session count",
-        onclick: () => { prefSet("sessionReset", new Date().toISOString()); renderHome(); } }, "×") : "");
+    // Manny 2026-11-13: the counter shows how many dabs are logged from THIS jar (was a session count).
+    const n = j ? (j.dabs ?? []).length : 0;
+    const counter = j ? h("div", { class: "sessKey", "aria-label": `${n} dabs logged from this jar` },
+      h("b", {}, String(n)), h("small", {}, n === 1 ? "DAB" : "DABS")) : "";
     box.replaceChildren(main, counter, h("div", { class: "jarSide" },
       j && open.length > 1 ? h("button", { class: "switchLink", onclick: () => quickSwitch() }, "SWITCH") : "",
       h("div", { class: "addKey" }, plus, h("small", {}, "ADD")), dock));
-  }
-  function sessionDabs(): number {
-    const GAP = 2 * 3600e3, reset = Date.parse(prefGet("sessionReset") ?? "") || 0;
-    const times = store.jars.flatMap(x => (x.dabs ?? []).map(d => Date.parse(d.at))).filter(t => t > reset).sort((a, b) => b - a);
-    if (!times.length || Date.now() - times[0] > GAP) return 0;
-    let n = 1;
-    while (n < times.length && times[n - 1] - times[n] < GAP) n++;
-    return n;
   }
   function quickSwitch(): void {
     openSheet(close => h("div", { class: "cardBody" }, h("h3", {}, "Switch jar"),
