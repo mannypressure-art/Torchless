@@ -77,6 +77,15 @@
   .notice.warn .tag { color: var(--warn); }
   .notice.note { background: var(--noteFill); border: 1px solid color-mix(in srgb, var(--gold) 70%, transparent); align-items: center; }
   .notice.note .tag { color: var(--gold); }
+  /* Manny 2026-11-13: the full-screen tip pops up and points at Bluefy's menu button (bottom right, just below the page). */
+  #fsTip { position: fixed; left: 12px; right: 12px; bottom: calc(26px + env(safe-area-inset-bottom)); z-index: 60; box-shadow: 0 10px 30px rgba(0,0,0,.55); background: color-mix(in srgb, var(--gold) 14%, var(--cardBottom)); }
+  #fsTip p b { white-space: nowrap; }
+  #linkScreen:has(#fsTip:not([hidden])) { padding-bottom: 170px; }
+  #fsTip::after { content: ""; position: absolute; right: 18px; bottom: -22px; width: 0; height: 0; border: 11px solid transparent; border-top: 14px solid var(--gold); animation: fsPoint 1s ease-in-out infinite; }
+  @keyframes fsPoint { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
+  @media (prefers-reduced-motion: reduce) { #fsTip::after { animation: none; } }
+  .burger { display: inline-flex; flex-direction: column; justify-content: center; gap: 3px; width: 22px; height: 20px; padding: 0 3px; vertical-align: middle; border: 1px solid var(--gold); border-radius: 5px; }
+  .burger i { display: block; height: 2px; background: var(--gold); border-radius: 1px; }
   .notice p { margin: 4px 0 0; font: 600 19px/1.15 var(--cond); }
   .notice .icon { font-size: 24px; line-height: 1; flex: none; display: flex; }
   .gotIt { margin-left: auto; flex: none; min-height: 44px; padding: 0 12px; border: 1px solid var(--gold); border-radius: 11px; color: var(--gold); font: 700 15px/1 var(--cond); letter-spacing: 1.5px; }
@@ -738,6 +747,13 @@
 
 <!-- Front page: how do you dab? -->
 <section id="linkScreen">
+      <div id="fsTip" class="notice note" hidden>
+        <span class="icon" style="color:var(--gold)"><svg class="ico" aria-hidden="true"><use href="#i-expand"/></svg></span>
+        <div><span class="tag">FULL SCREEN</span><p>Tap <span class="burger" aria-label="menu"><i></i><i></i><i></i></span> at the bottom right, then turn on <b>Full-screen Mode</b>.</p>
+          <button id="fsNever" class="tag" style="background:none;border:0;padding:8px 0 0;color:var(--gold);text-decoration:underline">DON'T SHOW AGAIN</button></div>
+        <button id="fsGo" class="gotIt" hidden>FULL SCREEN</button>
+        <button id="fsGotIt" class="gotIt">GOT IT</button>
+      </div>
   <div class="linkHead head">
     <svg class="mark"><use href="#markSym"/></svg>
     <div class="brand">TORCHLESS</div>
@@ -801,13 +817,6 @@
         <span class="icon" style="color:var(--gold)"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></span>
         <div><span class="tag">WHILE YOU WERE AWAY</span><p id="awayText"></p></div>
         <button id="gotIt" class="gotIt">GOT IT</button>
-      </div>
-      <div id="fsTip" class="notice note" hidden>
-        <span class="icon" style="color:var(--gold)"><svg class="ico" aria-hidden="true"><use href="#i-expand"/></svg></span>
-        <div><span class="tag">FULL SCREEN</span><p>Open Bluefy's menu and turn on Full-screen Mode to hide the address bar.</p>
-          <button id="fsNever" class="tag" style="background:none;border:0;padding:8px 0 0;color:var(--gold);text-decoration:underline">DON'T SHOW AGAIN</button></div>
-        <button id="fsGo" class="gotIt" hidden>FULL SCREEN</button>
-        <button id="fsGotIt" class="gotIt">GOT IT</button>
       </div>
       <div id="btMsg2" class="btmsg" hidden></div>
     </div>
