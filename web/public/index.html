@@ -171,16 +171,21 @@
 
   /* Presets */
   .row { display: flex; align-items: center; gap: 8px; }
-  .curveCard { margin-top: 12px; padding: 14px 14px 12px; border: 1px solid var(--edge); border-radius: 18px; background: linear-gradient(var(--cardTop), var(--cardBottom)); }
-  .curveHead { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+  .curveCard { margin-top: 12px; padding: 16px 16px 12px; border: 1px solid var(--edge); border-radius: 18px; background: linear-gradient(var(--cardTop), var(--cardBottom)); }
+  .curveHead { display: grid; grid-template-columns: 1fr auto 24px; gap: 16px; align-items: start; width: 100%; min-height: 56px; padding: 2px 0; text-align: left; background: none; border: 0; color: inherit; }
   .curveTitle { font: 700 22px/1 var(--cond); letter-spacing: 2px; color: var(--ink); margin-top: 5px; }
   .curveHero { font: 700 30px/0.9 var(--cond); letter-spacing: 1px; color: var(--ink); white-space: nowrap; }
   .curveHero small { font: 600 10px/1 var(--mono); letter-spacing: 1.6px; color: var(--dim); display: block; text-align: right; margin-bottom: 5px; }
-  .curveHead { cursor: pointer; }
-  .curveChev { align-self: center; transform: rotate(90deg); transition: transform .2s; color: var(--dim); }
-  .curveCard.folded .curveChev { transform: rotate(0deg); }
-  .curveCard.folded svg, .curveCard.folded .curveStats { display: none; }
-  .curveCard.folded .curveHero span { font-size: 22px; }
+  .cvCol { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .cvHeroCol { border-left: 1px solid #2A2D33; padding-left: 16px; }
+  .cvLbl { font: 600 11px/14px var(--mono); letter-spacing: .12em; color: #8A8F98; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cvBig { font: 700 30px/1 var(--cond); letter-spacing: 1px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cvBig.gold { color: var(--gold); }
+  .cvChev { width: 20px; height: 20px; align-self: center; fill: none; stroke: #8A8F98; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .graphHead { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; margin-top: 10px; padding: 0; border: 0; border-top: 1px solid #2A2D33; background: none; color: inherit; }
+  .graphChev { width: 20px; height: 20px; fill: none; stroke: #8A8F98; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s; transform: rotate(180deg); }
+  .curveCard.folded .graphChev { transform: rotate(0deg); }
+  .curveCard.folded #curveSvg, .curveCard.folded .curveStats { display: none; }
   .jarTabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .jarTab { min-height: 44px; border-radius: 12px; border: 1px solid var(--edge); font: 700 11px var(--mono); letter-spacing: 1.5px; color: var(--dim); }
   .jarTab.tMine.on { color: var(--coll); border-color: var(--coll); background: color-mix(in srgb, var(--coll) 13%, transparent); }
@@ -235,6 +240,35 @@
   .foldHead .chev { transform: rotate(90deg); transition: transform .2s; }
   .foldHead[aria-expanded="false"] .chev { transform: rotate(0deg); }
   .lookGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  /* Look bars (Style tab): name only; the look's effect runs lightly around the border. */
+  @property --lbA { syntax: "<angle>"; inherits: false; initial-value: 0deg; }
+  .lookBars { display: flex; flex-direction: column; gap: 8px; }
+  .lookBar { position: relative; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 16px; border-radius: 14px;
+    border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); text-align: left; isolation: isolate; }
+  .lookBar b { font-size: 20px; letter-spacing: 1px; }
+  .lookBar.on { border-color: transparent; background: color-mix(in srgb, var(--live) 10%, var(--cardBottom)); }
+  .lookBar::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 2px; pointer-events: none; z-index: -1;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); opacity: .75; }
+  .lookBar.on::before { opacity: 1; }
+  .lb-off::before { display: none; }
+  .lb-chimes::before { background: #9fe7ff; animation: lbBreathe 2.4s ease-in-out infinite; }
+  .lb-ember::before { background: linear-gradient(90deg, #7a1d00, #ff7a1a, #ffb35c, #ff7a1a, #7a1d00); background-size: 200% 100%; animation: lbSlide 3s linear infinite, lbBreathe 2.2s ease-in-out infinite; }
+  .lb-ignition::before { background: conic-gradient(from var(--lbA), transparent 0 70%, #ffd23a 85%, #fff6b0 88%, transparent 92%); animation: lbSpin 1.6s linear infinite; }
+  .lb-torch::before { padding: 3px; background: conic-gradient(from var(--lbA), #ff4d00, #ffb21a, #fffbe0, #ff7a1a, #ff4d00, #ffb21a, #ff4d00); animation: lbSpin 2.4s linear infinite, lbFlicker .18s steps(2) infinite alternate; }
+  .lb-torch { box-shadow: 0 0 14px -4px #ff7a1a; }
+  .lb-arcade::before { padding: 3px; background: repeating-linear-gradient(90deg, #ffd23a 0 6px, transparent 6px 18px); animation: lbMarch .9s linear infinite; }
+  @keyframes lbMarch { to { background-position: 18px 0; } }
+  .lb-reactor::before { background: conic-gradient(from var(--lbA), #39ffb0 0 18%, transparent 18% 50%, #39ffb0 50% 68%, transparent 68%); animation: lbSpin 1.2s linear infinite; }
+  .lb-kettle::before { background: linear-gradient(90deg, rgba(255,255,255,.15), rgba(255,255,255,.75), rgba(255,255,255,.15)); background-size: 200% 100%; animation: lbSlide 2.6s ease-in-out infinite; }
+  .lb-storm::before { background: #5a6c94; animation: lbFlash 3.2s steps(1) infinite; }
+  @keyframes lbSpin { to { --lbA: 360deg; } }
+  @keyframes lbSlide { to { background-position: -200% 0; } }
+  @keyframes lbBreathe { 50% { opacity: .3; } }
+  @keyframes lbFlicker { to { filter: brightness(1.25); } }
+  @keyframes lbFlash { 0%, 100% { background: #5a6c94; } 62% { background: #e8f2ff; } 64% { background: #5a6c94; } 70% { background: #e8f2ff; } 72% { background: #5a6c94; } }
+  @media (prefers-reduced-motion: reduce) { .lookBar::before { animation: none !important; } }
+
   .lookCard { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; border-radius: 14px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); text-align: left; min-height: 44px; }
   .lookCard.on { border-color: var(--live); background: color-mix(in srgb, var(--live) 12%, var(--cardBottom)); }
   .lookCard b { font-size: 18px; } .lookCard small { font: 10px/1.3 var(--mono); color: var(--dim); }
@@ -267,7 +301,7 @@
   @keyframes swSteam { from { transform: translateY(6px); opacity: 1; } to { transform: translateY(-12px); opacity: 0; } }
   @keyframes swFlash { 0%, 80% { opacity: 0; } 82%, 86% { opacity: 1; } 84% { opacity: .2; } }
   @media (prefers-reduced-motion: reduce) { .lookSw::before, .lookSw::after { animation: none !important; } }
-  .curveCard svg { display: block; width: 100%; height: auto; margin-top: 6px; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+  .curveCard #curveSvg { display: block; width: 100%; height: auto; margin-top: 6px; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
   .curveStats { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 8px; border-top: 1px solid var(--edge); }
   .curveStats div { padding: 9px 0 0; text-align: center; border-left: 1px solid var(--edge); }
   .curveStats div:first-child { border-left: 0; }
@@ -765,6 +799,16 @@
         <div class="corner br"><span class="tag" style="font-size:9px">TIME LEFT</span><b id="cLeft">--</b></div>
       </div>
 
+      <div class="heatBlock">
+        <div id="heatRow"><button id="heat" class="bigBtn" disabled><svg class="ico" aria-hidden="true"><use href="#i-flame"/></svg>HEAT IT</button></div>
+        <div id="cutRow" class="row" style="gap:8px" hidden>
+          <button id="cut" class="bigBtn"><svg class="ico" aria-hidden="true"><use href="#i-stop"/></svg>CUT IT</button>
+          <button id="extend" class="panel"><b>+10s</b><span class="tag" style="font-size:8.5px">MORE TIME</span></button>
+          <button id="holdBtn" class="panel" aria-pressed="false"><b>HOLD</b><span id="holdTag" class="tag" style="font-size:8.5px">OFF</span></button>
+        </div>
+        <div id="heatHint" class="hint"></div>
+      </div>
+
       <div>
         <div class="row"><span id="presetTag" class="tag" style="font-size:9.5px">PRESETS</span><button id="editBtn" class="edit" hidden>EDIT</button></div>
         <div class="presets">
@@ -776,11 +820,13 @@
         </div>
         <button id="planBtn" class="planBtn"><svg class="ico" aria-hidden="true"><use href="#i-dial"/></svg>PLAN A CURVE</button>
         <div id="curveCard" class="curveCard" hidden>
-          <div class="curveHead" id="curveHead" role="button" tabindex="0" aria-expanded="false">
-            <div><span id="curveTag" class="tag" style="font-size:9.5px">HEAT CURVE</span><div id="curveTitle" class="curveTitle"></div></div>
-            <div class="curveHero"><small id="curveHeroTag">RANGE</small><span id="curveRange"></span></div>
-            <span class="chev curveChev" aria-hidden="true">›</span>
-          </div>
+          <button class="curveHead" id="curveHead" aria-label="Edit this preset">
+            <div class="cvCol"><span id="curveTag" class="cvLbl">PRESET</span><span id="curveTitle" class="cvBig"></span></div>
+            <div class="cvCol cvHeroCol"><span id="curveHeroTag" class="cvLbl">RANGE</span><span id="curveRange" class="cvBig gold"></span></div>
+            <svg class="cvChev" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+          <button class="graphHead" id="graphHead" aria-expanded="true" aria-controls="curveSvg"><span class="cvLbl">GRAPH</span>
+            <svg class="graphChev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
           <svg id="curveSvg" viewBox="0 0 340 168" role="img" aria-label="Heat curve for the selected preset"></svg>
           <div class="curveStats">
             <div><span class="tag" style="font-size:8.5px">START</span><b id="cvStart"></b></div>
@@ -791,15 +837,6 @@
         </div>
       </div>
 
-      <div class="heatBlock">
-        <div id="heatRow"><button id="heat" class="bigBtn" disabled><svg class="ico" aria-hidden="true"><use href="#i-flame"/></svg>HEAT IT</button></div>
-        <div id="cutRow" class="row" style="gap:8px" hidden>
-          <button id="cut" class="bigBtn"><svg class="ico" aria-hidden="true"><use href="#i-stop"/></svg>CUT IT</button>
-          <button id="extend" class="panel"><b>+10s</b><span class="tag" style="font-size:8.5px">MORE TIME</span></button>
-          <button id="holdBtn" class="panel" aria-pressed="false"><b>HOLD</b><span id="holdTag" class="tag" style="font-size:8.5px">OFF</span></button>
-        </div>
-        <div id="heatHint" class="hint"></div>
-      </div>
 
       <div id="dialStrip" class="stackS" hidden>
         <div class="row" style="justify-content:space-between"><span class="tag" style="font-size:9.5px">RIDE THE DIAL · TEST</span><span id="dialGoal" class="tag" style="font-size:9.5px;color:var(--gold)">GOAL ---</span></div>

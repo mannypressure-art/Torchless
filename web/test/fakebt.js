@@ -21,7 +21,9 @@
     async writeValueWithoutResponse(d) {
       const b = Array.from(d); rig.log.push('RX ' + b.join(','));
       if (b[0] === 177) { for (let p = 0; p < 6; p++) { const f = rig.temps[p], c = Math.round((f-32)*5/9);
-        push([163,8,p,f>>8,f&255,c>>8,c&255,163]); push([167,6,p,0,rig.holds[p],167]); push([165,5,p,161,165]); } }
+        push([163,8,p,f>>8,f&255,c>>8,c&255,163]); push([167,6,p,0,rig.holds[p],167]); push([165,5,p,161,165]);
+          const wp = (F, t) => { const C = Math.round((F-32)*5/9); return [F>>8,F&255,C>>8,C&255,t]; };
+          push([170,13,p,...wp(f,0),...wp(f,rig.holds[p]),170]); } }
       if (b[0] === 185) { rig.preset = b[3]; rig.light = b[6]; rig.bright = b[13];
         if (b[10] === 170 && !rig.session) { rig.session = 170; total = rig.holds[rig.preset]; rig.remaining = total; countdownAt = Date.now()/1000 + 2; rig.log.push('START app'); }
         else if (b[10] === 0 && rig.session) { rig.session = 0; rig.remaining = 0; rig.log.push('STOP app'); } }

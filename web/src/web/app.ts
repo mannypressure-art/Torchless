@@ -245,7 +245,7 @@ function renderCurve(sel: number, celsius: boolean, heating: boolean) {
   if (!view || !p) return;
   $("curveSvg").innerHTML = view.svg;
   const deg = (x: number) => `${Math.round(x)}°`;
-  $("curveTag").textContent = `PRESET ${sel} · HEAT CURVE`;
+  $("curveTag").textContent = `PRESET ${sel}`;
   $("curveTitle").textContent = p.profile !== undefined ? HeatProfile.name(p.profile).toUpperCase() : "—";
   $("curveHeroTag").textContent = view.low === view.peak ? "HOLDS AT" : "RANGE";
   $("curveRange").textContent = view.low === view.peak ? deg(view.peak) : `${Math.round(view.low)}–${deg(view.peak)}`;
@@ -254,14 +254,13 @@ function renderCurve(sel: number, celsius: boolean, heating: boolean) {
   $("cvLow").textContent = deg(view.low);
   $("cvHold").textContent = `${view.seconds}s`;
 }
-// The heat curve folds away so HEAT IT and the jar stay on screen. Folded by default; remembered.
+// Manny 2026-11-13: the preset row opens the preset editor; the GRAPH row folds the chart. Open by default; remembered.
 {
-  const card = $("curveCard"), head = $("curveHead");
-  const setFold = (folded: boolean) => { card.classList.toggle("folded", folded); head.setAttribute("aria-expanded", String(!folded)); };
-  setFold(prefs.get("curveOpen") !== "yes");
-  const flip = () => { const folded = !card.classList.contains("folded"); prefs.set("curveOpen", folded ? "no" : "yes"); setFold(folded); };
-  head.onclick = flip;
-  head.onkeydown = (e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } };
+  const card = $("curveCard"), graph = $("graphHead");
+  const setFold = (folded: boolean) => { card.classList.toggle("folded", folded); graph.setAttribute("aria-expanded", String(!folded)); };
+  setFold(prefs.get("graphOpen") === "no");
+  graph.onclick = () => { const folded = !card.classList.contains("folded"); prefs.set("graphOpen", folded ? "no" : "yes"); setFold(folded); };
+  $("curveHead").onclick = () => { const b = $("editBtn") as HTMLButtonElement; if (!b.hidden && !b.disabled) b.click(); };
 }
 {
   // Touch readout: drag across the chart to read time and temp. Vertical drags still scroll the page.
@@ -600,21 +599,9 @@ function buildLookInto(page: HTMLElement) {
     buildSoundPicker(page);
   }
 }
-/** Look previews run for about 1.5 s when they scroll into view (and again on a tap), then rest. Reduced motion: never. */
-const previewObserver = typeof IntersectionObserver === "function" ? new IntersectionObserver(es => {
-  for (const e of es) if (e.isIntersecting) playPreview(e.target as HTMLElement);
-}, { threshold: 0.6 }) : null;
-function playPreview(el: HTMLElement) {
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  el.classList.add("play");
-  window.setTimeout(() => el.classList.remove("play"), 1500);
-}
-function watchPreviews(root: HTMLElement) {
-  root.querySelectorAll<HTMLElement>(".lookSw").forEach(el => { previewObserver?.observe(el); el.parentElement?.addEventListener("pointerdown", () => playPreview(el)); });
-}
 // Heat-up look and soundtrack picker (Rig > Look), same rows and words as HeatSoundPicker.
 function buildSoundPicker(page: HTMLElement) {
-  const box = h("div", { class: "lookGrid" }), trackBox = h("div", { class: "stackS" });
+  const box = h("div", { class: "lookBars" }), trackBox = h("div", { class: "stackS" });
   const row = (c: { id: string; name: string; line: string }, on: boolean, label: string, pick: () => void) =>
     h("button", { class: "soundRow" + (on ? " on" : ""), "aria-label": label + (on ? ", on" : ""), onclick: pick },
       h("div", { style: "flex:1;min-width:0" }, h("b", { class: "cond" }, c.name), h("small", { class: "mono" }, c.line)), on ? tag("ON", "color:var(--live);font-size:9px") : null);
@@ -622,12 +609,11 @@ function buildSoundPicker(page: HTMLElement) {
     const cur = validSound(prefs.get("heatSound")), track = validTrack(prefs.get("heatTrack"));
     box.replaceChildren(...HEAT_SOUNDS.map(c => {
       const on = cur === c.id;
-      const sw = h("span", { class: `lookSw sw-${c.id}`, "aria-hidden": "true" });
-      return h("button", { class: "lookCard" + (on ? " on" : ""), "aria-label": `${c.name} look${on ? ", on" : ""}`, onclick: () => {
+      // Manny 2026-11-13: a plain bar with the name; the look's effect runs lightly around its border.
+      return h("button", { class: `lookBar lb-${c.id}` + (on ? " on" : ""), "aria-label": `${c.name} look${on ? ", on" : ""}`, onclick: () => {
         prefs.set("heatSound", c.id); heatTrack.stopPreview(); heatSound.preview(c.id); draw(); rigUI.render();
-      } }, sw, h("div", { class: "row" }, h("b", { class: "cond" }, c.name), on ? tag("ON", "margin-left:auto;color:var(--live);font-size:9px") : null), h("small", {}, c.line));
+      } }, h("b", { class: "cond" }, c.name), on ? tag("ON", "margin-left:auto;color:var(--live);font-size:9px") : null);
     }));
-    watchPreviews(box);
     trackBox.replaceChildren(...HEAT_TRACKS.map(c => row(c, track === c.id, c.name, () => {
       prefs.set("heatTrack", c.id);
       heatSound.preview(c.id === "look" ? validSound(prefs.get("heatSound")) : "off");
