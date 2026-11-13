@@ -422,6 +422,9 @@
   .key small { display: block; font: 500 11px/1 var(--mono); color: var(--dim); margin-bottom: 1px; }
   .key span { font: 600 20px/1 var(--cond); }
   .key.on { background: var(--selFill); border-color: var(--live); }
+  #p1, #p2, #p3, #p4, #p5 { box-shadow: inset 0 -3px 0 var(--pc, transparent); }
+  #p1 small, #p2 small, #p3 small, #p4 small, #p5 small { color: var(--pc, var(--dim)); }
+  .key.on#p1, .key.on#p2, .key.on#p3, .key.on#p4, .key.on#p5 { border-color: var(--pc, var(--live)); }
   .key.on small { color: var(--live); }
   .key:disabled { opacity: .45; }
   .edit { margin-left: auto; min-height: 32px; padding: 0 2px 0 10px; border: 0; background: none; color: var(--gold); font: 700 11px var(--mono); letter-spacing: 1.5px; }
