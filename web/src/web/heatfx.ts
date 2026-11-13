@@ -59,12 +59,12 @@ class HeatSound {
   private ctl: [number, number, number, boolean] = [1, 0, 0, false];
   private unlocked = false;
   private previewUntil = 0;
+  private torchUntil = 0;
   private lastPhase = Phase.idle;
   private coolSince = -1e9;
 
   /** The shared audio context, once a tap has made one. The soundtrack plays through it too. */
   context(): AudioContext | null { return this.ctx; }
-  private torchUntil = 0;
 
   /** Called from the first tap of any kind (and every tap after), since audio needs a user gesture. */
   unlock(): void {
@@ -114,8 +114,6 @@ class HeatSound {
     if (this.ctx.state !== "running") void this.ctx.resume().catch(() => {});
   }
 
-  /** Something else (the soundtrack) is sounding through the context: keep it awake for now. */
-  keep(ms = 0): void { this.lastNeed = Math.max(this.lastNeed, performance.now() + ms); this.start(); this.scheduleIdleCheck(); }
   /** Torch mode's timer drives the sound while it runs (phase: 0 idle, 1 torch on, 3 cooling). Rig updates wait
    *  until about a second after the last call here, so the two never fight over the controls. */
   torch(theme: string, phase: 0 | 1 | 3, energy: number, lastFive: boolean): void {
@@ -126,6 +124,8 @@ class HeatSound {
     if (phase !== 0) this.torchUntil = performance.now() + 1200;
     if (live) this.start();
   }
+  /** Something else (the soundtrack) is sounding through the context: keep it awake for now. */
+  keep(ms = 0): void { this.lastNeed = Math.max(this.lastNeed, performance.now() + ms); this.start(); this.scheduleIdleCheck(); }
 
   update(theme: string, phase: Phase, energy: number, lastFive: boolean): void {
     if (performance.now() < this.torchUntil) return;   // only ever set by torch() above

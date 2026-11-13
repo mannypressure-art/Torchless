@@ -51,7 +51,7 @@ interface Setup {
 }
 
 const LIMITS = { torch: [5, 120], cool: [0, 180], cold: [1, 90], dabAt: [300, 900], torchTo: [300, 1000] } as const;
-const GAUGE_DAB = 550, GAUGE_TORCH = 650;
+const GAUGE_DAB = 500, GAUGE_TORCH = 650;
 const tens = (v: unknown, d: number, lim: readonly [number, number]) => Math.round(num(v, d, lim) / 10) * 10;
 const MAX_SETUPS = 4;
 const MAX_STEPS = 3;
