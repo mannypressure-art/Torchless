@@ -743,7 +743,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         const j = jarf();
         const kids: Kid[] = [];
         kids.push(h("div", { class: "row" }, tag("HOW WAS THAT DAB?", "font-size:9.5px"),
-          tag(`${Dabs.goalText(prompt.dab)} · ${prompt.dab.seconds} S`, "margin-left:auto;font-size:9px;color:var(--sub)")));
+          tag(`${Dabs.goalText(prompt.dab)}${prompt.dab.seconds > 0 ? ` · ${prompt.dab.seconds} S` : ""}`, "margin-left:auto;font-size:9px;color:var(--sub)")));
         if (j) kids.push(h("div", { class: "bigName", style: "font-size:28px" }, j.strain));
         if (prompt.jarID === null) {
           const open = store.shelf.filter(x => !x.finished);
