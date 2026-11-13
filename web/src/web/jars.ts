@@ -360,6 +360,8 @@ export class JarStore {
     if (!(await this.persist(next))) { this.onChange(); return; }
     if (this.currentID === id) this.setCurrent(null);
     for (const k of allPhotos(j)) { photoURLs.drop(k); void this.backend.deletePhoto(k); }
+    // Shared rating and cover come down too (JarSync takes them down while signed in; retried each pass).
+    if (j.sentProductID || j.sentCover) Takedown.add({ pid: j.sentProductID, cover: j.sentCover });
     this.onChange();
   }
 
@@ -680,3 +682,11 @@ export class IDBJarBackend implements JarBackend {
     try { if (v === null) localStorage.removeItem("torchless." + k); else localStorage.setItem("torchless." + k, v); } catch { /* fine */ }
   }
 }
+
+/** Shared items of deleted jars, waiting to be taken down from the server (same as JarSync.swift C1). */
+export interface TakedownItem { pid?: string; cover?: string }
+export const Takedown = {
+  list(): TakedownItem[] { try { return JSON.parse(localStorage.getItem("torchless.takedown") ?? "[]"); } catch { return []; } },
+  save(l: TakedownItem[]) { try { if (l.length) localStorage.setItem("torchless.takedown", JSON.stringify(l)); else localStorage.removeItem("torchless.takedown"); } catch { /* storage off */ } },
+  add(t: TakedownItem) { this.save([...this.list(), t]); },
+};

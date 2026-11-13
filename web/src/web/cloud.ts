@@ -5,7 +5,7 @@
 
 import { AuthClient, Session } from "@supabase/auth-js";
 import { PostgrestClient } from "@supabase/postgrest-js";
-import { JarStore, Jar } from "./jars";
+import { JarStore, Jar, Takedown } from "./jars";
 import { PhotoShelf } from "./shared-photos";
 
 export const SERVER_URL = "https://jaxwybhjvrqxsihcnxev.supabase.co";
@@ -220,9 +220,29 @@ export class JarSync {
       }
     }
 
+    if (uid) await this.takedownPass(uid);
     if (uid) await this.coverPass(uid);
     if (uploaded || Date.now() - this.lastStats > 60_000) await this.refreshGlobal();
     this.lastProblem = problem;
+  }
+
+  /** Deleted jars: their shared rating and cover come down. Only this account's own items; others wait. */
+  private async takedownPass(uid: string): Promise<void> {
+    const keep = [];
+    for (const t of Takedown.list()) {
+      let left = { ...t };
+      if (left.cover) {
+        const c = left.cover.split("|");
+        if (c.length !== 4) delete left.cover;
+        else if (c[3].startsWith(uid + "/")) {
+          this.shelf ??= new PhotoShelf(this.account.db.fetch, () => (this.account.state === "ready" ? this.account.userID : null));
+          if (await this.shelf.autoDrop(c[2], c[3], c[0])) delete left.cover;
+        }
+      }
+      if (left.pid && (await this.deleteRating(uid, left.pid))) delete left.pid;
+      if (left.pid || left.cover) keep.push(left);
+    }
+    Takedown.save(keep);
   }
 
   /** The jar's cover photo follows its shared rating (on by default, per-jar switch). Moderated on the server. */
