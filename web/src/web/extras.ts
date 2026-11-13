@@ -10,6 +10,7 @@ const K = {
   cleanAt: "torchless.cleanAtCycles",    // the rig's heat-cycle count when it was last cleaned
   cleanLocal: "torchless.dabsSinceClean",// dabs this app saw since the last clean (when the counter is unknown)
   cleanEvery: "torchless.cleanEvery",    // remind after this many dabs
+  cleanOn: "torchless.cleanOn",          // "0" = deep clean reminder off
 };
 const get = (k: string): string | null => { try { return localStorage.getItem(k); } catch { return null; } };
 const set = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
@@ -120,6 +121,8 @@ export class RigExtras {
 
   get cleanEvery(): number { const n = num(K.cleanEvery); return n && CLEAN_CHOICES.includes(n) ? n : 50; }
   set cleanEvery(n: number) { set(K.cleanEvery, String(n)); }
+  get cleanOn(): boolean { return num(K.cleanOn) !== 0; }
+  set cleanOn(on: boolean) { set(K.cleanOn, on ? "1" : "0"); }
   /** Dabs since the last clean: the rig's own counter when known, else the dabs this app saw. */
   dabsSinceClean(cycles: number | null): number {
     const at = num(K.cleanAt);

@@ -325,7 +325,9 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         j.category ? h("small", { class: "mono sub" }, j.category) : null,
         h("div", { class: "row", style: "margin-top:4px" }, tag("YOURS", "font-size:8px"),
           h("b", { class: "cond", style: `font-size:20px;color:${j.rating === undefined ? "var(--dim)" : "var(--gold)"}` }, Jars.ratingText(j.rating)),
-          statusTag(j.finished))));
+          statusTag(j.finished)),
+        j.globalScore !== undefined ? h("div", { class: "row", style: "margin-top:2px" }, tag("GLOBAL", "font-size:8px;color:var(--glob)"),
+          h("b", { class: "cond", style: "font-size:17px;color:var(--glob)" }, Jars.ratingText(j.globalScore))) : null));
     }
     grid.replaceChildren(g);
   }
@@ -361,8 +363,11 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     const list = h("div", { class: "stackS" });
     for (const r of rows) {
       const have = mine.has(r.id);
+      // Cover defaults to the strain's most-liked approved photo (same pick as Jar Journal).
+      const top = () => (shelf.photos(r.id) ?? []).filter(p => p.mod_status === "approved" && p.url)
+        .sort((a, b) => (b.like_count - a.like_count) || a.created_at.localeCompare(b.created_at))[0]?.url;
       const add = (finished: boolean) => editJar(null, newID => { if (!finished) store.setCurrent(newID); },
-        { strain: r.strain, producer: r.producer, category: r.category, productID: r.id, finished });
+        { strain: r.strain, producer: r.producer, category: r.category, productID: r.id, finished, photoURL: top(), avg: r.avg, count: r.count });
       list.append(h("div", { class: "panel globCard" },
         h("div", { class: "row" },
           h("div", { style: "flex:1;min-width:0" }, tag(r.producer ? r.producer.toUpperCase() : "NO PRODUCER", "font-size:8.5px;display:block"),
@@ -701,7 +706,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
   }
 
   // MARK: Log a jar / Edit
-  function editJar(original: Jar | null, onNew?: (id: string) => void, seed?: { strain: string; producer: string; category?: string; productID?: string; finished?: boolean }) {
+  function editJar(original: Jar | null, onNew?: (id: string) => void, seed?: { strain: string; producer: string; category?: string; productID?: string; finished?: boolean; photoURL?: string; avg?: number; count?: number }) {
     openSheet(close => {
       const st = {
         strain: original?.strain ?? seed?.strain ?? "", producer: original?.producer ?? seed?.producer ?? "", category: original?.category ?? seed?.category ?? null as string | null,
@@ -711,10 +716,22 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         gramsText: original?.grams !== undefined && !GRAM_PICKS.includes(original.grams) ? String(original.grams) : "",
         shop: original?.shop ?? "", bought: new Date(original ? Jars.boughtOn(original) : Date.now()),
         change: { kind: "keep" } as PhotoChange, preview: undefined as string | null | undefined,
+        globalCover: false,
       };
       const body = h("div", { class: "pageBody" });
       let failed = false;
       const draw = () => body.replaceChildren(...editPage());
+      if (!original && seed?.photoURL) void (async () => {
+        try {
+          const r = await fetch(seed.photoURL!);
+          if (!r.ok) return;
+          const big = await r.blob();
+          if (st.change.kind !== "keep" || !big.type.startsWith("image/")) return;
+          st.change = { kind: "replace", big, thumb: await thumbFromBlob(big) };
+          st.preview = URL.createObjectURL(big); st.globalCover = true;
+          draw();
+        } catch { /* no cover then */ }
+      })();
       const focusKeep = (fn: () => void) => { const a = document.activeElement as HTMLInputElement | null; const id = a?.id; const pos = a?.selectionStart; fn();
         if (id) { const el = document.getElementById(id) as HTMLInputElement | null; if (el) { el.focus(); try { if (pos !== null && pos !== undefined) el.setSelectionRange(pos, pos); } catch { /* fine */ } } } };
 
@@ -742,6 +759,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
           const big = await cropPhoto(f);
           if (!big) return;
           st.change = { kind: "replace", big, thumb: await thumbFromBlob(big) };
+          st.globalCover = false;
           if (st.preview) URL.revokeObjectURL(st.preview);
           st.preview = URL.createObjectURL(big);
         } catch { store.problem = "Couldn't read that photo. Try another one."; failed = true; }
@@ -752,6 +770,12 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         const out: HTMLElement[] = [];
         out.push(topBar(textBtn("Cancel", () => { if (st.preview) URL.revokeObjectURL(st.preview); close(); }),
           h("div", { class: "center" }, tag(original ? "EDIT" : "NEW", "font-size:9.5px"), h("div", { class: "cond", style: "font-size:24px;letter-spacing:2px" }, original ? "EDIT JAR" : "LOG A JAR")), null));
+        // From GLOBAL: show the shared score up top.
+        if (!original && seed?.productID) out.push(h("div", { class: "panel pad row", style: "gap:10px" },
+          tag("GLOBAL", "font-size:9px;color:var(--glob)"),
+          h("b", { class: "cond", style: `font-size:26px;color:${seed.avg === undefined ? "var(--dim)" : "var(--glob)"}` }, Jars.ratingText(seed.avg)),
+          h("small", { class: "mono dim", style: "font-size:9.5px;margin-left:auto" }, seed.count === 1 ? "1 rating" : `${seed.count ?? 0} ratings`)));
+        if (st.globalCover) out.push(h("small", { class: "mono dim", style: "font-size:9.5px;margin:-4px 0 0" }, "Top photo from GLOBAL. Snap your own any time."));
         // Photo
         const hasPhoto = st.preview !== undefined ? st.preview !== null : !!original?.photo;
         out.push(jarPhoto(store, { photo: original?.photo, producer: st.producer }, "100%", 18, false, st.preview));
@@ -759,7 +783,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
           h("button", { class: "photoKey", onclick: () => snapFile.click() }, icon("camera", "font-size:20px;margin-right:8px"), hasPhoto ? "RETAKE" : "SNAP IT"),
           h("button", { class: "photoKey", onclick: () => pickFile.click() }, icon("image", "font-size:20px;margin-right:8px"), "PICK"),
           hasPhoto ? h("button", { class: "photoKey", style: "flex:none;width:52px;color:var(--sub)", "aria-label": "Remove photo", onclick: () => {
-            st.change = { kind: "remove" }; if (st.preview) URL.revokeObjectURL(st.preview); st.preview = null; draw(); } }, icon("close", "font-size:18px")) : null,
+            st.change = { kind: "remove" }; st.globalCover = false; if (st.preview) URL.revokeObjectURL(st.preview); st.preview = null; draw(); } }, icon("close", "font-size:18px")) : null,
           pickFile, snapFile, extraFile));
         // New jars: two more photo slots after the cover (3 in all). Existing jars add photos on the jar page.
         if (!original) out.push(h("div", { class: "photoSlots" },
@@ -816,7 +840,12 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
           const jar: Jar = { ...base, strain: st.strain, producer: st.producer, review: st.review, finished: st.finished };
           if (st.category) jar.category = st.category; else delete jar.category;
           if (st.rating !== undefined) jar.rating = st.rating; else delete jar.rating;
-          if (!original && seed?.productID) jar.productID = seed.productID;
+          if (!original && seed?.productID) {
+            jar.productID = seed.productID;
+            if (seed.avg !== undefined) { jar.globalScore = seed.avg; jar.globalCount = seed.count; }
+            // Someone else's photo: never re-share it as this person's cover.
+            if (st.globalCover && st.change.kind === "replace") jar.shareCover = false;
+          }
           if (!original && st.askAfter && st.rating === undefined) jar.askAfterDab = true;
           const price = Number(st.price.replace("$", "").replace(",", "."));
           if (st.price.trim() && price > 0) jar.price = price; else delete jar.price;
@@ -984,6 +1013,20 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         closeAll();
       }
 
+      /** − / + pair: tap steps once, hold repeats; the sheet redraws on release. */
+      function stepper(what: string, down: () => void, up: () => void, style: string, small = false): HTMLElement {
+        const sz = small ? "width:40px;height:34px;font-size:22px" : "width:52px;height:52px;font-size:30px";
+        const key = (label: string, aria: string, fn: () => void) => {
+          let t: number | undefined, rep: number | undefined;
+          const stop = () => { if (t === undefined && rep === undefined) return; clearTimeout(t); clearInterval(rep); t = rep = undefined; draw(); };
+          return h("button", { class: "quick stepKey", "aria-label": aria, style: `${sz};padding:0;line-height:1;touch-action:none;user-select:none;-webkit-user-select:none`,
+            onpointerdown: (e: Event) => { e.preventDefault(); fn(); t = window.setTimeout(() => { rep = window.setInterval(fn, 80); }, 380); },
+            onpointerup: stop, onpointerleave: stop, onpointercancel: stop, oncontextmenu: (e: Event) => e.preventDefault(),
+            onkeydown: (e: Event) => { const k = (e as KeyboardEvent).key; if (k === "Enter" || k === " ") { e.preventDefault(); fn(); draw(); } } }, label);
+        };
+        return h("div", { class: "row", style: `gap:8px;${style}` }, key("−", `Lower ${what}`, down), key("+", `Raise ${what}`, up));
+      }
+
       function draw() {
         const j = jarf();
         const kids: Kid[] = [];
@@ -1004,26 +1047,36 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         }
         const big = h("b", { class: "cond", style: "font-size:64px;line-height:1;color:var(--gold)" }, Jars.ratingText(rating));
         const last = lastSame();
-        kids.push(h("div", { class: "row", style: "align-items:baseline" }, big, h("span", { class: "cond dim", style: "font-size:20px;margin-left:6px" }, "/ 10"),
-          last !== undefined ? h("div", { style: "margin-left:auto;text-align:right" }, tag("LAST TIME AT " + Dabs.goalText(prompt.dab), "font-size:8px"),
-            h("b", { class: "cond", style: "display:block;font-size:22px;color:var(--sub)" }, Jars.ratingText(last))) : null));
+        const showRating = () => { big.textContent = Jars.ratingText(rating); slider.value = String(rating);
+          quick.querySelectorAll("button").forEach(b => b.classList.toggle("on", Number(b.textContent) === rating)); };
+        const rStep = (d: number) => { rating = Dabs.clamp(rating + d); showRating(); };
+        kids.push(h("div", { class: "row", style: "align-items:center" }, big, h("span", { class: "cond dim", style: "font-size:20px;margin-left:6px;align-self:flex-end" }, "/ 10"),
+          last !== undefined ? h("div", { style: "margin-left:auto;text-align:right" }, tag("LAST TIME", "font-size:8px"),
+            h("b", { class: "cond", style: "display:block;font-size:22px;color:var(--sub)" }, Jars.ratingText(last))) : null,
+          stepper("rating", () => rStep(-0.1), () => rStep(0.1), last !== undefined ? "margin-left:12px" : "margin-left:auto")));
         const quick = h("div", { class: "row", style: "gap:8px" });
         const slider = h("input", { type: "range", min: 1, max: 10, step: 0.1, value: String(rating), class: "gold",
-          oninput: (e: Event) => { rating = Dabs.clamp(Number((e.target as HTMLInputElement).value)); big.textContent = Jars.ratingText(rating);
-            quick.querySelectorAll("button").forEach(b => b.classList.toggle("on", Number(b.textContent) === rating)); } });
+          oninput: (e: Event) => { rating = Dabs.clamp(Number((e.target as HTMLInputElement).value)); showRating(); } }) as HTMLInputElement;
         for (const v of [6, 7, 8, 9]) quick.append(h("button", { class: "quick" + (rating === v ? " on" : ""), onclick: () => { rating = v; draw(); } }, String(v)));
         kids.push(slider, quick);
         // Dab size
         const sizeLabel = sizeSet
-          ? h("span", { class: "row", style: "margin-left:auto;gap:4px" }, h("b", { class: "cond", style: "font-size:16px;color:var(--gold)" }, Dabs.sizeText(Dabs.gramsAt(sizePos))),
+          ? h("span", { class: "row", style: "margin-left:auto;gap:4px" }, h("b", { class: "cond sizeNow", style: "font-size:16px;color:var(--gold)" }, Dabs.sizeText(Dabs.gramsAt(sizePos))),
               h("button", { class: "textBtn", "aria-label": "Clear dab size", style: "min-height:30px;min-width:30px", onclick: () => { sizeSet = false; draw(); } }, icon("close", "font-size:18px")))
           : tag("OPTIONAL", "margin-left:auto;font-size:8px");
         const stops = h("div", { class: "row", style: "gap:0" });
         SIZE_STOPS.forEach((s, i) => stops.append(h("button", { class: "stop" + (sizeSet && Math.abs(sizePos - i) < 0.001 ? " on" : ""),
           onclick: () => { sizePos = i; sizeSet = true; sizeTouched = true; draw(); } },
           h("b", {}, s.name), h("small", {}, (s.grams < 0.1 ? s.grams.toFixed(2) : s.grams.toFixed(1)) + "g"))));
-        kids.push(h("div", {}, h("div", { class: "row" }, tag("DAB SIZE", "font-size:9px"), sizeLabel),
-          h("input", { type: "range", min: 0, max: SIZE_STOPS.length - 1, step: 0.01, value: String(sizePos), class: sizeSet ? "gold" : "dimRange",
+        const sStep = (d: number) => {
+          const g = Dabs.gramsAt(sizePos);
+          const inc = g < 0.1 || (g === 0.1 && d < 0) ? 0.01 : g < 0.4 || (g === 0.4 && d < 0) ? 0.05 : 0.1;
+          sizePos = Dabs.positionFor(Dabs.clampGrams(sizeSet ? g + d * inc : g)); sizeSet = true; sizeTouched = true;
+          const r = card.querySelector<HTMLInputElement>("input.sizeRange"); if (r) { r.value = String(sizePos); r.className = "sizeRange gold"; }
+          const b = card.querySelector(".sizeNow"); if (b) b.textContent = Dabs.sizeText(Dabs.gramsAt(sizePos));
+        };
+        kids.push(h("div", {}, h("div", { class: "row" }, tag("DAB SIZE", "font-size:9px"), sizeLabel, stepper("dab size", () => sStep(-1), () => sStep(1), "margin-left:10px", true)),
+          h("input", { type: "range", min: 0, max: SIZE_STOPS.length - 1, step: 0.01, value: String(sizePos), class: sizeSet ? "sizeRange gold" : "sizeRange dimRange",
             onchange: (e: Event) => { sizePos = Dabs.snap(Number((e.target as HTMLInputElement).value)); sizeSet = true; sizeTouched = true; draw(); },
             oninput: (e: Event) => { sizePos = Dabs.snap(Number((e.target as HTMLInputElement).value)); sizeSet = true; sizeTouched = true;
               const b = card.querySelector(".sizeNow"); if (b) b.textContent = Dabs.sizeText(Dabs.gramsAt(sizePos)); } }),

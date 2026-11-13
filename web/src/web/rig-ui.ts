@@ -7,6 +7,7 @@ import { RigController } from "../rig/rig-controller";
 import type { PeakController } from "../rig/puffco/peak-controller";
 import { chargingOf, unitText, sessionOnOf, hapticsOf } from "../rig/frames";
 import { h, openSheet, topBar, textBtn, tag, icon } from "./jar-ui";
+import { CLEAN_CHOICES } from "./extras";
 
 export interface RigUIHooks {
   build: string;
@@ -17,7 +18,8 @@ export interface RigUIHooks {
   /** Clean reminder: how many dabs between reminders (the user's pick; Dr. Dabber gives no number). */
   cleanEvery(): number;
   showTutorial(): void;
-  nextCleanEvery(): void;
+  cleanOn(): boolean;
+  setClean(on: boolean, every: number): void;
   /** Peak test build only: the Peak controller when a Peak is the linked rig, else null. */
   peak?: () => PeakController | null;
   /** Peak test build only: the "compatible with" line. */
@@ -49,7 +51,7 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
     return { b, upd: () => set(n, note()) };
   };
   const look = row("Look", "look", () => hooks.lookLabel(), "var(--dim)", openLook);
-  const clean = row("Deep clean", "check", () => `EVERY ${hooks.cleanEvery()} DABS`, "var(--dim)", () => { hooks.nextCleanEvery(); render(); });
+  const clean = row("Deep clean", "check", () => hooks.cleanOn() ? `EVERY ${hooks.cleanEvery()} DABS` : "OFF", "var(--dim)", openClean);
   const howTo = row("How it works", "list", () => "REPLAY", "var(--dim)", () => hooks.showTutorial());
   const log = row("Log", "list", () => "SHARE IT", "var(--dim)", openLog);
   const dial = row("Ride the dial", "dial", () => "TEST", "var(--gold)", openDial);
@@ -61,7 +63,7 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
     h("div", { class: "tiles" }, tBat.el, tPow.el, tUnit.el),
     h("div", { class: "stackS" }, unlink, unlinkNote, findRig),
     h("div", { class: "panel toolList" }, clean.b, h("hr"), howTo.b),
-    h("div", {}, tag("SHOP TOOLS", "font-size:9.5px"), h("div", { class: "panel toolList", style: "margin-top:8px" }, log.b, h("hr"), dial.b, h("hr"), raw.b)),
+    h("div", {}, tag("SHOP TOOLS", "font-size:9.5px"), h("div", { class: "panel toolList", style: "margin-top:8px" }, log.b, h("hr"), raw.b)),
     h("p", { class: "mono dim center", style: "font-size:9.5px;margin-top:6px" }, `${hooks.compatLine ?? "Compatible with Dr. Dabber Switch 2. Not an official Dr. Dabber app."} Build ${hooks.build}.`),
   );
 
@@ -95,6 +97,22 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
       pageUpd = upd ?? null;
       upd?.();
       return body;
+    });
+  }
+
+  function openClean() {
+    page("DEEP CLEAN", body => {
+      const pick = h("select", { class: "cleanPick", style: "font:inherit;font-size:20px;padding:10px 12px;border-radius:12px;background:var(--panel,#111);color:inherit;border:1px solid var(--line,#333);width:100%" }) as HTMLSelectElement;
+      for (const n of CLEAN_CHOICES) pick.append(h("option", { value: String(n) }, `Every ${n} dabs`));
+      pick.value = String(hooks.cleanEvery());
+      const sw = h("input", { type: "checkbox", style: "width:28px;height:28px;accent-color:var(--gold)" }) as HTMLInputElement;
+      sw.checked = hooks.cleanOn();
+      const sync = () => { pick.disabled = !sw.checked; pick.style.opacity = sw.checked ? "1" : ".4"; hooks.setClean(sw.checked, Number(pick.value)); render(); };
+      sw.onchange = sync; pick.onchange = sync; pick.disabled = !sw.checked; pick.style.opacity = sw.checked ? "1" : ".4";
+      body.append(
+        h("p", { class: "sub cond", style: "font-size:19px;margin:0" }, "A reminder on Home when it's time to deep clean."),
+        h("label", { class: "toolRow", style: "cursor:pointer" }, h("span", { class: "cond", style: "font-size:20px" }, "Remind me"), h("span", { style: "flex:1" }), sw),
+        pick);
     });
   }
 
