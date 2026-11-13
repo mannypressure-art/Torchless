@@ -40,6 +40,8 @@ export function icon(name: string, style = ""): SVGElement {
   s.append(u);
   return s;
 }
+const prefGet = (k: string): string | null => { try { return localStorage.getItem("torchless." + k); } catch { return null; } };
+const prefSet = (k: string, v: string) => { try { localStorage.setItem("torchless." + k, v); } catch { /* private mode */ } };
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "S"}`;
 
 // MARK: Photos
@@ -206,7 +208,26 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       justSet = true;
       setTimeout(() => { justSet = false; renderHome(); }, 4000);
     }) }, "+");
-    box.replaceChildren(main, plus);
+    // Manny 2026-11-13: SWITCH for a quick jar change, ADD under the +, and a button that docks the strip
+    // at the bottom of Home (stops following the scroll). Remembered.
+    const open = store.jars.filter(x => !x.finished);
+    const docked = prefGet("jarDock") === "yes";
+    box.classList.toggle("docked", docked);
+    const home = box.parentElement;
+    if (home) { if (docked && home.lastElementChild !== box) home.append(box); else if (!docked && home.firstElementChild !== box) home.prepend(box); }
+    const dock = h("button", { class: "dockBtn", "aria-label": docked ? "Pin the jar to the top" : "Move the jar to the bottom",
+      onclick: () => { prefSet("jarDock", docked ? "no" : "yes"); renderHome(); } });
+    dock.innerHTML = docked ? '<svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>';
+    box.replaceChildren(main, h("div", { class: "jarSide" },
+      j && open.length > 1 ? h("button", { class: "switchLink", onclick: () => quickSwitch() }, "SWITCH") : "",
+      h("div", { class: "addKey" }, plus, h("small", {}, "ADD")), dock));
+  }
+  function quickSwitch(): void {
+    openSheet(close => h("div", { class: "cardBody" }, h("h3", {}, "Switch jar"),
+      ...store.jars.filter(x => !x.finished).map(x => h("button", { class: "btn2 wide" + (x.id === store.current?.id ? " on" : ""),
+        style: "margin-top:8px;justify-content:flex-start;text-align:left", onclick: () => { store.setCurrent(x.id); close(); } },
+        (x.producer ? x.producer + " · " : "") + x.strain)),
+      h("button", { class: "textBtn", style: "margin-top:12px", onclick: close }, "Cancel")), "card");
   }
 
   // MARK: The JARS tab

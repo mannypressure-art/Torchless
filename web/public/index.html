@@ -231,6 +231,13 @@
   .curJar.slim .curText b { font-size: 18px; }
   .curJar.slim .curText small, .curJar.slim .twoLine + .twoLine { display: none; }
   .curJar.slim .plusKey { width: 40px; height: 40px; font-size: 22px; }
+  .curJar .jarSide { display: flex; align-items: center; gap: 4px; flex: none; }
+  .curJar .addKey { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+  .curJar .addKey small { font: 600 8px/1 var(--mono); letter-spacing: 1px; color: var(--gold); }
+  .curJar .switchLink { font: 700 10px var(--mono); letter-spacing: 1.2px; color: var(--live); padding: 6px 6px; min-height: 44px; }
+  .curJar .dockBtn { width: 32px; min-height: 44px; display: flex; align-items: center; justify-content: center; color: var(--dim); }
+  .curJar .dockBtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .curJar.docked { position: static; }
   .heatBlock { position: sticky; bottom: calc(70px + env(safe-area-inset-bottom)); z-index: 4; }
   .heatBlock .bigBtn { min-height: 64px; font-size: 32px; box-shadow: 0 8px 22px rgba(0,0,0,.45); }
   .planPill { margin-left: auto; margin-right: 8px; min-height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; background: var(--live); color: var(--bg, #06090c); font: 700 11px var(--mono); letter-spacing: 1.2px; box-shadow: 0 0 14px color-mix(in srgb, var(--live) 45%, transparent); }
@@ -376,15 +383,6 @@
   .cvTipBox { fill: var(--ink); }
   .cvTipText { fill: var(--cardTop); font: 700 11px var(--mono); }
   .presetHead { margin: 0 0 6px; }
-  .planRow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-  .planRow .planBtn { margin-top: 0; font-size: 17px; letter-spacing: 2px; padding: 0 8px; }
-  .curJar.inRow { min-height: 48px; padding: 0 4px 0 10px; gap: 6px; border-radius: 14px; border-color: color-mix(in srgb, var(--live) 45%, var(--edge)); background: color-mix(in srgb, var(--live) 8%, var(--cardBottom)); }
-  .curJar.inRow .curMain { min-height: 48px; gap: 8px; }
-  .curJar.inRow .jarPhoto, .curJar.inRow .curIcon { width: 30px !important; height: 30px !important; flex: none; }
-  .curJar.inRow .curText { min-width: 0; }
-  .curJar.inRow .curText b { font-size: 15px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .curJar.inRow .curText small, .curJar.inRow .twoLine + .twoLine, .curJar.inRow .plusKey { display: none; }
-  .curJar.inRow .curText .tag { font-size: 8px !important; }
   .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
   .key { min-height: 44px; border-radius: 12px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); text-align: center; }
   .key small { display: block; font: 500 8.5px/1 var(--mono); color: var(--dim); margin-bottom: 1px; }
@@ -790,6 +788,7 @@
 
     <!-- Home -->
     <section data-panel="home" class="stack" style="margin-top:16px">
+      <div id="curJar" class="curJar slim panel"></div>
       <div class="gaugeCard panel" id="faceCard">
         <svg id="gauge" viewBox="0 0 260 260">
           <circle cx="130" cy="130" r="138" class="bezelEdge"/>
@@ -808,16 +807,6 @@
         <div class="corner br"><span class="tag" style="font-size:9px">TIME LEFT</span><b id="cLeft">--</b></div>
       </div>
 
-      <div class="heatBlock">
-        <div id="heatRow"><button id="heat" class="bigBtn" disabled><svg class="ico" aria-hidden="true"><use href="#i-flame"/></svg>HEAT IT</button></div>
-        <div id="cutRow" class="row" style="gap:8px" hidden>
-          <button id="cut" class="bigBtn"><svg class="ico" aria-hidden="true"><use href="#i-stop"/></svg>CUT IT</button>
-          <button id="extend" class="panel"><b>+10s</b><span class="tag" style="font-size:8.5px">MORE TIME</span></button>
-          <button id="holdBtn" class="panel" aria-pressed="false"><b>HOLD</b><span id="holdTag" class="tag" style="font-size:8.5px">OFF</span></button>
-        </div>
-        <div id="heatHint" class="hint"></div>
-      </div>
-
       <div>
         <div class="row presetHead"><span id="presetTag" class="tag" style="font-size:9.5px">PRESETS</span><button id="editBtn" class="edit" hidden>EDIT</button></div>
         <div class="presets">
@@ -827,8 +816,7 @@
           <button id="p4" class="key"><small>4</small><span id="p4t">—</span></button>
           <button id="p5" class="key"><small>5</small><span id="p5t">—</span></button>
         </div>
-        <div class="planRow"><button id="planBtn" class="planBtn"><svg class="ico" aria-hidden="true"><use href="#i-dial"/></svg>PLAN A CURVE</button>
-          <div id="curJar" class="curJar inRow panel"></div></div>
+        <button id="planBtn" class="planBtn"><svg class="ico" aria-hidden="true"><use href="#i-dial"/></svg>PLAN A CURVE</button>
         <div id="curveCard" class="curveCard" hidden>
           <button class="curveHead" id="curveHead" aria-label="Edit this preset">
             <div class="cvCol"><span id="curveTag" class="cvLbl">PRESET</span><span id="curveTitle" class="cvBig"></span></div>
@@ -845,6 +833,16 @@
             <div><span class="tag" style="font-size:8.5px">HOLD</span><b id="cvHold"></b></div>
           </div>
         </div>
+      </div>
+
+      <div class="heatBlock">
+        <div id="heatRow"><button id="heat" class="bigBtn" disabled><svg class="ico" aria-hidden="true"><use href="#i-flame"/></svg>HEAT IT</button></div>
+        <div id="cutRow" class="row" style="gap:8px" hidden>
+          <button id="cut" class="bigBtn"><svg class="ico" aria-hidden="true"><use href="#i-stop"/></svg>CUT IT</button>
+          <button id="extend" class="panel"><b>+10s</b><span class="tag" style="font-size:8.5px">MORE TIME</span></button>
+          <button id="holdBtn" class="panel" aria-pressed="false"><b>HOLD</b><span id="holdTag" class="tag" style="font-size:8.5px">OFF</span></button>
+        </div>
+        <div id="heatHint" class="hint"></div>
       </div>
 
 
