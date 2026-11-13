@@ -1,0 +1,15 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.brickandsignal.torchless",
+      "sha256_cert_fingerprints": [
+        "ED:A1:FD:72:9E:6C:7A:C8:B7:5C:1B:DB:DB:50:99:FB:25:6D:AD:3A:1A:FA:3A:26:D7:43:E0:13:3D:F0:75:66",
+        "C2:18:07:78:D8:CF:E3:04:7D:14:DC:D5:98:8F:43:E5:94:43:70:A3:B4:6F:67:1E:1A:8F:65:E1:0C:D0:BB:34"
+      ]
+    }
+  }
+]
