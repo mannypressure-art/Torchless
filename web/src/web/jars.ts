@@ -25,6 +25,8 @@ export interface JarDab {
   cooledIn?: number;
   /** Dab size in grams (0.05 to 1). */
   grams?: number;
+  /** "torch" = timed by hand in Torch mode (glass banger and a butane torch). No temps were read. */
+  medium?: "torch";
 }
 
 export interface Jar {
