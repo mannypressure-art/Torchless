@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#060708">
+<title>Get Torchless</title>
+<meta name="description" content="Torchless: heat-up control for your e-rig, from your phone. Get it on iPhone or Android.">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<script>
+  // Already in a Bluetooth browser on iPhone (Bluefy): skip this page and open the app,
+  // so old bookmarks and Shortcuts that point here keep working.
+  (function () {
+    var ua = navigator.userAgent || "";
+    var ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (ios && "bluetooth" in navigator && location.hash !== "#stay") location.replace("/");
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bgTop: #0D1114; --bg: #060708; --cardTop: #101317; --cardBottom: #0A0C0E; --edge: #1D232A;
+    --ink: #F4F6F8; --dim: #8D96A3; --sub: #AAB2BD; --live: #19E3FF; --gold: #E8B24A;
+    --liveFill: #19E3FF; --liveInk: #031015; --goldFill: #E8B24A; --goldInk: #1A1004;
+    --cond: "Barlow Condensed", "SF Pro Display", -apple-system, system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; }
+  body {
+    background: linear-gradient(var(--bgTop), var(--bg) 320px) var(--bg); background-color: var(--bg);
+    color: var(--ink); font: 16px/1.4 -apple-system, system-ui, sans-serif; min-height: 100vh;
+  }
+  .wrap { max-width: 480px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom)); }
+  .tag { font: 600 10px/1 var(--mono); letter-spacing: 1.8px; color: var(--dim); text-transform: uppercase; }
+  .head { display: flex; align-items: center; gap: 12px; }
+  .head img { width: 56px; height: 56px; border-radius: 14px; }
+  .brand { font: 600 34px/1 var(--cond); letter-spacing: 3px; }
+  .lede { color: var(--sub); margin: 18px 0 22px; font-size: 17px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .tabs button { flex: 1; min-height: 48px; border-radius: 12px; border: 1px solid var(--edge); background: none; color: var(--sub); font: 600 20px var(--cond); letter-spacing: 1.5px; cursor: pointer; }
+  .tabs button[aria-selected="true"] { border-color: var(--live); color: var(--live); background: #0B2F38; }
+  .panel { background: linear-gradient(var(--cardTop), var(--cardBottom)); border: 1px solid var(--edge); border-radius: 20px; padding: 18px; }
+  ol { margin: 0; padding: 0; list-style: none; counter-reset: s; }
+  li { counter-increment: s; position: relative; padding-left: 40px; margin-bottom: 18px; }
+  li:last-child { margin-bottom: 0; }
+  li::before { content: counter(s); position: absolute; left: 0; top: -2px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--gold); color: var(--gold); font: 700 17px/26px var(--cond); text-align: center; }
+  li b { display: block; font: 600 21px/1.1 var(--cond); letter-spacing: .5px; margin-bottom: 3px; }
+  li p { margin: 0; color: var(--sub); }
+  .btn { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 60px; margin-top: 10px; border-radius: 16px; font: 700 24px/1 var(--cond); letter-spacing: 3px; text-decoration: none; }
+  .btn.gold { color: var(--goldInk); background: linear-gradient(#FFD27A, var(--goldFill), #C98F25); }
+  .btn.live { color: var(--liveInk); background: linear-gradient(#5FF0FF, var(--liveFill), #10B9D0); }
+  .btn.ghost { border: 1px solid var(--edge); color: var(--sub); font-size: 19px; letter-spacing: 1px; }
+  .btn.off { border: 1px dashed var(--edge); color: var(--dim); font-size: 19px; letter-spacing: 1px; pointer-events: none; }
+  .note { color: var(--dim); font-size: 14px; margin-top: 12px; }
+  .foot { color: var(--dim); font-size: 13px; margin-top: 28px; text-align: center; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <img src="icon-192.png" alt="">
+    <div>
+      <div class="brand">TORCHLESS</div>
+      <div class="tag" style="margin-top:6px">Heat-up control for your e-rig</div>
+    </div>
+  </header>
+  <p class="lede">Heat, watch and cut your rig from your phone. Works with the Dr. Dabber Switch 2. For adults 21 and over.</p>
+
+  <div class="tabs" role="tablist">
+    <button id="tabIos" role="tab" aria-selected="true">IPHONE</button>
+    <button id="tabAnd" role="tab" aria-selected="false">ANDROID</button>
+  </div>
+
+  <section id="ios" class="panel">
+    <ol>
+      <li><b>Install Bluefy</b>
+        <p>Apple's Safari can't talk to Bluetooth devices. Bluefy is a free browser that can.</p>
+        <a class="btn ghost" href="https://apps.apple.com/app/id1492822055">Get Bluefy from the App Store</a></li>
+      <li><b>Open Torchless in Bluefy</b>
+        <p>Tap the button below. If it doesn't switch over, open Bluefy and type <strong>torchless.brickandsignal.com</strong>.</p>
+        <a id="openBluefy" class="btn gold" href="bluefy://open?url=https%3A%2F%2Ftorchless.brickandsignal.com%2F">OPEN IN BLUEFY</a></li>
+      <li><b>Link your rig</b>
+        <p>Turn the rig on and keep it close. Confirm you're 21+, tap LINK IT and pick your rig from the list.</p></li>
+      <li><b>Add the Torchless icon</b>
+        <p>Get the Torchless Shortcut, then in Shortcuts tap its share button and choose Add to Home Screen. The icon opens Torchless in Bluefy. The first time, allow it to use Files.</p>
+        <a class="btn ghost" href="https://www.icloud.com/shortcuts/71db7e38a45c41a08ee69adf04dfe22f">Get the Torchless Shortcut</a></li>
+      <li><b>Go full screen</b>
+        <p>Open Bluefy's menu and turn on Full-screen Mode. Bluefy turns it off each time it opens, so Torchless reminds you.</p></li>
+    </ol>
+    <p class="note">Keep Torchless open during a dab. If you leave it, the rig finishes the dab on its own timer.</p>
+    <p class="note">Closed the Torchless tab? Type <strong>torchless.brickandsignal.com</strong> in Bluefy once and the icon works again.</p>
+  </section>
+
+  <section id="and" class="panel" hidden>
+    <ol>
+      <li><b>Get Torchless on Google Play</b>
+        <p id="playSoon">The Play Store version is on its way. Until then, you can use it in Chrome right now.</p>
+        <a id="playBtn" class="btn off" href="#">COMING SOON TO GOOGLE PLAY</a></li>
+      <li><b>Or open it in Chrome</b>
+        <p>Chrome on Android talks to Bluetooth directly, no extra app needed.</p>
+        <a class="btn live" href="/">OPEN TORCHLESS</a></li>
+      <li><b>Link your rig</b>
+        <p>Turn the rig on and keep it close. Confirm you're 21+, tap LINK IT and pick your rig. Allow Bluetooth and Nearby devices if Android asks.</p></li>
+    </ol>
+  </section>
+
+  <p class="foot">Not affiliated with Dr. Dabber.</p>
+</div>
+<script>
+  // Flip to true once the Play listing is live.
+  var PLAY_LIVE = false;
+  var PLAY_URL = "https://play.google.com/store/apps/details?id=com.brickandsignal.torchless";
+  if (PLAY_LIVE) {
+    var b = document.getElementById("playBtn");
+    b.className = "btn live"; b.textContent = "GET IT ON GOOGLE PLAY"; b.href = PLAY_URL;
+    document.getElementById("playSoon").textContent = "Install it like any other app. It opens straight to your rig.";
+  }
+  function show(which) {
+    var ios = which === "ios";
+    document.getElementById("ios").hidden = !ios;
+    document.getElementById("and").hidden = ios;
+    document.getElementById("tabIos").setAttribute("aria-selected", ios);
+    document.getElementById("tabAnd").setAttribute("aria-selected", !ios);
+  }
+  document.getElementById("tabIos").onclick = function () { show("ios"); };
+  document.getElementById("tabAnd").onclick = function () { show("and"); };
+  if (/Android/i.test(navigator.userAgent)) show("and");
+</script>
+</body>
+</html>

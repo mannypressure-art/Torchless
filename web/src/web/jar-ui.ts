@@ -1123,7 +1123,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
                 })) }, "Delete account"));
         }
         if (a.problem) kids.push(h("div", { class: "problem" }, a.problem));
-        kids.push(h("p", { class: "mono dim", style: "margin-top:24px;font-size:10px" }, "Privacy: torchlessapp.github.io/privacy"));
+        kids.push(h("p", { class: "mono dim", style: "margin-top:24px;font-size:10px" }, "Privacy: torchless.brickandsignal.com/privacy"));
         page.replaceChildren(...kids.filter((k): k is HTMLElement => !!k));
       };
       accountRedraw = draw;
