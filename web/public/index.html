@@ -375,7 +375,16 @@
   .cvScrubDot { fill: var(--ink); stroke: var(--cardTop); stroke-width: 2; }
   .cvTipBox { fill: var(--ink); }
   .cvTipText { fill: var(--cardTop); font: 700 11px var(--mono); }
-  .presetHead { display: none; }  /* Manny 2026-11-13: too much space; the preset card opens the editor */
+  .presetHead { margin: 0 0 6px; }
+  .planRow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .planRow .planBtn { margin-top: 0; font-size: 17px; letter-spacing: 2px; padding: 0 8px; }
+  .curJar.inRow { min-height: 48px; padding: 0 4px 0 10px; gap: 6px; border-radius: 14px; border-color: color-mix(in srgb, var(--live) 45%, var(--edge)); background: color-mix(in srgb, var(--live) 8%, var(--cardBottom)); }
+  .curJar.inRow .curMain { min-height: 48px; gap: 8px; }
+  .curJar.inRow .jarPhoto, .curJar.inRow .curIcon { width: 30px !important; height: 30px !important; flex: none; }
+  .curJar.inRow .curText { min-width: 0; }
+  .curJar.inRow .curText b { font-size: 15px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .curJar.inRow .curText small, .curJar.inRow .twoLine + .twoLine, .curJar.inRow .plusKey { display: none; }
+  .curJar.inRow .curText .tag { font-size: 8px !important; }
   .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
   .key { min-height: 44px; border-radius: 12px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); text-align: center; }
   .key small { display: block; font: 500 8.5px/1 var(--mono); color: var(--dim); margin-bottom: 1px; }
@@ -781,7 +790,6 @@
 
     <!-- Home -->
     <section data-panel="home" class="stack" style="margin-top:16px">
-      <div id="curJar" class="curJar slim panel"></div>
       <div class="gaugeCard panel" id="faceCard">
         <svg id="gauge" viewBox="0 0 260 260">
           <circle cx="130" cy="130" r="138" class="bezelEdge"/>
@@ -819,7 +827,8 @@
           <button id="p4" class="key"><small>4</small><span id="p4t">—</span></button>
           <button id="p5" class="key"><small>5</small><span id="p5t">—</span></button>
         </div>
-        <button id="planBtn" class="planBtn"><svg class="ico" aria-hidden="true"><use href="#i-dial"/></svg>PLAN A CURVE</button>
+        <div class="planRow"><button id="planBtn" class="planBtn"><svg class="ico" aria-hidden="true"><use href="#i-dial"/></svg>PLAN A CURVE</button>
+          <div id="curJar" class="curJar inRow panel"></div></div>
         <div id="curveCard" class="curveCard" hidden>
           <button class="curveHead" id="curveHead" aria-label="Edit this preset">
             <div class="cvCol"><span id="curveTag" class="cvLbl">PRESET</span><span id="curveTitle" class="cvBig"></span></div>
