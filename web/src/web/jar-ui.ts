@@ -404,7 +404,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       btn.setAttribute("disabled", ""); btn.firstChild!.textContent = "…";
       const why = await shelf.post(pid, f);
       if (why) confirmSheet("Photo not shared", why, "OK", "Close", () => {});
-      else confirmSheet("Photo sent", "It shows for everyone once it's checked, usually within a minute.", "OK", "Close", () => {});
+      else confirmSheet("Shared", "Location is removed.", "OK", "Close", () => {});
       shelf.onChange([pid]);
     } }) as HTMLInputElement;
     const btn = h("button", { class: "gph add", "aria-label": "Add a photo", onclick: () => file.click() }, "+", file);
