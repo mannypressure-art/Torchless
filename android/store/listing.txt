@@ -2,7 +2,7 @@ APP NAME (30 max)
 Torchless: Dab Rig Control
 
 SHORT DESCRIPTION (80 max)
-Heat your e-rig from your phone, shape each dab, and keep a journal of your jars.
+Heat your e-rig from your phone, shape each dab and keep a journal of your jars.
 
 FULL DESCRIPTION
 Torchless runs your compatible e-rig from your phone over Bluetooth, and keeps a simple journal of what you dab.
