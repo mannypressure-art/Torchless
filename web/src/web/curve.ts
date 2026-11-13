@@ -30,6 +30,10 @@ export interface CurveView {
   probe(share: number): { t: number; v: number; x: number; y: number } | null;
 }
 
+/** A temperature band drawn behind the curve, in the units being shown. "you" = this person's best-rated
+ *  dabs, "community" = everyone's. Not fed by real data yet: nothing passes zones in the live app. */
+export interface SweetZone { kind: "you" | "community"; lo: number; hi: number }
+
 export const CURVE_W = 340, CURVE_H = 168;
 const W = CURVE_W, H = CURVE_H, L = 38, R = 14, T = 26, B = 26;
 
@@ -40,7 +44,7 @@ function niceStep(span: number): number {
 
 /** elapsed = seconds into the hold while heating at temp, or null. extend = +10 s taps this dab.
  *  keepsRamp: extra time continues the last slope (seen on the rig with Ascent); otherwise it is drawn flat. */
-export function drawCurve(pts: Waypoint[], celsius: boolean, elapsed: number | null, extend: number, keepsRamp: boolean): CurveView | null {
+export function drawCurve(pts: Waypoint[], celsius: boolean, elapsed: number | null, extend: number, keepsRamp: boolean, zones: SweetZone[] = []): CurveView | null {
   if (pts.length === 0) return null;
   const v = (p: Waypoint) => (celsius ? p.c : p.f);
   const last = pts[pts.length - 1];
@@ -51,7 +55,7 @@ export function drawCurve(pts: Waypoint[], celsius: boolean, elapsed: number | n
   const span = Math.max(last.t, 1) + extra;
   const vals = pts.map(v);
   const minV = Math.min(...vals), maxV = Math.max(...vals);
-  const dMin = Math.min(minV, extV), dMax = Math.max(maxV, extV);
+  const dMin = Math.min(minV, extV, ...zones.map(z => z.lo)), dMax = Math.max(maxV, extV, ...zones.map(z => z.hi));
   // A flat hold gets a window around it so the line sits mid-chart instead of on an edge.
   const pad = Math.max(celsius ? 8 : 14, (dMax - dMin) * 0.38);
   const step = niceStep(dMax - dMin + 2 * pad);
@@ -94,6 +98,12 @@ export function drawCurve(pts: Waypoint[], celsius: boolean, elapsed: number | n
     if (t % tickEvery === 0 && px(last.t) - px(t) > 16 || t === 0) s += `<text class="cvAxis" x="${n(px(t))}" y="${H - 6}" text-anchor="${t === 0 ? "start" : "middle"}">${t === 0 ? "0s" : t}</text>`;
   }
   if (last.t % tickEvery !== 0 || true) s += `<text class="cvAxis cvAxisStrong" x="${n(xe)}" y="${H - 6}" text-anchor="middle">${last.t}s</text>`;
+  // Sweet spot bands: the wider community one first, the personal one on top.
+  for (const z of [...zones].sort((a, b) => (a.kind === "community" ? -1 : 1) - (b.kind === "community" ? -1 : 1))) {
+    const y1 = py(z.hi), y2 = py(z.lo);
+    s += `<rect class="cvZone ${z.kind}" x="${L}" y="${n(y1)}" width="${W - L - R}" height="${n(y2 - y1)}"/>`;
+    s += `<line class="cvZoneEdge ${z.kind}" x1="${L}" x2="${W - R}" y1="${n(y1)}" y2="${n(y1)}"/><line class="cvZoneEdge ${z.kind}" x1="${L}" x2="${W - R}" y1="${n(y2)}" y2="${n(y2)}"/>`;
+  }
   // Extra-time zone.
   s += `<rect class="cvExtZone${extend > 0 ? " on" : ""}" x="${n(xe)}" y="${T - 8}" width="${n(xs - xe)}" height="${n(base - T + 8)}" fill="url(#${uid}e)"/>`;
   s += `<line class="cvExtEdge" x1="${n(xe)}" x2="${n(xe)}" y1="${T - 8}" y2="${base}"/>`;
