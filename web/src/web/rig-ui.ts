@@ -4,6 +4,7 @@
 
 import { BLEManager } from "../rig/ble-manager";
 import { RigController } from "../rig/rig-controller";
+import type { PeakController } from "../rig/puffco/peak-controller";
 import { chargingOf, unitText, sessionOnOf, hapticsOf } from "../rig/frames";
 import { h, openSheet, topBar, textBtn, tag, icon } from "./jar-ui";
 import { CLEAN_CHOICES } from "./extras";
@@ -19,13 +20,17 @@ export interface RigUIHooks {
   showTutorial(): void;
   cleanOn(): boolean;
   setClean(on: boolean, every: number): void;
+  /** Peak test build only: the Peak controller when a Peak is the linked rig, else null. */
+  peak?: () => PeakController | null;
+  /** Peak test build only: the "compatible with" line. */
+  compatLine?: string;
 }
 
 const set = (e: Element, t: string) => { if (e.textContent !== t) e.textContent = t; };
 
 export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks) {
   const panel = document.getElementById("rigPanel")!;
-  const linked = () => ble.isConnected || ble.reconnecting;
+  const linked = () => ble.isConnected || ble.reconnecting || !!hooks.peak?.();
 
   // Link card
   const linkIcon = h("span", { class: "rigIcon" }, icon("signal"));
@@ -36,7 +41,7 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
   const tile = (title: string) => { const v = h("b"); return { el: h("div", { class: "panel tile" }, tag(title, "font-size:9px"), v), v }; };
   const tBat = tile("BATTERY"), tPow = tile("POWER"), tUnit = tile("UNITS");
 
-  const unlink = h("button", { class: "unlink", onclick: () => rig.askDisconnect() }, "UNLINK");
+  const unlink = h("button", { class: "unlink", onclick: () => { const pk = hooks.peak?.(); if (pk) pk.disconnect(); else rig.askDisconnect(); } }, "UNLINK");
   const unlinkNote = h("p", { class: "mono sub", style: "font-size:10.5px;margin:0" }, "Dab's still going. It finishes first, then the app lets go of the rig.");
   const findRig = h("button", { class: "findRig", onclick: hooks.onFindRig }, "FIND YOUR RIG");
 
@@ -59,24 +64,25 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
     h("div", { class: "stackS" }, unlink, unlinkNote, findRig),
     h("div", { class: "panel toolList" }, clean.b, h("hr"), howTo.b),
     h("div", {}, tag("SHOP TOOLS", "font-size:9.5px"), h("div", { class: "panel toolList", style: "margin-top:8px" }, log.b, h("hr"), raw.b)),
-    h("p", { class: "mono dim center", style: "font-size:9.5px;margin-top:6px" }, `Compatible with Dr. Dabber Switch 2. Not an official Dr. Dabber app. Build ${hooks.build}.`),
+    h("p", { class: "mono dim center", style: "font-size:9.5px;margin-top:6px" }, `${hooks.compatLine ?? "Compatible with Dr. Dabber Switch 2. Not an official Dr. Dabber app."} Build ${hooks.build}.`),
   );
 
   let pageUpd: (() => void) | null = null;
   let lastStatusTime: number | null = null, seenAt = new Date();
 
   function render() {
-    const s = rig.live;
-    set(linkName, ble.peripheralName || "No rig");
-    set(linkText, ble.connectionText);
-    linkCard.classList.toggle("on", ble.isConnected);
+    const pk = hooks.peak?.() ?? null;
+    const s = pk ? pk.live : rig.live;
+    set(linkName, pk ? (pk.info.name ?? pk.transport?.name ?? "Puffco Peak") : ble.peripheralName || "No rig");
+    set(linkText, pk ? `Peak · ${pk.link === "ready" ? pk.phaseText : pk.link}${pk.info.firmware ? " · firmware " + pk.info.firmware : ""}` : ble.connectionText);
+    linkCard.classList.toggle("on", pk ? pk.connected : ble.isConnected);
     set(tBat.v, s ? `${s.battery}%` : "--");
     set(tPow.v, s ? (chargingOf(s) ? "Charging" : "On battery") : "--");
     set(tUnit.v, s ? "°" + unitText(s) : "--");
     const l = linked();
     unlink.hidden = !l;
-    set(unlink, rig.disconnectWaiting ? "UNLINK NOW" : "UNLINK");
-    unlinkNote.hidden = !(l && rig.disconnectWaiting);
+    set(unlink, !pk && rig.disconnectWaiting ? "UNLINK NOW" : "UNLINK");
+    unlinkNote.hidden = !(l && !pk && rig.disconnectWaiting);
     findRig.hidden = l;
     look.upd(); clean.upd(); howTo.upd(); log.upd(); dial.upd(); raw.upd();
     pageUpd?.();

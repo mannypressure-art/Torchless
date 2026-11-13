@@ -164,13 +164,20 @@ export class WebCentral implements Central {
     this.delegate?.centralDidUpdateState(this);
   }
 
+  /** Extra rigs for the chooser (the Peak test build). Null = the Switch only, exactly as before. */
+  extraScan: { filters: object[]; optionalServices: string[] } | null = null;
+  /** Given each picked device first when set; true = it was taken by another rig driver (a Peak). */
+  router: ((device: any) => Promise<boolean>) | null = null;
+
   /** Opens the browser's chooser. Must run inside a tap. */
   scanForPeripherals(serviceUUIDs: string[] | null) {
     const bt = (navigator as any).bluetooth;
+    const optional = this.extraScan ? [...OPTIONAL, ...this.extraScan.optionalServices] : OPTIONAL;
     const options = serviceUUIDs === null
-      ? { acceptAllDevices: true, optionalServices: OPTIONAL }
-      : { filters: [{ services: [FEE7] }], optionalServices: OPTIONAL };
-    bt.requestDevice(options).then((device: any) => {
+      ? { acceptAllDevices: true, optionalServices: optional }
+      : { filters: [{ services: [FEE7] }, ...(this.extraScan?.filters ?? [])], optionalServices: optional };
+    bt.requestDevice(options).then(async (device: any) => {
+      if (this.router && await this.router(device)) return;
       const p = this.wrap(device);
       this.delegate?.didDiscover(this, p, { localName: device.name ?? undefined, serviceUUIDs: ["FEE7"] }, -50);
     }).catch((e: unknown) => {

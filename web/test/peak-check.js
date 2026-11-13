@@ -1,0 +1,50 @@
+// Headless check of the Peak test page with a fake Peak (fakepeak.js).
+// usage: node test/peak-check.js <public dir> [screenshot dir]
+const { chromium } = require('playwright');
+const http = require('http'), fs = require('fs'), path = require('path');
+const [,, root, out] = process.argv;
+let bad = 0;
+const check = (n, ok, d = '') => { if (!ok) bad++; console.log(`CHECK ${ok ? 'ok  ' : 'FAIL'} ${n}${d ? ' :: ' + d : ''}`); };
+const types = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.m4a': 'audio/mp4' };
+const server = http.createServer((q, r) => {
+  let f = path.join(root, decodeURIComponent(q.url.split('?')[0]));
+  if (f.endsWith('/')) f += 'index.html';
+  fs.readFile(f, (e, d) => { if (e) { r.writeHead(404); r.end(); return; } r.writeHead(200, { 'content-type': types[path.extname(f)] || 'application/octet-stream' }); r.end(d); });
+}).listen(0);
+(async () => {
+  const port = server.address().port;
+  const b = await chromium.launch();
+  const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  page.on('pageerror', e => { bad++; console.log('PAGEERROR', e.message); });
+  await page.addInitScript({ path: path.join(__dirname, 'fakepeak.js') });
+  await page.addInitScript(() => { for (const [k, v] of Object.entries({ 'torchless.age21': 'yes', 'torchless.fsTip': 'done', 'torchless.tutorialSeen': 'yes', 'torchless.tutorial': 'yes' })) localStorage.setItem(k, v); });
+  await page.goto(`http://localhost:${port}/peak/`);
+  await page.waitForTimeout(800);
+  const t = s => page.evaluate(s => document.querySelector(s)?.textContent ?? '', s);
+  check('compat line on the link screen', /Puffco Peak Pro\. Not affiliated/.test(await page.evaluate(() => document.body.innerText)));
+  await page.evaluate(() => document.querySelectorAll('.tutorial, #tutorial').forEach(e => e.remove()));
+  await page.click('#linkIt', { force: true });
+  await page.waitForTimeout(2500);
+  const opts = await page.evaluate(() => window.__requestOptions);
+  check('chooser asks for both rigs', JSON.stringify(opts).includes('0000fee7') && JSON.stringify(opts).includes('e276967f'), JSON.stringify(opts).slice(0, 200));
+  check('Home shows PEAK · LINKED', (await t('#linkTag')) === 'PEAK · LINKED', await t('#linkTag'));
+  check('goal is profile 2 in °F', (await t('#cTarget')) === '500°', await t('#cTarget'));
+  check('profile keys show Peak temps', (await t('#p1t')) === '450°' && (await t('#p4t')) === '601°', `${await t('#p1t')} ${await t('#p4t')}`);
+  check('Switch-only parts hidden', await page.evaluate(() => getComputedStyle(document.getElementById('pCustom')).display === 'none' && getComputedStyle(document.getElementById('p5')).display === 'none'));
+  await page.click('#p3'); await page.waitForTimeout(1500);
+  check('profile 3 picked on the Peak', await page.evaluate(() => window.__peak.active === 2));
+  if (out) await page.screenshot({ path: `${out}/peak-home.png` });
+  await page.click('#heat'); await page.waitForTimeout(9000);
+  check('heating shown', /HEATING/.test(await t('#gStatus')), await t('#gStatus'));
+  check('extend button says BOOST', /BOOST/.test(await t('#extend')));
+  if (out) await page.screenshot({ path: `${out}/peak-heating.png` });
+  await page.click('#cut'); await page.waitForTimeout(2500);
+  check('CUT IT stopped the Peak', await page.evaluate(() => window.__peak.state === 5 && window.__peak.log.includes('/p/app/mc=8')), JSON.stringify(await page.evaluate(() => window.__peak.log)));
+  check('Home back to ready', !/HEATING/.test(await t('#gStatus')), await t('#gStatus'));
+  const log = await page.evaluate(() => document.body.innerText);
+  void log;
+  await b.close(); server.close();
+  console.log(bad ? `FAILED (${bad})` : 'ALL OK');
+  process.exit(bad ? 1 : 0);
+})();

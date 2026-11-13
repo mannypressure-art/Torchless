@@ -1,0 +1,28 @@
+PASS SHA-256 and the login token match Node's crypto
+PASS Packets are laid out as the public notes say
+PASS Temperatures, times and battery parse in every form seen in public code
+PASS Links, logs in, reads the four profiles, shows them as presets 1 to 4 in °F
+PASS Peak not paired and not in pairing mode: says how to pair, never heats
+PASS Peak in pairing mode the first time: pairs and links
+PASS Peak answers nothing (link not encrypted): no-answer message, can't heat
+PASS Login refused (newer firmware): plain message, nothing else sent
+PASS HEAT IT: preheat, at temp, counts down, ends on its own; heat start sent once
+PASS CUT IT mid-dab: abort sent, heat off confirmed within 3 s
+PASS Peak ignores the first CUT IT: sent again and confirmed
+PASS Peak ignores CUT IT twice: tells you to press its button
+PASS Dab started on the Peak's own button: logged, shown, never cut
+PASS Peak refuses HEAT IT (low battery): says so, nothing pending
+PASS HEAT IT answered but nothing heats: says so after 5 s
+PASS Boost while at temp adds time (logged); ignored while idle
+PASS Picking a profile while idle sets it; locked while heating
+PASS Profile changed on the Peak itself shows up within the slow poll
+PASS Link drops mid-dab, back after the dab: no commands while away, says heat is off
+PASS Link drops and comes back while still heating: shows the dab, no cut
+PASS Peak gone for good: stops trying after 90 s and says so
+PASS Peak stops answering without a drop: HEAT IT locks within 4 s, CUT IT still sends
+PASS UNLINK: lets go, no reconnect, sends no heat command
+PASS Older firmware sending tenths as ints: same °F on screen
+PASS A Peak dab lands in the current jar (time, goal °F, peak) through the same DabWatcher
+PASS The log has what a first real test needs: raw packets, states, heartbeat, header
+26 of 26 Peak scenarios passed
+56 of 56 scenarios passed

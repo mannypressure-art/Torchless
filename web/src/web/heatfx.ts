@@ -13,6 +13,7 @@
 
 import synthSource from "./heat-synth.worklet";
 import { RigController } from "../rig/rig-controller";
+import type { RigReadView } from "../rig/rig-view";
 
 export const HEAT_SOUNDS = [
   { id: "off", name: "OFF", line: "Silent. Motion and phone taps only." },
@@ -386,7 +387,7 @@ export class HeatFX {
   private event(name: string) { if (this.ready) { try { this.win()?.TL?.ev(name); } catch { /* same */ } } }
 
   /** Called on every rig change. */
-  update(rig: RigController): void {
+  update(rig: RigReadView): void {
     const look = validSound(this.look()), track = validTrack(this.track());
     // with a recorded track picked, the look keeps its motion and the made-from-code sound stays quiet
     const theme = track === "look" ? look : "off";
