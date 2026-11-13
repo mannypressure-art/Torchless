@@ -60,6 +60,8 @@ export interface Jar {
   sentScore?: number;
   globalScore?: number;
   globalCount?: number;
+  /** Ask for the jar's own rating once, after its next dab. */
+  askAfterDab?: boolean;
   updated: string;
 }
 

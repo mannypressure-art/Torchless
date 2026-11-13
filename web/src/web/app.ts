@@ -16,13 +16,14 @@ import { openPlanner } from "./planner";
 import { RigExtras, heatCyclesFrom, doThatAgain, CLEAN_CHOICES } from "./extras";
 import { mountTorch, TorchUI } from "./torch";
 import { playTransition } from "./transition";
+import { showTutorial, tutorialSeen } from "./tutorial";
 import { mountRig } from "./rig-ui";
 import { Account, JarSync } from "./cloud";
 import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
 import { HeatFX, heatSound, heatTrack, HEAT_SOUNDS, HEAT_TRACKS, validSound, validTrack } from "./heatfx";
 import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 
-const BUILD = "app-5.0";
+const BUILD = "app-5.1";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -72,7 +73,8 @@ try { void (navigator.storage as StorageManager | undefined)?.persist?.(); } cat
 // MARK: Age gate (21+), asked once per browser
 
 if (prefs.get("age21") === "yes") $("age").hidden = true;
-$("ageYes").onclick = () => { prefs.set("age21", "yes"); $("age").hidden = true; };
+$("ageYes").onclick = () => { prefs.set("age21", "yes"); $("age").hidden = true; if (!tutorialSeen()) showTutorial(); };
+if (prefs.get("age21") === "yes" && !tutorialSeen()) showTutorial();
 $("ageNo").onclick = () => { $("ageMsg").hidden = false; };
 
 // MARK: Full-screen tip. Bluefy ignores the manifest, so point people at its own
@@ -568,6 +570,7 @@ bright.oninput = () => {
 
 const rigUI = mountRig(ble, rig, {
   build: BUILD,
+  showTutorial: () => showTutorial(),
   cleanEvery: () => extras.cleanEvery,
   nextCleanEvery: () => {
     const i = CLEAN_CHOICES.indexOf(extras.cleanEvery);

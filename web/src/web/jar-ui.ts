@@ -7,7 +7,7 @@ import { JarStore, Jar, JarDab, Jars, Dabs, JarCategory, JarFlavor, SIZE_STOPS, 
 import { cropPhoto } from "./crop";
 import { DabWatcher, DabPrompt } from "./dab-watcher";
 import type { Account, JarSync } from "./cloud";
-import { CatalogKey } from "./cloud";
+import { CatalogKey, SERVER_URL, SERVER_KEY } from "./cloud";
 
 // MARK: Tiny DOM helper (text always goes in as text, never as HTML)
 
@@ -160,7 +160,7 @@ export interface Cloud { account: Account; sync: JarSync }
 
 export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: string) => void, cloud?: Cloud): JarUI {
   // Filters on the shelf
-  let filter: "ALL" | "OPEN" | "FINISHED" = "ALL";
+  let filter: "OPEN" | "FINISHED" | "GLOBAL" = "OPEN";
   let category: string | null = null;
   let query = "";
   const openPages = new Set<() => void>();   // re-renders for open jar pages
@@ -221,11 +221,12 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       kids.push(h("label", { class: "panel search" }, h("span", { class: "dim", style: "display:flex;font-size:20px" }, icon("search")), input));
     }
     const chips = h("div", { class: "chips" });
-    for (const f of ["ALL", "OPEN", "FINISHED"] as const) {
-      chips.append(h("button", { class: "chip" + (filter === f ? " on" : ""), onclick: () => { filter = f; renderJars(); } }, f === "FINISHED" ? "GRAVEYARD" : f));
+    chips.className = "jarTabs";
+    for (const [f, label, cls] of [["OPEN", "MINE", "tMine"], ["FINISHED", "GRAVEYARD", "tGrave"], ["GLOBAL", "GLOBAL", "tGlob"]] as const) {
+      chips.append(h("button", { class: `jarTab ${cls}` + (filter === f ? " on" : ""), "aria-pressed": String(filter === f), onclick: () => { filter = f; renderJars(); } }, label));
     }
     kids.push(chips);
-    if (store.usedCategories.length) {
+    if (store.usedCategories.length && filter !== "GLOBAL") {
       const row = h("div", { class: "chips scrollX" });
       for (const c of [null, ...store.usedCategories]) {
         row.append(h("button", { class: "chip gold" + (category === c ? " on" : ""), onclick: () => { category = c; renderJars(); } }, (c ?? "Every type").toUpperCase()));
@@ -242,6 +243,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
   function renderGrid() {
     const grid = document.getElementById("jarGrid");
     if (!grid) return;
+    if (filter === "GLOBAL") { renderGlobal(grid); return; }
     const searching = category !== null || query.trim() !== "";
     const shown = store.shelf.filter(j => {
       if (filter === "OPEN" && j.finished) return false;
@@ -255,7 +257,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       return;
     }
     if (!shown.length) {
-      const all = filter === "ALL";
+      const all = filter === "OPEN" && !store.jars.length;
       grid.replaceChildren(h("div", { class: "panel pad center" },
         h("div", { style: "width:96px;margin:0 auto" }, lidSVG("")),
         h("h3", {}, all ? "No jars yet." : "Nothing here."),
@@ -277,6 +279,54 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
           statusTag(j.finished))));
     }
     grid.replaceChildren(g);
+  }
+
+  // MARK: Global shelf: jars other people logged (approved ones only). Reading needs no sign-in.
+  let globalRows: { id: string; producer: string; strain: string; category?: string; avg?: number; count: number }[] | null = null;
+  let globalFailed = false;
+  async function loadGlobal(): Promise<void> {
+    const get = async (path: string) => {
+      const r = await fetch(`${SERVER_URL}/rest/v1/${path}`, { headers: { apikey: SERVER_KEY, Authorization: "Bearer " + SERVER_KEY } });
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    };
+    try {
+      const prods: { id: string; producer: string; strain: string; category?: string }[] =
+        await get("products?select=id,producer,strain,category&merged_into=is.null&order=created_at.desc&limit=200");
+      const stats: { product_id: string; rating_count: number; avg_score: number }[] = prods.length
+        ? await get(`product_stats?select=product_id,rating_count,avg_score&product_id=in.(${prods.map(p => p.id).join(",")})`) : [];
+      const by = new Map(stats.map(x => [x.product_id, x]));
+      globalRows = prods.map(p => ({ ...p, avg: by.get(p.id)?.avg_score, count: by.get(p.id)?.rating_count ?? 0 }))
+        .sort((a, b) => (b.count - a.count) || a.strain.localeCompare(b.strain));
+      globalFailed = false;
+    } catch { globalFailed = true; }
+    if (filter === "GLOBAL") renderGrid();
+  }
+  function renderGlobal(grid: HTMLElement) {
+    if (globalRows === null && !globalFailed) { void loadGlobal(); grid.replaceChildren(h("p", { class: "mono dim center" }, "Loading the global shelf…")); return; }
+    if (globalFailed) { grid.replaceChildren(h("div", { class: "panel pad center" }, h("p", { class: "mono sub" }, "Couldn't reach the global shelf."),
+      h("button", { class: "btn2 wide", onclick: () => { globalFailed = false; globalRows = null; renderGrid(); } }, "TRY AGAIN"))); return; }
+    const mine = new Set(store.jars.map(j => j.productID).filter(Boolean));
+    const rows = globalRows!.filter(r => Jars.matches({ strain: r.strain, producer: r.producer, review: "", category: r.category } as Jar, query));
+    if (!rows.length) { grid.replaceChildren(h("div", { class: "panel pad center" }, h("p", { class: "mono sub" }, query ? "No match." : "Nothing on the global shelf yet."))); return; }
+    const list = h("div", { class: "stackS" });
+    for (const r of rows) {
+      const have = mine.has(r.id);
+      const add = (finished: boolean) => editJar(null, newID => { if (!finished) store.setCurrent(newID); },
+        { strain: r.strain, producer: r.producer, category: r.category, productID: r.id, finished });
+      list.append(h("div", { class: "panel globCard" },
+        h("div", { class: "row" },
+          h("div", { style: "flex:1;min-width:0" }, tag(r.producer ? r.producer.toUpperCase() : "NO PRODUCER", "font-size:8.5px;display:block"),
+            h("b", { class: "jarName", style: "display:block" }, r.strain), r.category ? h("small", { class: "mono sub", style: "display:block" }, r.category) : null),
+          h("div", { class: "center" }, tag("GLOBAL", "font-size:8px;color:var(--glob)"),
+            h("b", { class: "cond", style: `font-size:26px;display:block;color:${r.avg === undefined ? "var(--dim)" : "var(--glob)"}` }, Jars.ratingText(r.avg)),
+            h("small", { class: "mono dim", style: "font-size:9px" }, r.count === 1 ? "1 rating" : `${r.count} ratings`))),
+        have ? h("p", { class: "mono dim", style: "font-size:10px;margin:8px 0 0" }, "Already on your shelf.") :
+          h("div", { class: "row", style: "gap:8px;margin-top:10px" },
+            h("button", { class: "btn2 tCollBtn", style: "flex:1", onclick: () => add(false) }, "+ COLLECTION"),
+            h("button", { class: "btn2 tGraveBtn", style: "flex:1", onclick: () => add(true) }, "GRAVEYARD"))));
+    }
+    grid.replaceChildren(list);
   }
 
   let backupNote = "Jars live on this phone, in this browser. Save a backup now and then so clearing the browser can't lose them.";
@@ -508,11 +558,12 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
   }
 
   // MARK: Log a jar / Edit
-  function editJar(original: Jar | null, onNew?: (id: string) => void) {
+  function editJar(original: Jar | null, onNew?: (id: string) => void, seed?: { strain: string; producer: string; category?: string; productID?: string; finished?: boolean }) {
     openSheet(close => {
       const st = {
-        strain: original?.strain ?? "", producer: original?.producer ?? "", category: original?.category ?? null as string | null,
-        review: original?.review ?? "", rating: original?.rating as number | undefined, finished: original?.finished ?? false,
+        strain: original?.strain ?? seed?.strain ?? "", producer: original?.producer ?? seed?.producer ?? "", category: original?.category ?? seed?.category ?? null as string | null,
+        extra: [] as { big: Blob; thumb: Blob; url: string }[], askAfter: false,
+        review: original?.review ?? "", rating: original?.rating as number | undefined, finished: original?.finished ?? seed?.finished ?? false,
         price: original?.price !== undefined ? String(original.price) : "", grams: original?.grams as number | undefined,
         gramsText: original?.grams !== undefined && !GRAM_PICKS.includes(original.grams) ? String(original.grams) : "",
         shop: original?.shop ?? "", bought: new Date(original ? Jars.boughtOn(original) : Date.now()),
@@ -526,6 +577,19 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
 
       const pickFile = h("input", { type: "file", accept: "image/*", hidden: true, onchange: (e: Event) => usePhoto(e) }) as HTMLInputElement;
       const snapFile = h("input", { type: "file", accept: "image/*", capture: "environment", hidden: true, onchange: (e: Event) => usePhoto(e) }) as HTMLInputElement;
+      const extraFile = h("input", { type: "file", accept: "image/*", hidden: true, onchange: (e: Event) => useExtra(e) }) as HTMLInputElement;
+      async function useExtra(e: Event) {
+        const input = e.target as HTMLInputElement;
+        const f = input.files?.[0];
+        input.value = "";
+        if (!f || st.extra.length >= 2) return;
+        try {
+          const big = await cropPhoto(f);
+          if (!big) return;
+          st.extra.push({ big, thumb: await thumbFromBlob(big), url: URL.createObjectURL(big) });
+        } catch { store.problem = "Couldn't read that photo. Try another one."; failed = true; }
+        draw();
+      }
       async function usePhoto(e: Event) {
         const input = e.target as HTMLInputElement;
         const f = input.files?.[0];
@@ -553,7 +617,16 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
           h("button", { class: "photoKey", onclick: () => pickFile.click() }, icon("image", "font-size:20px;margin-right:8px"), "PICK"),
           hasPhoto ? h("button", { class: "photoKey", style: "flex:none;width:52px;color:var(--sub)", "aria-label": "Remove photo", onclick: () => {
             st.change = { kind: "remove" }; if (st.preview) URL.revokeObjectURL(st.preview); st.preview = null; draw(); } }, icon("close", "font-size:18px")) : null,
-          pickFile, snapFile));
+          pickFile, snapFile, extraFile));
+        // New jars: two more photo slots after the cover (3 in all). Existing jars add photos on the jar page.
+        if (!original) out.push(h("div", { class: "photoSlots" },
+          h("div", { class: "slot cover" }, tag(hasPhoto ? "COVER ✓" : "COVER", "font-size:8.5px")),
+          ...[0, 1].map(i => {
+            const x = st.extra[i];
+            return x ? h("div", { class: "slot", style: `background-image:url(${x.url})` },
+                h("button", { class: "slotX", "aria-label": "Remove photo", onclick: () => { URL.revokeObjectURL(x.url); st.extra.splice(i, 1); draw(); } }, "×"))
+              : h("button", { class: "slot add", "aria-label": "Add a photo", disabled: i > st.extra.length, onclick: () => extraFile.click() }, "+");
+          })));
         out.push(field("STRAIN", "Orange Starburst", "edStrain", st.strain, v => { st.strain = v; focusKeep(draw); }));
         const prod = field("PRODUCER", "Pressure", "edProducer", st.producer, v => { st.producer = v; });
         const picks = store.knownProducers.slice(0, 6);
@@ -571,7 +644,9 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         const rate = h("div", { class: "panel pad stackS center" },
           h("div", { class: "row" }, tag("RATE IT", "font-size:9.5px"), st.rating !== undefined ? h("button", { class: "textBtn", style: "margin-left:auto;font-size:16px", onclick: () => { st.rating = undefined; draw(); } }, "Clear") : null),
           h("div", { style: "display:flex;justify-content:center" }, ratingDial(st.rating, 150)));
-        if (st.rating === undefined) rate.append(h("button", { class: "btn2 wide", style: "color:var(--gold)", onclick: () => { st.rating = 7; draw(); } }, "TAP TO RATE"));
+        if (st.rating === undefined && !original && !st.finished) rate.append(h("button", { class: "btn2 wide askAfter" + (st.askAfter ? " on" : ""), "aria-pressed": String(st.askAfter),
+          onclick: () => { st.askAfter = !st.askAfter; draw(); } }, st.askAfter ? "✓ ASK ME AFTER MY NEXT DAB" : "ASK ME AFTER MY NEXT DAB"));
+        if (st.rating === undefined) rate.append(h("button", { class: "btn2 wide", style: "color:var(--gold)", onclick: () => { st.rating = 7; st.askAfter = false; draw(); } }, "TAP TO RATE"));
         else {
           rate.append(h("input", { type: "range", min: 0, max: 10, step: 0.1, value: String(st.rating), class: "gold",
             oninput: (e: Event) => { st.rating = Jars.clampRating(Number((e.target as HTMLInputElement).value)); updDial(); } }));
@@ -598,6 +673,8 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
           const jar: Jar = { ...base, strain: st.strain, producer: st.producer, review: st.review, finished: st.finished };
           if (st.category) jar.category = st.category; else delete jar.category;
           if (st.rating !== undefined) jar.rating = st.rating; else delete jar.rating;
+          if (!original && seed?.productID) jar.productID = seed.productID;
+          if (!original && st.askAfter && st.rating === undefined) jar.askAfterDab = true;
           const price = Number(st.price.replace("$", "").replace(",", "."));
           if (st.price.trim() && price > 0) jar.price = price; else delete jar.price;
           if (st.grams !== undefined) jar.grams = st.grams; else delete jar.grams;
@@ -605,7 +682,9 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
           jar.bought = st.bought.toISOString();
           if (await store.save(jar, st.change)) {
             if (st.preview) URL.revokeObjectURL(st.preview);
+            for (const x of st.extra) { await store.addPhoto(jar.id, x.big, x.thumb); URL.revokeObjectURL(x.url); }
             close();
+            if (!original && jar.askAfterDab) store.setCurrent(jar.id);
             if (!original && onNew && !jar.finished) onNew(jar.id);
           } else { failed = true; draw(); }
         } }, original ? "SAVE IT" : "LOG IT"));
@@ -677,8 +756,31 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     if (!p) { if (promptOpen) { promptOpen.close(); promptOpen = null; } return; }
     if (promptOpen?.prompt === p) return;
     promptOpen?.close();
-    const close = rateSheet(p, () => { promptOpen = null; watcher.close(); });
+    const jarID = p.jarID;
+    const close = rateSheet(p, () => {
+      promptOpen = null; watcher.close();
+      const j = jarID ? store.jar(jarID) : undefined;
+      if (j?.askAfterDab) askJarRating(j);
+    });
     promptOpen = { prompt: p, close };
+  }
+
+  /** The one-time "rate this jar" card, after the first dab on a jar logged with Ask me after my next dab. */
+  function askJarRating(j: Jar) {
+    let r = j.rating ?? 7;
+    const clear = () => { const x = store.jar(j.id); if (x) { const y = { ...x }; delete y.askAfterDab; void store.save(y, { kind: "keep" }); } };
+    openSheet(close => {
+      const dialBox = h("div", { style: "display:flex;justify-content:center" }, ratingDial(r, 140));
+      return h("div", { class: "cardBody stackS center" },
+        tag("RATE THE JAR", "font-size:9.5px"), h("h3", { style: "margin:0" }, j.strain), dialBox,
+        h("input", { type: "range", min: 0, max: 10, step: 0.1, value: String(r), class: "gold",
+          oninput: (e: Event) => { r = Jars.clampRating(Number((e.target as HTMLInputElement).value)); dialBox.replaceChildren(ratingDial(r, 140)); } }),
+        h("div", { class: "row", style: "gap:10px" },
+          h("button", { class: "btn2", style: "flex:1", onclick: () => { clear(); close(); } }, "NOT NOW"),
+          h("button", { class: "goldBtn", style: "flex:1", onclick: () => {
+            const x = store.jar(j.id); if (x) { const y = { ...x, rating: r }; delete y.askAfterDab; void store.save(y, { kind: "keep" }); }
+            close(); } }, "SAVE")));
+    }, "card");
   }
 
   function rateSheet(prompt: DabPrompt, onDone?: () => void): () => void {

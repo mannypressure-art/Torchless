@@ -181,6 +181,29 @@
   .curveCard.folded .curveChev { transform: rotate(0deg); }
   .curveCard.folded svg, .curveCard.folded .curveStats { display: none; }
   .curveCard.folded .curveHero span { font-size: 22px; }
+  .jarTabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .jarTab { min-height: 44px; border-radius: 12px; border: 1px solid var(--edge); font: 700 11px var(--mono); letter-spacing: 1.5px; color: var(--dim); }
+  .jarTab.tMine.on { color: var(--coll); border-color: var(--coll); background: color-mix(in srgb, var(--coll) 13%, transparent); }
+  .jarTab.tGrave.on { color: var(--grave); border-color: var(--grave); background: color-mix(in srgb, var(--grave) 13%, transparent); }
+  .jarTab.tGlob.on { color: var(--glob); border-color: var(--glob); background: color-mix(in srgb, var(--glob) 13%, transparent); }
+  .globCard { padding: 14px; border-color: color-mix(in srgb, var(--glob) 45%, var(--edge)); }
+  .tCollBtn { color: var(--coll); border-color: var(--coll) !important; background: color-mix(in srgb, var(--coll) 12%, transparent); }
+  .tGraveBtn { color: var(--grave); border-color: var(--grave) !important; background: color-mix(in srgb, var(--grave) 12%, transparent); }
+  .photoSlots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .photoSlots .slot { position: relative; aspect-ratio: 1; border-radius: 12px; border: 1px dashed var(--edge); background: var(--cardBottom) center/cover no-repeat; display: flex; align-items: center; justify-content: center; font: 600 26px var(--cond); color: var(--dim); }
+  .photoSlots .slot.cover { border-style: solid; border-color: var(--gold); }
+  .photoSlots .slot.add:disabled { opacity: .35; }
+  .photoSlots .slotX { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 18px; }
+  .askAfter { color: var(--live); }
+  .askAfter.on { border-color: var(--live); background: color-mix(in srgb, var(--live) 13%, transparent); }
+  .jarCard.done { border-color: color-mix(in srgb, var(--grave) 35%, var(--edge)); }
+  .tut { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,.6); padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); touch-action: pan-y; }
+  .tutCard { width: 100%; max-width: 440px; padding: 20px; border-radius: 22px; border: 1px solid var(--tc); background: linear-gradient(color-mix(in srgb, var(--tc) 12%, var(--cardTop)), var(--cardBottom)); }
+  .tutCard h2 { font: 700 34px/1.05 var(--cond); letter-spacing: 1px; margin: 14px 0 8px; }
+  .tutCard p { margin: 0 0 18px; color: var(--sub); font-size: 17px; }
+  .tutDots { display: flex; gap: 8px; justify-content: center; margin-bottom: 16px; }
+  .tutDots button { width: 10px; height: 10px; border-radius: 50%; background: var(--edge); padding: 0; }
+  .tutDots button.on { background: var(--tc); width: 26px; border-radius: 5px; }
   .planBtn { width: 100%; min-height: 52px; margin-top: 12px; border-radius: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--goldFill); color: var(--goldInk); font: 700 20px/1 var(--cond); letter-spacing: 3px; }
   .planBtn .ico { font-size: 20px; }
   .curJar.slim { position: sticky; top: calc(4px + env(safe-area-inset-top)); z-index: 4; min-height: 56px; padding: 0 10px; border-color: color-mix(in srgb, var(--live) 45%, var(--edge)); background: color-mix(in srgb, var(--live) 8%, var(--cardBottom)); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
