@@ -191,6 +191,18 @@
   .curveZones i.you { background: color-mix(in srgb, var(--zoneYou) 25%, transparent); border-color: var(--zoneYou); }
   .curveZones i.community { background: color-mix(in srgb, var(--zoneAll) 22%, transparent); border-color: var(--zoneAll); }
   .curveZones b { color: var(--ink); font-weight: 700; }
+  .plSvg { display: block; width: 100%; height: auto; margin-top: 6px; touch-action: none; -webkit-user-select: none; user-select: none; }
+  .plBad { fill: none; stroke: var(--warn); stroke-width: 2.5; stroke-dasharray: 5 4; stroke-linecap: round; }
+  .plHalo { fill: var(--live); opacity: 0; } .plHalo.on { opacity: .16; }
+  .plSel { fill: var(--gold); }
+  .plProblem { font-size: 10.5px; color: var(--warn); margin: 8px 0 0; }
+  .plPointRow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .plStep { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; gap: 4px 6px; padding: 10px; border: 1px solid var(--edge); border-radius: 14px; background: var(--cardBottom); }
+  .plStep .tag { grid-column: 1 / -1; }
+  .plStep .btn2 { min-width: 48px; padding: 0; font-size: 22px; }
+  .plStep b { text-align: center; font-size: 22px; }
+  .plChips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .plName { min-height: 44px; border-radius: 12px; border: 1px solid var(--edge); background: var(--cardBottom); color: var(--ink); padding: 0 12px; font: 600 17px var(--cond); letter-spacing: 1px; }
   .cvGrid { stroke: var(--edge); stroke-width: 1; }
   .cvBase { stroke: color-mix(in srgb, var(--dim) 55%, transparent); stroke-width: 1; }
   .cvTick { stroke: color-mix(in srgb, var(--dim) 55%, transparent); stroke-width: 1; }
@@ -554,6 +566,7 @@
           </div>
           <div class="curveNote"><i></i><span id="curveNote"></span></div>
         </div>
+        <button id="planBtn" class="btn2 wide" style="margin-top:10px;color:var(--live);border-color:color-mix(in srgb, var(--live) 55%, transparent)">RIDE PLANNER · DRAW YOUR OWN CURVE</button>
       </div>
 
       <div>

@@ -10,14 +10,15 @@ import { WebCentral } from "../rig/web-central";
 import { chargingOf } from "../rig/frames";
 import { JarStore, IDBJarBackend, MemoryJarBackend } from "./jars";
 import { DabWatcher } from "./dab-watcher";
-import { mountJars, h, tag, openSheet, topBar, textBtn } from "./jar-ui";
+import { mountJars, h, tag, openSheet, topBar, textBtn, confirmSheet } from "./jar-ui";
+import { openPlanner } from "./planner";
 import { mountRig } from "./rig-ui";
 import { Account, JarSync } from "./cloud";
 import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
 import { HeatFX, heatSound, heatTrack, HEAT_SOUNDS, HEAT_TRACKS, validSound, validTrack } from "./heatfx";
 import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 
-const BUILD = "app-4f.0";
+const BUILD = "app-4g.0";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -220,6 +221,23 @@ function renderCurve(sel: number, celsius: boolean, heating: boolean) {
   svg.addEventListener("pointerup", e => { if (e.pointerType !== "mouse") window.setTimeout(hide, 1400); });
   svg.addEventListener("pointercancel", hide);
 }
+
+// MARK: Ride planner (Custom curves; sends only through rig.saveCurve, only while idle)
+
+let plannerRefresh: (() => void) | null = null;
+$("planBtn").onclick = () => {
+  const sel = rig.live?.preset ?? 0;
+  const p = sel >= 1 && sel <= 5 ? rig.presets[sel] : undefined;
+  const start = p ? waypointsOf(p).map(w => ({ t: w.t, f: w.f })) : [];
+  const ok = start.length >= 2 && !RigController.curveProblem(start);
+  plannerRefresh = openPlanner({
+    rig,
+    selected: () => rig.live?.preset ?? 0,
+    celsius: () => rig.live?.unitByte === 12,
+    currentJar: () => { const j = jars.current; return j ? { id: j.id, name: j.strain || j.producer || "this jar" } : null; },
+    confirm: (title, body, yes, onYes) => confirmSheet(title, body, yes, "Not now", onYes),
+  }, ok ? start : []);
+};
 
 // MARK: Preset editor
 
@@ -738,7 +756,7 @@ $("dialUp").onclick = () => rig.dialNudge(RigController.dialStep);
 $("dialA").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMode = "live"; schedule(); } };
 $("dialB").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMode = "active"; schedule(); } };
 const heatFX = new HeatFX($("faceCard"), () => prefs.get("heatSound") ?? "chimes", () => prefs.get("heatTrack") ?? "look", () => faceID);
-rig.onChange = () => { watcher.update(rig); heatFX.update(rig); schedule(); };
+rig.onChange = () => { watcher.update(rig); heatFX.update(rig); plannerRefresh?.(); schedule(); };
 // Audio can only start after a tap: unlock it on the first tap of any kind, and resume after an interruption.
 for (const ev of ["pointerdown", "pointerup", "touchend", "click"]) document.addEventListener(ev, () => heatSound.unlock(), { capture: true, passive: true });
 setInterval(schedule, 500);

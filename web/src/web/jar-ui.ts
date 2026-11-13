@@ -113,7 +113,7 @@ export function topBar(left: HTMLElement | null, mid: HTMLElement | null, right:
 export const textBtn = (label: string, onclick: () => void, color = "var(--sub)") =>
   h("button", { class: "textBtn", style: `color:${color}`, onclick }, label);
 
-function confirmSheet(title: string, body: string, yes: string, no: string, onYes: () => void) {
+export function confirmSheet(title: string, body: string, yes: string, no: string, onYes: () => void) {
   openSheet(close => h("div", { class: "cardBody" },
     h("h3", {}, title), h("p", { class: "sub" }, body),
     h("div", { class: "row", style: "gap:10px;margin-top:16px" },
