@@ -261,6 +261,7 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
           };
           const copy = steps.map(s => ({ ...s }));
           const went = one ? hooks.rig.saveCurveOnce(p, copy, done) : hooks.rig.saveCurve(p, copy, done);
+          window.setTimeout(() => { if (sending) done("dropped"); }, 15000);
           if (!went) { sending = false; status = ""; }
           redraw();
         });

@@ -374,11 +374,12 @@ export class RigController {
     }
     if (this.quietSince === null) this.quietSince = now;
     const quietFor = now - this.quietSince;
-    if (this._curveRestore?.used && quietFor >= 3.0 && this.linkFresh && this.putBackTries < 2 && !this.puttingBack) {
-      this.quietSince = null;
-      this.putBack(false);
+    if (this._curveRestore?.used && this.linkFresh && this.putBackTries < 2 && !this.puttingBack) {
+      // Ahead of any disconnect or background park, so the preset goes back first.
+      if (quietFor >= 1.0) { this.quietSince = null; this.putBack(false); }
       return;
     }
+    if (this.puttingBack) return;
     if (this.disconnectWaiting && quietFor >= 2.0) {
       this.disconnectWaiting = false;
       this.log("Dab is done and everything is put back. Disconnecting now, as asked.");
@@ -438,6 +439,7 @@ export class RigController {
         if (b.length >= 7 && b[2] <= 5 && f !== null && c !== null) {
           this.presets[b[2]].tempF = f;
           this.presets[b[2]].tempC = c;
+          if (this.echoesSince?.p === b[2]) this.echoesSince.f = f;
           if (this.now() < this.dialWatchUntil || this.dialTouched.size > 0) {
             this.log(`DIAL TEST 163 report: slot ${b[2]} = ${f} F / ${c} C`);
           }
@@ -445,11 +447,17 @@ export class RigController {
         break;
       }
       case 165:
-        if (b.length >= 4 && b[2] <= 5) this.presets[b[2]].profile = b[3];
+        if (b.length >= 4 && b[2] <= 5) {
+          this.presets[b[2]].profile = b[3];
+          if (this.echoesSince?.p === b[2]) this.echoesSince.pr = b[3];
+        }
         break;
       case 167: {
         const sec = this.u16(b, 3);
-        if (b.length >= 5 && b[2] <= 5 && sec !== null) this.presets[b[2]].hold = sec;
+        if (b.length >= 5 && b[2] <= 5 && sec !== null) {
+          this.presets[b[2]].hold = sec;
+          if (this.echoesSince?.p === b[2]) this.echoesSince.h = sec;
+        }
         break;
       }
       case 170:
@@ -491,7 +499,10 @@ export class RigController {
     this.dialReadout = "No nudge yet";
     this.dialNumbers = "";
     this.gen += 1;
+    // Web only: frames lost with the link are reported, so a curve save or put-back knows it did not finish.
+    const lost = this.queue;
     this.queue = [];
+    for (const it of lost) it.onDrop?.();
     this.pumping = false;
     this.waitingForStatus = false;
     this.stopRetryToken += 1;
@@ -1113,6 +1124,9 @@ export class RigController {
   private _curveRestore: CurveRestore | null = null;
   private putBackTries = 0;
   private puttingBack = false;
+  private putBackAttempt = 0;
+  /** Temp / hold / profile reports for the preset being put back, seen since its first frame went out. */
+  private echoesSince: { p: number; f?: number; h?: number; pr?: number } | null = null;
   /** The preset owed back after a one-dab curve, or null. */
   get curveRestore(): CurveRestore | null { return this._curveRestore; }
   private setRestore(r: CurveRestore | null) {
@@ -1135,8 +1149,11 @@ export class RigController {
     const pr = this.presets[p];
     if (!pr || pr.tempF === undefined || pr.hold === undefined || pr.profile === undefined) return `P${p} not read yet.`;
     if (pr.profile === 241) {
+      // Both halves, and bytes the put-back would write exactly the same.
       const old = this.reportedCurve(p);
-      if (!old || RigController.curveProblem(old)) return `P${p} can't be put back. Use KEEP.`;
+      const pay = (b: number[] | undefined) => (b && b.length >= 18 ? Array.from(b.slice(3, 18)).join(",") : null);
+      const again = old && !RigController.curveProblem(old) ? RigController.curvePayloads(old) : null;
+      if (!again || pay(pr.custom170) !== again.a.join(",") || pay(pr.custom171) !== again.b.join(",")) return `P${p} can't be put back. Use KEEP.`;
     } else if (!HeatProfile.isWritable(pr.profile)) return `P${p} can't be put back. Use KEEP.`;
     return null;
   }
@@ -1181,16 +1198,19 @@ export class RigController {
     const s = this.gate();
     if (s === null) return;
     if (s.sessionByte !== 0) { if (manual) this.say("Wait for heat to stop."); return; }
+    if (this.queue.length > 0) { if (manual) this.say("Busy. Try again in a moment."); return; }
     this.putBackTries += 1;
     this.puttingBack = true;
+    const attempt = ++this.putBackAttempt;
     this.changed();
     this.log(`ONE DAB: putting preset ${r.p} back: ${r.tempF} F, hold ${r.hold} s, profile ${HeatProfile.name(r.profile)}.`);
     const finish = (res: CurveResult) => {
-      if (!this.puttingBack) return;
+      if (!this.puttingBack || attempt !== this.putBackAttempt) return;
       this.puttingBack = false;
+      this.echoesSince = null;
       if (res === "ok" || res === "no report") {
-        this.log(res === "ok" ? `ONE DAB: preset ${r.p} is back. The rig read back the old curve.`
-          : `ONE DAB: preset ${r.p} written back. The rig sent no curve read-back to confirm it.`);
+        this.log(res === "ok" ? `ONE DAB: preset ${r.p} is back. The rig confirmed it.`
+          : `ONE DAB: preset ${r.p} written back. The rig sent nothing to confirm it.`);
         this.setRestore(null);
       } else {
         this.log(`ONE DAB: put-back of preset ${r.p} ${res === "dropped" ? "did not finish" : "did not match"} (try ${this.putBackTries}).`);
@@ -1198,24 +1218,26 @@ export class RigController {
         this.changed();
       }
     };
+    // Whatever happens to the frames, the latch never outlives 15 s.
+    this.clock.after(15, () => finish("dropped"));
     if (r.profile === 241 && r.steps) {
-      if (!this.writeCurve(r.p, r.steps, finish)) this.puttingBack = false;
+      if (!this.writeCurve(r.p, r.steps, finish)) finish("dropped");
       return;
     }
+    // A stock preset is confirmed by the rig's own temp / hold / profile reports that arrive after the write
+    // (the values the app set when each frame went out don't count).
+    const writeProfile = HeatProfile.isWritable(r.profile);
     const ok = this.writePreset(r.p, r.tempF, r.hold, r.profile, {
-      // Only a read-back that arrives after this write can confirm it.
-      first: () => { this.presets[r.p].custom170 = undefined; this.presets[r.p].custom171 = undefined; },
+      first: () => { this.echoesSince = { p: r.p }; },
       last: () => this.clock.after(2.5, () => {
-        if (!r.a) { finish("no report"); return; }
-        const pay = (b: number[] | undefined) => (b && b.length >= 18 ? Array.from(b.slice(3, 18)) : null);
-        const same = (x: number[] | null, y: number[] | null) => !!x && !!y && x.length === y.length && x.every((v, i) => v === y[i]);
-        const gotA = pay(this.presets[r.p].custom170), gotB = pay(this.presets[r.p].custom171);
-        if (gotA === null && gotB === null) finish("no report");
-        else finish(same(gotA, r.a) && (r.b === null || same(gotB, r.b)) ? "ok" : "MISMATCH");
+        const e = this.echoesSince;
+        if (!e || e.f === undefined && e.h === undefined && e.pr === undefined) { finish("no report"); return; }
+        const good = e.f === r.tempF && e.h === r.hold && (!writeProfile || e.pr === r.profile);
+        finish(good ? "ok" : "MISMATCH");
       }),
       drop: () => finish("dropped"),
     });
-    if (!ok) this.puttingBack = false;
+    if (!ok) finish("dropped");
   }
 
   // MARK: Actions: lights

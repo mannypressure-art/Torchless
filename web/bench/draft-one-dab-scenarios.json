@@ -321,6 +321,196 @@
      "expect": "nothing owed"
     }
    ]
+  },
+  {
+   "id": "oneDabDisconnectWaits",
+   "title": "he asks to disconnect mid-dab: the preset goes back before the link is let go",
+   "allowedAppStarts": 0,
+   "finish": 90.0,
+   "steps": [
+    {
+     "t": 2.1,
+     "do": "saveCurveOnce",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 480
+       },
+       {
+        "t": 15,
+        "f": 480
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 10.0,
+     "do": "sim.buttonStart"
+    },
+    {
+     "t": 20.0,
+     "do": "askDisconnect"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.presetTemp[1] == 450 && sim.hold[1] == 12 && sim.profile[1] == 161",
+     "expect": "preset 1 is back to 450 F, 12 s, its old profile"
+    },
+    {
+     "rule": "!saved.curveRestoreV1 && app.curveRestore === null",
+     "expect": "nothing is owed any more"
+    },
+    {
+     "rule": "curveFrames.every(f => f.sessionWas == 0)",
+     "expect": "nothing was written while heating"
+    },
+    {
+     "rule": "!world.peripheral.connected",
+     "expect": "then it disconnects, as asked"
+    },
+    {
+     "rule": "log.has('ONE DAB: preset 1 is back')",
+     "expect": "confirmed before letting go"
+    }
+   ]
+  },
+  {
+   "id": "oneDabLinkLostMidPutBack",
+   "title": "the link drops half way through the put-back: it is tried again when the rig is back",
+   "allowedAppStarts": 0,
+   "finish": 90.0,
+   "steps": [
+    {
+     "t": 2.1,
+     "do": "saveCurveOnce",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 480
+       },
+       {
+        "t": 15,
+        "f": 480
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 10.0,
+     "do": "sim.buttonStart"
+    },
+    {
+     "t": 44.5,
+     "do": "world.loseLink"
+    },
+    {
+     "t": 50.0,
+     "do": "world.backInRange"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.presetTemp[1] == 450 && sim.hold[1] == 12 && sim.profile[1] == 161",
+     "expect": "preset 1 is back to 450 F, 12 s, its old profile"
+    },
+    {
+     "rule": "!saved.curveRestoreV1 && app.curveRestore === null",
+     "expect": "nothing is owed any more"
+    },
+    {
+     "rule": "curveFrames.every(f => f.sessionWas == 0)",
+     "expect": "nothing was written while heating"
+    },
+    {
+     "rule": "log.has('ONE DAB: put-back of preset 1 did not finish')",
+     "expect": "the broken put-back was noticed"
+    }
+   ]
+  },
+  {
+   "id": "oneDabCustomOriginal",
+   "title": "preset already a Custom curve: after the one-dab curve, the old curve's exact bytes come back",
+   "allowedAppStarts": 0,
+   "finish": 100.0,
+   "steps": [
+    {
+     "t": 2.1,
+     "do": "saveCurve",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 480
+       },
+       {
+        "t": 15,
+        "f": 480
+       },
+       {
+        "t": 30,
+        "f": 500
+       }
+      ]
+     }
+    },
+    {
+     "t": 12.1,
+     "do": "saveCurveOnce",
+     "args": {
+      "slot": 1,
+      "steps": [
+       {
+        "t": 0,
+        "f": 520
+       },
+       {
+        "t": 20,
+        "f": 520
+       }
+      ]
+     }
+    },
+    {
+     "t": 20.0,
+     "do": "sim.buttonStart"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.profile[1] == 241 && sim.presetTemp[1] == 480 && sim.hold[1] == 30",
+     "expect": "preset 1 is the old Custom curve again"
+    },
+    {
+     "rule": "sim.curveA[1].join(',') == '1,224,0,249,0,1,224,0,249,15,1,244,1,4,30'",
+     "expect": "old curve points 1-3, exact bytes"
+    },
+    {
+     "rule": "sim.curveB[1].every(x => x == 0)",
+     "expect": "old curve points 4-5 (empty)"
+    },
+    {
+     "rule": "!saved.curveRestoreV1 && log.has('ONE DAB: preset 1 is back')",
+     "expect": "confirmed, nothing owed"
+    },
+    {
+     "rule": "curveFrames.every(f => f.sessionWas == 0)",
+     "expect": "nothing was written while heating"
+    }
+   ]
   }
  ]
 }
