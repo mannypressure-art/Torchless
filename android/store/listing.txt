@@ -1,0 +1,33 @@
+APP NAME (30 max)
+Torchless: Dab Rig Control
+
+SHORT DESCRIPTION (80 max)
+Heat your e-rig from your phone, shape each dab, and keep a journal of your jars.
+
+FULL DESCRIPTION
+Torchless runs your compatible e-rig from your phone over Bluetooth, and keeps a simple journal of what you dab.
+
+HEAT IT
+• Link your rig and tap Heat it. See the temperature, time left and battery at a glance.
+• Pick a preset, add time mid-dab, or cut it early.
+• The screen stays on while your rig is linked.
+
+RIDE PLANNER
+• Shape a dab as a temperature curve: tap a point, then + or −.
+• Use a curve for one dab, or save it to a preset.
+
+JARS
+• Log your jars with up to 3 photos, a rating and notes.
+• Pick what you're dabbing, and rate it after the session.
+• The graveyard keeps finished jars.
+• Browse the Global shelf. See what other people rate each jar and like their photos.
+
+TORCH MODE
+• Dabbing with glass and a torch? Use heat-up and cool-down timers you set yourself.
+
+STYLE
+• Choose how the home screen looks, plus the heat-up look and the rig's lights.
+
+Accounts are optional. Your dab history and temperatures stay on your phone. Sign in with Google or Apple only if you want to share jar ratings or photos.
+
+For adults 21+ where cannabis is legal. Torchless is not affiliated with the maker of your rig.
