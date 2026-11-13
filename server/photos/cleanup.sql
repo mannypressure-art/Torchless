@@ -2,6 +2,7 @@
 -- Server backstop for deleted accounts, deleted photos and failed posts: any file in jar-photos with no
 -- product_photos row, older than 1 hour, is removed by the photo-cleanup edge function (SQL can't delete
 -- storage files directly; protect_objects_delete). Rows already cascade when an account is deleted.
+-- Anything new that stores files in jar-photos must be added to photo_orphans' NOT EXISTS list, or it gets swept.
 
 create or replace function public.photo_orphans(p_limit int default 500)
 returns table (path text)
@@ -10,6 +11,7 @@ language sql security definer set search_path = '' stable as $$
   where o.bucket_id = 'jar-photos'
     and o.created_at < now() - interval '1 hour'
     and not exists (select 1 from public.product_photos p where p.path = o.name)
+    and not exists (select 1 from public.posts q where q.photo_path = o.name)
   order by o.created_at
   limit greatest(1, least(p_limit, 1000));
 $$;
