@@ -9,7 +9,7 @@
 import { JarStore, JarDab, uid, photoURLs } from "./jars";
 import { DabWatcher } from "./dab-watcher";
 import { heatSound } from "./heatfx";
-import { h, tag } from "./jar-ui";
+import { h, tag, icon } from "./jar-ui";
 
 export interface TorchDeps {
   jars: JarStore;
@@ -230,7 +230,7 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
   // "While you were away"
   const awayText = h("p", {});
   const away = h("div", { class: "notice note", hidden: true },
-    h("span", { class: "icon", style: "color:var(--gold)" }, "✓"),
+    h("span", { class: "icon", style: "color:var(--gold)" }, icon("check")),
     h("div", {}, tag("WHILE YOU WERE AWAY"), awayText),
     h("button", { class: "gotIt", onclick: () => { awayMsg = null; paint(); } }, "GOT IT"));
 
@@ -247,15 +247,15 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     keys,
     h("p", { class: "tm-note" }, "Torchless can't read your glass. These times are yours: tune them to your banger and torch."));
 
-  const goBtn = h("button", { class: "bigBtn tm-go", onclick: start }, "🔥 TORCH IT");
+  const goBtn = h("button", { class: "bigBtn tm-go", onclick: start }, icon("torch"), "TORCH IT");
   const offBtn = h("button", { class: "tm-off", onclick: torchOffNow }, "TORCH OFF NOW");
   const torchRow = h("div", { hidden: true },
-    h("button", { class: "bigBtn tm-stop", onclick: stop }, "■ STOP"), offBtn);
+    h("button", { class: "bigBtn tm-stop", onclick: stop }, icon("stop"), "STOP"), offBtn);
   const coolRow = h("div", { class: "row", style: "gap:10px", hidden: true },
-    h("button", { class: "bigBtn tm-stop", onclick: stop }, "■ STOP"),
+    h("button", { class: "bigBtn tm-stop", onclick: stop }, icon("stop"), "STOP"),
     h("button", { class: "panel tm-side", "aria-label": "5 seconds less cool-down", onclick: () => nudge(-5) }, h("b", {}, "−5s"), tag("LESS", "font-size:8.5px")),
     h("button", { class: "panel tm-side", "aria-label": "5 seconds more cool-down", onclick: () => nudge(5) }, h("b", {}, "+5s"), tag("MORE", "font-size:8.5px")));
-  const doneBtn = h("button", { class: "bigBtn tm-go", hidden: true, onclick: done }, "✓ DONE");
+  const doneBtn = h("button", { class: "bigBtn tm-go", hidden: true, onclick: done }, icon("check"), "DONE");
   const hint = h("div", { class: "hint" });
   const actions = h("div", {}, goBtn, torchRow, coolRow, doneBtn, hint);
 

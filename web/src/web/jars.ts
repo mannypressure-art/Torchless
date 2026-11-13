@@ -165,11 +165,13 @@ export const Dabs = {
   },
   isFlat: (d: JarDab) => d.profile === undefined || d.profile === "Steady" || d.profile === "Unknown",
   goalText(d: JarDab): string {
+    if (d.medium === "torch") return "TORCH";
     if (d.goal === undefined) return d.peak !== undefined ? `${d.peak}°${d.unit}` : "—";
     if (!Dabs.isFlat(d) && d.goalTop !== undefined && d.goalTop !== d.goal) return `${d.goal}–${d.goalTop}°${d.unit}`;
     return `${d.goal}°${d.unit}`;
   },
   groupKey(d: JarDab): string {
+    if (d.medium === "torch") return `TORCH ${d.seconds}S` + (d.cooledIn !== undefined ? ` + ${d.cooledIn}S COOL` : "");
     const base = d.goal !== undefined ? `${d.goal}°${d.unit}` : "?";
     return Dabs.isFlat(d) ? base : `${base} ${(d.profile ?? "").toUpperCase()}`;
   },
