@@ -22,34 +22,42 @@ export function waypointsOf(p: PresetInfo): Waypoint[] {
 }
 
 export interface CurveView {
-  /** SVG markup for the chart body (viewBox 0 0 320 120). */
+  /** SVG markup for the chart body (viewBox 0 0 W H). */
   svg: string;
-  /** "465–480°" or "465°". */
-  range: string;
+  start: number; peak: number; low: number; end: number;
   seconds: number;
+  /** For the touch readout: time and temp under a point given as a 0..1 share of the SVG's width. */
+  probe(share: number): { t: number; v: number; x: number; y: number } | null;
 }
 
-const W = 320, H = 120, L = 34, R = 10, T = 12, B = 22;
+export const CURVE_W = 340, CURVE_H = 168;
+const W = CURVE_W, H = CURVE_H, L = 38, R = 14, T = 26, B = 26;
 
-/** elapsed = seconds into the hold while heating at temp, or null. extend = +10 s taps this dab. */
+function niceStep(span: number): number {
+  for (const s of [5, 10, 20, 25, 50, 100]) if (span / s <= 4) return s;
+  return 100;
+}
+
+/** elapsed = seconds into the hold while heating at temp, or null. extend = +10 s taps this dab.
+ *  keepsRamp: extra time continues the last slope (seen on the rig with Ascent); otherwise it is drawn flat. */
 export function drawCurve(pts: Waypoint[], celsius: boolean, elapsed: number | null, extend: number, keepsRamp: boolean): CurveView | null {
   if (pts.length === 0) return null;
   const v = (p: Waypoint) => (celsius ? p.c : p.f);
   const last = pts[pts.length - 1];
-  const end = Math.max(last.t, 1);
-  // What +10 s does: seen on the rig, Steady stays flat and Ascent keeps climbing at its slope.
-  // Other shapes have not been seen with extra time, so they are drawn flat.
   const prev = pts.length > 1 ? pts[pts.length - 2] : last;
   const slope = keepsRamp && last.t > prev.t ? (v(last) - v(prev)) / (last.t - prev.t) : 0;
   const extra = 10 * Math.max(1, extend);
   const extV = v(last) + slope * extra;
-  const vals = pts.map(v).concat(extV);
-  let lo = Math.min(...vals), hi = Math.max(...vals);
-  const pad = Math.max(10, (hi - lo) * 0.25);
-  lo = Math.floor((lo - pad) / 5) * 5; hi = Math.ceil((hi + pad) / 5) * 5;
-  const span = end + extra;
-  const x = (t: number) => L + (t / span) * (W - L - R);
-  const y = (val: number) => T + (1 - (val - lo) / (hi - lo)) * (H - T - B);
+  const span = Math.max(last.t, 1) + extra;
+  const vals = pts.map(v);
+  const minV = Math.min(...vals), maxV = Math.max(...vals);
+  const dMin = Math.min(minV, extV), dMax = Math.max(maxV, extV);
+  // A flat hold gets a window around it so the line sits mid-chart instead of on an edge.
+  const pad = Math.max(celsius ? 8 : 14, (dMax - dMin) * 0.38);
+  const step = niceStep(dMax - dMin + 2 * pad);
+  const lo = Math.floor((dMin - pad) / step) * step, hi = Math.ceil((dMax + pad) / step) * step;
+  const px = (t: number) => L + (t / span) * (W - L - R);
+  const py = (val: number) => T + (1 - (val - lo) / (hi - lo)) * (H - T - B);
   const at = (t: number): number => {
     if (t >= last.t) return v(last) + slope * (t - last.t);
     for (let i = 1; i < pts.length; i++) {
@@ -60,27 +68,71 @@ export function drawCurve(pts: Waypoint[], celsius: boolean, elapsed: number | n
     }
     return v(last);
   };
-  const line = pts.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)} ${y(v(p)).toFixed(1)}`).join(" ");
-  const area = `${line} L${x(last.t).toFixed(1)} ${H - B} L${x(0).toFixed(1)} ${H - B} Z`;
-  const minV = Math.min(...pts.map(v)), maxV = Math.max(...pts.map(v));
-  let s = "";
-  // Grid: min and max lines with their temps, time ticks.
-  for (const g of minV === maxV ? [maxV] : [minV, maxV]) {
-    s += `<line class="cvGrid" x1="${L}" x2="${W - R}" y1="${y(g).toFixed(1)}" y2="${y(g).toFixed(1)}"/>`;
-    s += `<text class="cvAxis" x="${L - 5}" y="${(y(g) + 3.5).toFixed(1)}" text-anchor="end">${Math.round(g)}°</text>`;
+  const n = (x: number) => x.toFixed(1);
+  const uid = `cv${Math.round(minV)}${Math.round(maxV)}${last.t}${pts.length}`;
+  const base = H - B;
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${n(px(p.t))} ${n(py(v(p)))}`).join(" ");
+  const area = `${line} L${n(px(last.t))} ${base} L${n(px(0))} ${base} Z`;
+  const xe = px(last.t), xs = px(span);
+
+  let s = `<defs>
+    <linearGradient id="${uid}a" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="cvStopTop"/><stop offset="1" class="cvStopBottom"/></linearGradient>
+    <linearGradient id="${uid}e" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="cvExtTop"/><stop offset="1" class="cvStopBottom"/></linearGradient>
+    <clipPath id="${uid}c"><rect x="${L}" y="${T - 8}" width="${W - L - R}" height="${base - T + 8}"/></clipPath>
+  </defs>`;
+  // Grid: hairlines at round temps, labels in the gutter.
+  for (let g = lo; g <= hi + 0.01; g += step) {
+    if (g === lo) continue;
+    s += `<line class="cvGrid" x1="${L}" x2="${W - R}" y1="${n(py(g))}" y2="${n(py(g))}"/>`;
+    s += `<text class="cvAxis" x="${L - 7}" y="${n(py(g) + 3.4)}" text-anchor="end">${g}°</text>`;
   }
-  const ticks = new Set<number>([0, ...pts.map(p => p.t)]);
-  for (const t of ticks) s += `<text class="cvAxis" x="${x(t).toFixed(1)}" y="${H - 7}" text-anchor="middle">${t}s</text>`;
-  s += `<text class="cvAxis cvPlus" x="${x(span).toFixed(1)}" y="${H - 7}" text-anchor="end">+${extra}s</text>`;
-  s += `<line class="cvBase" x1="${L}" x2="${W - R}" y1="${H - B}" y2="${H - B}"/>`;
-  s += `<path class="cvArea" d="${area}"/><path class="cvLine" d="${line}"/>`;
-  s += `<path class="cvExt${extend > 0 ? " on" : ""}" d="M${x(last.t).toFixed(1)} ${y(v(last)).toFixed(1)} L${x(span).toFixed(1)} ${y(extV).toFixed(1)}"/>`;
-  for (const p of pts) s += `<circle class="cvPt" cx="${x(p.t).toFixed(1)}" cy="${y(v(p)).toFixed(1)}" r="3"/>`;
+  s += `<line class="cvBase" x1="${L}" x2="${W - R}" y1="${base}" y2="${base}"/>`;
+  // Time axis: a tick every 10 s, labels where they fit.
+  const tickEvery = span > 70 ? 20 : 10;
+  for (let t = 0; t <= last.t; t += 10) {
+    s += `<line class="cvTick" x1="${n(px(t))}" x2="${n(px(t))}" y1="${base}" y2="${base + (t % tickEvery === 0 ? 5 : 3)}"/>`;
+    if (t % tickEvery === 0 && px(last.t) - px(t) > 16 || t === 0) s += `<text class="cvAxis" x="${n(px(t))}" y="${H - 6}" text-anchor="${t === 0 ? "start" : "middle"}">${t === 0 ? "0s" : t}</text>`;
+  }
+  if (last.t % tickEvery !== 0 || true) s += `<text class="cvAxis cvAxisStrong" x="${n(xe)}" y="${H - 6}" text-anchor="middle">${last.t}s</text>`;
+  // Extra-time zone.
+  s += `<rect class="cvExtZone${extend > 0 ? " on" : ""}" x="${n(xe)}" y="${T - 8}" width="${n(xs - xe)}" height="${n(base - T + 8)}" fill="url(#${uid}e)"/>`;
+  s += `<line class="cvExtEdge" x1="${n(xe)}" x2="${n(xe)}" y1="${T - 8}" y2="${base}"/>`;
+  s += `<text class="cvExtTag" x="${n((xe + xs) / 2)}" y="${T - 12}" text-anchor="middle">+${extra}s</text>`;
+  // The curve.
+  s += `<g clip-path="url(#${uid}c)"><path d="${area}" fill="url(#${uid}a)"/>`;
+  s += `<path class="cvGlow" d="${line}"/><path class="cvLine" d="${line}"/>`;
+  s += `<path class="cvExt${extend > 0 ? " on" : ""}" d="M${n(xe)} ${n(py(v(last)))} L${n(xs)} ${n(py(extV))}"/></g>`;
+  // Waypoints with a surface ring, and a value on the start, the end and each turn.
+  pts.forEach((p, i) => {
+    const x = px(p.t), y = py(v(p));
+    s += `<circle class="cvPt" cx="${n(x)}" cy="${n(y)}" r="4"/>`;
+    const before = i > 0 ? v(pts[i - 1]) : v(p), after = i < pts.length - 1 ? v(pts[i + 1]) : v(p);
+    const isDip = v(p) < before && v(p) <= after || v(p) <= before && v(p) < after && i > 0 && i < pts.length - 1;
+    const flatRepeat = i > 0 && v(p) === before && (i === pts.length - 1 ? pts.length > 2 || true : v(p) === after);
+    if (flatRepeat && !(i === pts.length - 1 && minV !== maxV)) return;
+    const below = isDip && i > 0 && i < pts.length - 1;
+    const anchor = i === 0 ? "start" : i === pts.length - 1 ? "end" : "middle";
+    const dx = i === 0 ? -2 : i === pts.length - 1 ? 2 : 0;
+    s += `<text class="cvVal" x="${n(x + dx)}" y="${n(below ? y + 17 : y - 9)}" text-anchor="${anchor}">${Math.round(v(p))}°</text>`;
+  });
+  // Where the dab is right now.
   if (elapsed !== null) {
-    const t = Math.min(Math.max(elapsed, 0), span);
-    s += `<line class="cvNow" x1="${x(t).toFixed(1)}" x2="${x(t).toFixed(1)}" y1="${T}" y2="${H - B}"/>`;
-    s += `<circle class="cvDot" cx="${x(t).toFixed(1)}" cy="${y(at(t)).toFixed(1)}" r="4.5"/>`;
+    const t = Math.min(Math.max(elapsed, 0), span), x = px(t), y = py(at(t));
+    s += `<line class="cvNow" x1="${n(x)}" x2="${n(x)}" y1="${T - 8}" y2="${base}"/>`;
+    s += `<circle class="cvDotHalo" cx="${n(x)}" cy="${n(y)}" r="9"/><circle class="cvDot" cx="${n(x)}" cy="${n(y)}" r="4.5"/>`;
   }
-  const range = minV === maxV ? `${Math.round(maxV)}°` : `${Math.round(minV)}–${Math.round(maxV)}°`;
-  return { svg: s, range, seconds: last.t };
+  // Touch readout, moved by the page.
+  s += `<g id="cvScrub" visibility="hidden"><line class="cvScrubLine" y1="${T - 8}" y2="${base}"/><circle class="cvScrubDot" r="4.5"/>
+    <g id="cvScrubTip"><rect class="cvTipBox" width="74" height="22" rx="7"/><text class="cvTipText" x="37" y="15" text-anchor="middle"></text></g></g>`;
+  s += `<rect id="cvHit" x="${L}" y="0" width="${W - L - R}" height="${H}" fill="transparent"/>`;
+
+  return {
+    svg: s, start: v(pts[0]), peak: maxV, low: minV, end: v(last), seconds: last.t,
+    probe(share: number) {
+      const xx = share * W;
+      if (xx < L - 6 || xx > W - R + 6) return null;
+      const t = Math.round(Math.min(Math.max((xx - L) / (W - L - R), 0), 1) * span);
+      return { t, v: at(t), x: px(t), y: py(at(t)) };
+    },
+  };
 }

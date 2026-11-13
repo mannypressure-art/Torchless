@@ -168,20 +168,43 @@
 
   /* Presets */
   .row { display: flex; align-items: center; gap: 8px; }
-  .curveCard { margin-top: 10px; padding: 10px 12px 8px; border: 1px solid var(--edge); border-radius: 14px; }
-  .curveCard svg { display: block; width: 100%; height: auto; margin-top: 4px; }
-  .curveRange { font: 700 18px/1 var(--cond); letter-spacing: 1px; color: var(--gold); }
-  .cvGrid { stroke: var(--edge); stroke-width: 1; stroke-dasharray: 2 3; }
-  .cvBase { stroke: var(--edge); stroke-width: 1; }
+  .curveCard { margin-top: 12px; padding: 14px 14px 12px; border: 1px solid var(--edge); border-radius: 18px; background: linear-gradient(var(--cardTop), var(--cardBottom)); }
+  .curveHead { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; }
+  .curveTitle { font: 700 22px/1 var(--cond); letter-spacing: 2px; color: var(--ink); margin-top: 5px; }
+  .curveHero { font: 700 30px/0.9 var(--cond); letter-spacing: 1px; color: var(--ink); white-space: nowrap; }
+  .curveHero small { font: 600 10px/1 var(--mono); letter-spacing: 1.6px; color: var(--dim); display: block; text-align: right; margin-bottom: 5px; }
+  .curveCard svg { display: block; width: 100%; height: auto; margin-top: 6px; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+  .curveStats { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 8px; border-top: 1px solid var(--edge); }
+  .curveStats div { padding: 9px 0 0; text-align: center; border-left: 1px solid var(--edge); }
+  .curveStats div:first-child { border-left: 0; }
+  .curveStats b { display: block; font: 700 19px/1 var(--cond); letter-spacing: .5px; color: var(--ink); margin-top: 5px; }
+  .curveNote { font: 500 10.5px/1.4 var(--mono); color: var(--dim); margin-top: 10px; display: flex; align-items: center; gap: 7px; }
+  .curveNote i { flex: none; width: 16px; border-top: 2px dashed var(--gold); }
+  .cvGrid { stroke: var(--edge); stroke-width: 1; }
+  .cvBase { stroke: color-mix(in srgb, var(--dim) 55%, transparent); stroke-width: 1; }
+  .cvTick { stroke: color-mix(in srgb, var(--dim) 55%, transparent); stroke-width: 1; }
   .cvAxis { fill: var(--dim); font: 500 9.5px var(--mono); }
-  .cvPlus { fill: var(--gold); }
-  .cvArea { fill: color-mix(in srgb, var(--live) 14%, transparent); }
-  .cvLine { fill: none; stroke: var(--live); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
-  .cvExt { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 4 4; opacity: .55; }
-  .cvExt.on { opacity: 1; }
-  .cvPt { fill: var(--cardTop); stroke: var(--live); stroke-width: 2; }
-  .cvNow { stroke: var(--gold); stroke-width: 1; }
-  .cvDot { fill: var(--gold); }
+  .cvAxisStrong { fill: var(--sub); font-weight: 700; }
+  .cvStopTop { stop-color: var(--live); stop-opacity: .26; }
+  .cvStopBottom { stop-color: var(--live); stop-opacity: 0; }
+  .cvExtTop { stop-color: var(--gold); stop-opacity: .13; }
+  .cvExtZone { opacity: .55; }
+  .cvExtZone.on { opacity: 1; }
+  .cvExtEdge { stroke: color-mix(in srgb, var(--gold) 45%, transparent); stroke-width: 1; }
+  .cvExtTag { fill: var(--sub); font: 700 9px var(--mono); letter-spacing: 1px; }
+  .cvLine { fill: none; stroke: var(--live); stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
+  .cvGlow { fill: none; stroke: var(--live); stroke-width: 7; stroke-linejoin: round; stroke-linecap: round; opacity: .16; }
+  .cvExt { fill: none; stroke: var(--gold); stroke-width: 2; stroke-dasharray: 2 5; stroke-linecap: round; opacity: .7; }
+  .cvExt.on { opacity: 1; stroke-dasharray: none; }
+  .cvPt { fill: var(--live); stroke: var(--cardTop); stroke-width: 2; }
+  .cvVal { fill: var(--ink); font: 700 12.5px var(--cond); letter-spacing: .4px; paint-order: stroke; stroke: var(--cardTop); stroke-width: 3.5px; stroke-linejoin: round; }
+  .cvNow { stroke: color-mix(in srgb, var(--gold) 60%, transparent); stroke-width: 1; }
+  .cvDot { fill: var(--gold); stroke: var(--cardTop); stroke-width: 2; }
+  .cvDotHalo { fill: var(--gold); opacity: .22; }
+  .cvScrubLine { stroke: var(--sub); stroke-width: 1; }
+  .cvScrubDot { fill: var(--ink); stroke: var(--cardTop); stroke-width: 2; }
+  .cvTipBox { fill: var(--ink); }
+  .cvTipText { fill: var(--cardTop); font: 700 11px var(--mono); }
   .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-top: 8px; }
   .key { min-height: 56px; border-radius: 12px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); text-align: center; }
   .key small { display: block; font: 500 9.5px var(--mono); color: var(--dim); }
@@ -507,9 +530,18 @@
           <button id="p5" class="key"><small>5</small><span id="p5t">—</span></button>
         </div>
         <div id="curveCard" class="curveCard" hidden>
-          <div class="row"><span id="curveTag" class="tag" style="font-size:9.5px">HEAT CURVE</span><b id="curveRange" class="curveRange"></b></div>
-          <svg id="curveSvg" viewBox="0 0 320 120" role="img" aria-label="Heat curve for the selected preset"></svg>
-          <div id="curveNote" class="small" style="text-align:left"></div>
+          <div class="curveHead">
+            <div><span id="curveTag" class="tag" style="font-size:9.5px">HEAT CURVE</span><div id="curveTitle" class="curveTitle"></div></div>
+            <div class="curveHero"><small id="curveHeroTag">RANGE</small><span id="curveRange"></span></div>
+          </div>
+          <svg id="curveSvg" viewBox="0 0 340 168" role="img" aria-label="Heat curve for the selected preset"></svg>
+          <div class="curveStats">
+            <div><span class="tag" style="font-size:8.5px">START</span><b id="cvStart"></b></div>
+            <div><span class="tag" style="font-size:8.5px">PEAK</span><b id="cvPeak"></b></div>
+            <div><span class="tag" style="font-size:8.5px">LOW</span><b id="cvLow"></b></div>
+            <div><span class="tag" style="font-size:8.5px">HOLD</span><b id="cvHold"></b></div>
+          </div>
+          <div class="curveNote"><i></i><span id="curveNote"></span></div>
         </div>
       </div>
 

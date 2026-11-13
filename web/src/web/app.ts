@@ -15,7 +15,7 @@ import { mountRig } from "./rig-ui";
 import { Account, JarSync } from "./cloud";
 import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
 import { HeatFX, heatSound, HEAT_SOUNDS } from "./heatfx";
-import { waypointsOf, drawCurve } from "./curve";
+import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 
 const BUILD = "app-4e.0";
 const clock = new RealClock();
@@ -166,6 +166,7 @@ for (let n = 1; n <= 5; n++) $(`p${n}`).onclick = () => rig.selectPreset(n);
 // MARK: Preset curve chart (the rig's own waypoints for the selected preset; nothing is sent)
 
 let curveKey = "";
+let curveView: CurveView | null = null;
 function renderCurve(sel: number, celsius: boolean, heating: boolean) {
   const p = sel >= 1 && sel <= 5 ? rig.presets[sel] : undefined;
   const pts = p ? waypointsOf(p) : [];
@@ -178,17 +179,46 @@ function renderCurve(sel: number, celsius: boolean, heating: boolean) {
   if (key === curveKey) return;
   curveKey = key;
   const view = drawCurve(pts, celsius, elapsed, extend, p?.profile === 177);
+  curveView = view;
   $("curveCard").hidden = !view;
   if (!view || !p) return;
   $("curveSvg").innerHTML = view.svg;
-  const name = p.profile !== undefined ? HeatProfile.name(p.profile).toUpperCase() : "—";
-  $("curveTag").textContent = `PRESET ${sel} · ${name} · ${view.seconds}S`;
-  $("curveRange").textContent = view.range;
+  const deg = (x: number) => `${Math.round(x)}°`;
+  $("curveTag").textContent = `PRESET ${sel} · HEAT CURVE`;
+  $("curveTitle").textContent = p.profile !== undefined ? HeatProfile.name(p.profile).toUpperCase() : "—";
+  $("curveHeroTag").textContent = view.low === view.peak ? "HOLDS AT" : "RANGE";
+  $("curveRange").textContent = view.low === view.peak ? deg(view.peak) : `${Math.round(view.low)}–${deg(view.peak)}`;
+  $("cvStart").textContent = deg(view.start);
+  $("cvPeak").textContent = deg(view.peak);
+  $("cvLow").textContent = deg(view.low);
+  $("cvHold").textContent = `${view.seconds}s`;
   $("curveNote").textContent = extend > 0
-    ? `+${10 * extend} s added. Gold dashes show where the extra time goes.`
+    ? `+${10 * extend} s added to this dab.`
     : p.profile === 161 || p.profile === 177
-      ? "This is the curve your rig reports. Gold dashes show what +10 s adds."
-      : "This is the curve your rig reports. What +10 s does on this profile hasn't been measured yet.";
+      ? "What +10 s adds. Drag across the chart to read any moment."
+      : "+10 s on this profile hasn't been measured yet. Drag to read any moment.";
+}
+{
+  // Touch readout: drag across the chart to read time and temp. Vertical drags still scroll the page.
+  const svg = $("curveSvg") as unknown as SVGSVGElement;
+  const hide = () => svg.querySelector("#cvScrub")?.setAttribute("visibility", "hidden");
+  const move = (e: PointerEvent) => {
+    const g = svg.querySelector("#cvScrub"), r = svg.getBoundingClientRect();
+    const hit = curveView?.probe((e.clientX - r.left) / Math.max(r.width, 1));
+    if (!g || !hit) { hide(); return; }
+    g.setAttribute("visibility", "visible");
+    const ln = g.querySelector("line")!, dot = g.querySelector("circle")!, tip = g.querySelector("#cvScrubTip")!;
+    ln.setAttribute("x1", String(hit.x)); ln.setAttribute("x2", String(hit.x));
+    dot.setAttribute("cx", String(hit.x)); dot.setAttribute("cy", String(hit.y));
+    const tx = Math.min(Math.max(hit.x - 37, 40), CURVE_W - 14 - 74);
+    tip.setAttribute("transform", `translate(${tx} ${hit.y > 62 ? hit.y - 34 : hit.y + 12})`);
+    tip.querySelector("text")!.textContent = `${hit.t}s · ${Math.round(hit.v)}°`;
+  };
+  svg.addEventListener("pointerdown", move);
+  svg.addEventListener("pointermove", e => { if (e.pointerType === "mouse" || e.buttons || e.pressure > 0) move(e); });
+  svg.addEventListener("pointerleave", hide);
+  svg.addEventListener("pointerup", e => { if (e.pointerType !== "mouse") window.setTimeout(hide, 1400); });
+  svg.addEventListener("pointercancel", hide);
 }
 
 // MARK: Preset editor
