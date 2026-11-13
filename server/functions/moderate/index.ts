@@ -1,6 +1,5 @@
 // Supabase Edge Function "moderate": the AI moderation agent for Jar Journal and Torchless.
-// Revision 2, 2026-11-12, after Fable review M1-M12. Revision 3, 2026-11-13: type 'photo' (photos.sql), image check. NOT DEPLOYED. The release thread deploys it with
-// Manny's written OK.
+// Revision 2, 2026-11-12, after Fable review M1-M12. Revision 3, 2026-11-13: type 'photo' (photos.sql), image check. Deployed 2026-11-13 (v4, Manny OK).
 //
 // Called by the database (pg_net, see moderation.sql) with {type, id, rev, source} and the header
 // x-moderate-secret. It reads the item with the service role, runs a plain word filter, then asks Claude.

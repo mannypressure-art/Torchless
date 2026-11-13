@@ -1113,7 +1113,11 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
             h("button", { class: "btn2 wide", onclick: () => void a.signOut() }, "Sign out"),
             h("button", { class: "btn2 wide danger", style: "margin-top:24px", disabled: a.busy, onclick: () =>
               confirmSheet("Delete your account?", "This removes your sign-in, your name and every rating you shared. They drop out of GLOBAL right away. Your jars stay on this device. This can't be undone.",
-                "Delete account", "Keep it", () => void shelf.removeAllMine().then(() => a.deleteAccount(store))) }, "Delete account"));
+                "Delete account", "Keep it", () => void shelf.removeAllMine().then(ok => {
+                  if (ok) return a.deleteAccount(store);
+                  a.problem = "Couldn't remove your shared photos, so your account wasn't deleted. Check your signal and try again.";
+                  accountRedraw?.();
+                })) }, "Delete account"));
         }
         if (a.problem) kids.push(h("div", { class: "problem" }, a.problem));
         kids.push(h("p", { class: "mono dim", style: "margin-top:24px;font-size:10px" }, "Privacy: torchlessapp.github.io/privacy"));

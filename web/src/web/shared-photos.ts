@@ -151,14 +151,25 @@ export class PhotoShelf {
   }
 
   /** Before deleting the account: the rows go with it on the server, the files have to be removed here. */
-  async removeAllMine(): Promise<void> {
+  /** Before deleting the account: every file under my folder in the bucket, not just the ones with rows.
+   *  Returns false if listing or removing fails, so the caller stops (Apple 5.1.1(v); the privacy page promises it). */
+  async removeAllMine(): Promise<boolean> {
     const me = this.userID();
-    if (!me) return;
+    if (!me) return true;
     try {
-      const rows: { path: string }[] = await this.json(`/rest/v1/product_photos?select=path&user_id=eq.${me}`, {});
-      if (rows.length) await this.fetchAs(`${SERVER_URL}/storage/v1/object/${BUCKET}`, { method: "DELETE",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prefixes: rows.map(r => r.path) }) });
-    } catch { /* best effort: leftover files are unreadable once the rows are gone */ }
+      for (let round = 0; round < 10; round++) {
+        const r = await this.fetchAs(`${SERVER_URL}/storage/v1/object/list/${BUCKET}`, { method: "POST",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prefix: me + "/", limit: 100, offset: 0 }) });
+        if (!r.ok) return false;
+        const files: { name: string; id: string | null }[] = await r.json();
+        const paths = files.filter(f => f.id !== null).map(f => `${me}/${f.name}`);
+        if (!paths.length) return true;
+        const d = await this.fetchAs(`${SERVER_URL}/storage/v1/object/${BUCKET}`, { method: "DELETE",
+          headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prefixes: paths }) });
+        if (!d.ok) return false;
+      }
+      return false;
+    } catch { return false; }
   }
 
   private async removeFile(path: string): Promise<void> {
