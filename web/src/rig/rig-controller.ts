@@ -99,6 +99,8 @@ export interface PresetInfo {
   custom170?: number[]; custom171?: number[];
 }
 
+export interface CurveStep { t: number; f: number }
+
 export interface ShowStep { id: string; atStart: boolean; secondsRemaining: number; lightMode: number; brightness: number }
 
 export interface LightShow {
@@ -934,6 +936,109 @@ export class RigController {
     } else {
       this.log("Profile left unchanged (not a writable profile in this build).");
     }
+  }
+
+  // MARK: Actions: custom heat curve (ride planner). DRAFT: not in the shared bench spec yet.
+
+  /** What the last saveCurve asked for, and whether the rig's own 0xAA/0xAB report matched it. */
+  curveCheck: { preset: number; want: CurveStep[]; state: "sending" | "ok" | "mismatch" | "no report" } | null = null;
+
+  /** Why these steps can't be saved, or null. 2 to 5 steps, first at 0 s, times rising, last 10 to 90 s,
+   *  250 to 650 F, and no ramp steeper than the official editor allows (+10 F/s up, -3 F/s down). */
+  static curveProblem(steps: CurveStep[]): string | null {
+    if (steps.length < 2 || steps.length > 5) return "A curve needs 2 to 5 points.";
+    if (steps[0].t !== 0) return "The first point must be at 0 seconds.";
+    for (let i = 0; i < steps.length; i++) {
+      const st = steps[i];
+      if (!Number.isInteger(st.t) || !Number.isInteger(st.f)) return "Use whole seconds and whole degrees.";
+      if (!inRange(st.f, RigLimits.tempF[0], RigLimits.tempF[1])) return "Temperature must be 250 to 650 F.";
+      if (!inRange(RigLimits.celsius(st.f), RigLimits.tempC[0], RigLimits.tempC[1])) return "Temperature out of range.";
+      if (i > 0) {
+        const dt = st.t - steps[i - 1].t, df = st.f - steps[i - 1].f;
+        if (dt <= 0) return "Each point must come later than the one before.";
+        if (df > 10 * dt) return "That climb is too steep: at most 10 F a second.";
+        if (df < -3 * dt) return "That drop is too steep: at most 3 F a second.";
+      }
+    }
+    const last = steps[steps.length - 1].t;
+    if (!inRange(last, RigLimits.hold[0], RigLimits.hold[1])) return "The curve must end between 10 and 90 seconds.";
+    return null;
+  }
+
+  /** Saves a Custom (241) curve to a preset. Only while the rig is not heating. Same order and gaps as the
+   *  official app: temp, hold, profile 241, then the two curve frames. Then checks the rig's read-back. */
+  saveCurve(p: number, steps: CurveStep[]) {
+    if (!inRange(p, 1, 5)) { this.say("Preset must be 1 to 5."); return; }
+    const problem = RigController.curveProblem(steps);
+    if (problem) { this.say(problem); return; }
+    const s = this.gate();
+    if (s === null) return;
+    if (s.sessionByte !== 0) { this.say("Can't edit presets while heating."); return; }
+
+    const f0 = steps[0].f, c0 = RigLimits.celsius(f0), hold = steps[steps.length - 1].t;
+    const cell = (i: number): number[] => {
+      const st = steps[i];
+      if (!st) return [0, 0, 0, 0, 0];
+      const c = RigLimits.celsius(st.f);
+      return [st.f >> 8, st.f & 255, c >> 8, c & 255, st.t];
+    };
+    const frameA = [186, 19, p, ...cell(0), ...cell(1), ...cell(2), 186];
+    const frameB = [187, 19, p, ...cell(3), ...cell(4), ...cell(5), 187];
+    this.log(`Saving custom curve to preset ${p}: ${steps.map(x => `${x.f}F@${x.t}s`).join(", ")}.`);
+    this.curveCheck = { preset: p, want: steps.map(x => ({ ...x })), state: "sending" };
+    const drop = () => { if (this.curveCheck?.state === "sending") this.curveCheck = null; };
+
+    this.enqueue(this.item({
+      label: `Preset ${p} temp ${f0}F`, kind: { t: "raw", bytes: [179, 8, p, f0 >> 8, f0 & 255, c0 >> 8, c0 & 255, 179] },
+      gapBefore: 0.12, requireSessionOff: true, onDrop: drop,
+      onSent: () => { this.presets[p].tempF = f0; this.presets[p].tempC = c0; },
+    }));
+    this.enqueue(this.item({
+      label: `Preset ${p} hold ${hold}s`, kind: { t: "raw", bytes: [183, 6, p, hold >> 8, hold & 255, 183] },
+      gapBefore: 1.0, requireSessionOff: true, onDrop: drop, onSent: () => { this.presets[p].hold = hold; },
+    }));
+    this.enqueue(this.item({
+      label: `Preset ${p} profile Custom`, kind: { t: "raw", bytes: [181, 5, p, 241, 181] },
+      gapBefore: 1.0, requireSessionOff: true, onDrop: drop, onSent: () => { this.presets[p].profile = 241; },
+    }));
+    this.enqueue(this.item({
+      label: `Preset ${p} curve part 1`, kind: { t: "raw", bytes: frameA }, gapBefore: 0.3, requireSessionOff: true, onDrop: drop,
+      // Forget the old read-back so the check below only passes on a fresh report from the rig.
+      onSent: () => { this.presets[p].custom170 = undefined; this.presets[p].custom171 = undefined; },
+    }));
+    this.enqueue(this.item({
+      label: `Preset ${p} curve part 2`, kind: { t: "raw", bytes: frameB }, gapBefore: 0.3, requireSessionOff: true, onDrop: drop,
+      onSent: () => {
+        this.clock.after(2.5, () => {
+          const cc = this.curveCheck;
+          if (!cc || cc.preset !== p || cc.state !== "sending") return;
+          const got = this.reportedCurve(p);
+          if (got === null) { cc.state = "no report"; this.log(`CURVE CHECK preset ${p}: the rig sent no curve back.`); }
+          else {
+            const same = got.length === cc.want.length && got.every((g, i) => g.t === cc.want[i].t && g.f === cc.want[i].f);
+            cc.state = same ? "ok" : "mismatch";
+            this.log(`CURVE CHECK preset ${p}: ${same ? "ok, the rig reports the same curve" : `MISMATCH, rig reports ${got.map(x => `${x.f}F@${x.t}s`).join(", ")}`}.`);
+          }
+          this.changed();
+        });
+      },
+    }));
+  }
+
+  /** The curve the rig last reported for a slot (0xAA + 0xAB), or null if it has not reported one. */
+  reportedCurve(p: number): CurveStep[] | null {
+    const pr = this.presets[p];
+    if (!pr?.custom170) return null;
+    const out: CurveStep[] = [];
+    for (const fr of [pr.custom170, pr.custom171]) {
+      if (!fr) continue;
+      for (let o = 3; o + 4 < fr.length - 1; o += 5) {
+        const f = (fr[o] << 8) | fr[o + 1];
+        if (f === 0 && ((fr[o + 2] << 8) | fr[o + 3]) === 0) continue;
+        out.push({ t: fr[o + 4], f });
+      }
+    }
+    return out.sort((a, b) => a.t - b.t);
   }
 
   // MARK: Actions: lights

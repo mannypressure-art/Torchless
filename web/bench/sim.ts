@@ -178,6 +178,7 @@ export class SimRig {
   preset = 1; lightMode = 3; session = 0; autoOff = 10; unit = 15; remaining = 0; haptics = 170;
   extend = 0; battery = 80; brightness = 50; temp = 80.0;
   presetTemp = [480, 450, 500, 520, 550, 600];
+  curve: Record<number, Record<number, number[]>> = { 186: {}, 187: {} };
   hold = [30, 12, 30, 10, 45, 60];
   profile = [161, 161, 161, 161, 161, 161];
 
@@ -341,6 +342,17 @@ export class SimRig {
         this.profile[b[2]] = b[3];
         this.report([165, 5, b[2], b[3], 165]);
         break;
+      case 186:
+      case 187: {
+        // Custom curve halves (DRAFT). Stored and echoed back as 0xAA / 0xAB, the way the real rig
+        // reports a slot's curve. Refused while a dab runs, like the real rig refuses preset writes then.
+        if (b.length !== 19 || b[1] !== 19 || b[2] < 1 || b[2] > 5 || b[18] !== cmd) { this.note("BAD curve frame"); return; }
+        if (this.session !== 0) { this.note(`CURVE write refused mid-dab (slot ${b[2]})`); return; }
+        this.curve[cmd][b[2]] = b.slice(3, 18);
+        this.note(`CURVE part ${cmd - 185} slot ${b[2]}`);
+        this.report([cmd - 16, 19, b[2], ...b.slice(3, 18), cmd - 16]);
+        break;
+      }
       case 178:
         this.report([162, 13, 0, 5, 0, 63, 0, 121, 0, 210, 0, 0, 162]);
         break;

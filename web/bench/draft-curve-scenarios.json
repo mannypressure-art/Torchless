@@ -1,0 +1,237 @@
+{
+ "version": 1,
+ "about": "DRAFT web-only scenarios for the ride planner. Not part of the shared spec until the Swift bench has them.",
+ "defaults": {
+  "connect": "scan at 0.2 s, tap the first rig found at 0.6 s",
+  "allowedAppStarts": 0,
+  "show": false
+ },
+ "invariants": [
+  {
+   "expect": "only known-safe commands were ever sent (never reset, rename, firmware)",
+   "rule": "received.every(f => [177,178,179,181,183,185,186,187].includes(f.bytes[0]))"
+  },
+  {
+   "expect": "every control frame is well formed",
+   "rule": "b9s.every(f => f.bytes.length == 20 && f.bytes[1] == 20 && f.bytes[19] == 185)"
+  },
+  {
+   "expect": "app started heat as often as the scenario allows",
+   "rule": "appStarts == allowedAppStarts"
+  },
+  {
+   "expect": "writes are spaced out (at least 85 ms apart)",
+   "rule": "minGapBetweenReceived >= 0.085"
+  },
+  {
+   "expect": "mid-session writes all sent right after a status frame",
+   "rule": "b9s.filter(f => f.bytes[10] == 170 && f.sessionWas != 0).every(f => f.sinceStatus <= 0.3)"
+  },
+  {
+   "expect": "rig saw nothing malformed",
+   "rule": "events.count('BAD') == 0 && events.count('UNEXPECTED') == 0"
+  }
+ ],
+ "scenarios": [
+  {
+   "id": "customCurveSave",
+   "title": "DRAFT save a custom curve while idle, rig reads it back the same",
+   "allowedAppStarts": 0,
+   "finish": 12.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 465
+       },
+       {
+        "t": 20,
+        "f": 465
+       },
+       {
+        "t": 35,
+        "f": 500
+       },
+       {
+        "t": 50,
+        "f": 480
+       }
+      ]
+     }
+    },
+    {
+     "t": 8.5,
+     "check": "sim.profile[3] == 241 && sim.presetTemp[3] == 465 && sim.hold[3] == 50",
+     "expect": "temp, hold and Custom profile saved"
+    },
+    {
+     "t": 8.5,
+     "check": "sim.curve[186][3].join(',') == '1,209,0,241,0,1,209,0,241,20,1,244,1,4,35' && sim.curve[187][3].join(',') == '1,224,0,249,50,0,0,0,0,0,0,0,0,0,0'",
+     "expect": "both curve frames hold the four points"
+    },
+    {
+     "t": 8.5,
+     "check": "app.curveCheck != null && app.curveCheck.state == 'ok'",
+     "expect": "app confirmed the rig's read-back"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.sessionStarts == 0",
+     "expect": "no heat"
+    },
+    {
+     "rule": "received.filter(f => [179,183,181,186,187].includes(f.bytes[0])).map(f => f.bytes[0]).join(',') == '179,183,181,186,187'",
+     "expect": "frames in the official order"
+    }
+   ]
+  },
+  {
+   "id": "customCurveRefusedHeating",
+   "title": "DRAFT custom curve is not sent while heating",
+   "allowedAppStarts": 1,
+   "finish": 40.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 6.0,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 465
+       },
+       {
+        "t": 20,
+        "f": 465
+       },
+       {
+        "t": 35,
+        "f": 500
+       },
+       {
+        "t": 50,
+        "f": 480
+       }
+      ]
+     }
+    },
+    {
+     "t": 9.0,
+     "check": "received.filter(f => f.bytes[0] == 186 || f.bytes[0] == 187).length == 0 && app.curveCheck == null",
+     "expect": "nothing sent mid-dab"
+    }
+   ],
+   "final": [
+    {
+     "rule": "sim.sessionStarts == 1",
+     "expect": "one dab"
+    },
+    {
+     "rule": "received.filter(f => [186,187,181].includes(f.bytes[0])).length == 0",
+     "expect": "no curve frames at all"
+    }
+   ]
+  },
+  {
+   "id": "customCurveBadInput",
+   "title": "DRAFT bad curves are refused before anything is sent",
+   "allowedAppStarts": 0,
+   "finish": 8.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 465
+       },
+       {
+        "t": 2,
+        "f": 600
+       }
+      ]
+     }
+    },
+    {
+     "t": 2.5,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 5,
+        "f": 465
+       },
+       {
+        "t": 30,
+        "f": 465
+       }
+      ]
+     }
+    },
+    {
+     "t": 3.0,
+     "do": "saveCurve",
+     "args": {
+      "slot": 3,
+      "steps": [
+       {
+        "t": 0,
+        "f": 700
+       },
+       {
+        "t": 30,
+        "f": 465
+       }
+      ]
+     }
+    },
+    {
+     "t": 3.5,
+     "do": "saveCurve",
+     "args": {
+      "slot": 0,
+      "steps": [
+       {
+        "t": 0,
+        "f": 465
+       },
+       {
+        "t": 20,
+        "f": 465
+       },
+       {
+        "t": 35,
+        "f": 500
+       },
+       {
+        "t": 50,
+        "f": 480
+       }
+      ]
+     }
+    }
+   ],
+   "final": [
+    {
+     "rule": "received.filter(f => [179,183,181,186,187].includes(f.bytes[0])).length == 0",
+     "expect": "nothing sent"
+    }
+   ]
+  }
+ ]
+}
