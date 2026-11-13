@@ -90,6 +90,21 @@ function checkFsTip() {
 let fsTipClosed = false;
 $("fsGotIt").onclick = () => { fsTipClosed = true; $("fsTip").hidden = true; };
 $("fsNever").onclick = () => { prefs.set("fsTip", "done"); $("fsTip").hidden = true; };
+// Manny 2026-11-13: a one-tap FULL SCREEN button where the browser allows the Fullscreen API. iPhone web views
+// usually don't; then the tip's menu steps stay the way in.
+type FsEl = HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+const fsEl = document.documentElement as FsEl;
+const fsCan = !!(fsEl.requestFullscreen || fsEl.webkitRequestFullscreen) &&
+  ((document as unknown as { fullscreenEnabled?: boolean; webkitFullscreenEnabled?: boolean }).fullscreenEnabled ??
+   (document as unknown as { webkitFullscreenEnabled?: boolean }).webkitFullscreenEnabled ?? true);
+$("fsGo").hidden = !fsCan;
+$("fsGo").onclick = async () => {
+  try {
+    if (fsEl.requestFullscreen) await fsEl.requestFullscreen({ navigationUI: "hide" });
+    else await fsEl.webkitRequestFullscreen?.();
+    $("fsTip").hidden = true;
+  } catch { $("fsGo").hidden = true; }
+};
 checkFsTip();
 window.addEventListener("resize", checkFsTip);
 
