@@ -290,7 +290,12 @@ function renderCurve(sel: number, celsius: boolean, heating: boolean) {
 const extras = new RigExtras();
 let againPreset: number | null = null;
 let againPlan: { t: number; f: number }[] = [];
-$("againBtn").onclick = () => { if (againPreset !== null) rig.selectPreset(againPreset); else if (againPlan.length) openPlannerWith(againPlan); };
+const runAgain = () => { if (againPreset !== null) rig.selectPreset(againPreset); else if (againPlan.length) openPlannerWith(againPlan); };
+$("againBtn").onclick = runAgain;
+// Manny 2026-11-13: RUN IT BACK beside PLAN A CURVE (the same "do that again": the top-rated setup on this
+// jar), and a CUSTOM key after preset 5 that opens the planner. The old strip stays hidden.
+$("runBack").onclick = runAgain;
+$("pCustom").onclick = () => $("planBtn").click();
 $("cleanedBtn").onclick = () => { extras.cleaned(heatCyclesFrom(ble.extra)); schedule(); };
 function renderExtras(heating: boolean) {
   const s = rig.live;
@@ -301,7 +306,9 @@ function renderExtras(heating: boolean) {
   if (heating && at !== null && Date.now() - at < 4100) window.setTimeout(schedule, 500);
 
   const again = !heating && fresh ? doThatAgain(jars.current, rig) : null;
-  show("againStrip", !!again);
+  show("againStrip", false);
+  enable("runBack", false);
+  setText("runBackLine", !jars.current ? "PICK A JAR" : heating ? "HEATING" : "RATE A DAB FIRST");
   if (again) {
     const j = jars.current!;
     setText("againTitle", again.text.toUpperCase());
@@ -315,6 +322,8 @@ function renderExtras(heating: boolean) {
     const on = again.preset !== null && s?.preset === again.preset;
     setText("againBtn", again.preset === null ? "PLAN IT" : on ? `P${again.preset} SET` : `USE P${again.preset}`);
     enable("againBtn", again.preset === null || (!on && rig.canControl && !rig.sessionOn));
+    setText("runBackLine", again.preset === null ? `PLAN IT · ${again.dab.rating!.toFixed(1)}` : on ? `P${again.preset} SET · ${again.dab.rating!.toFixed(1)}` : `P${again.preset} · BEST ${again.dab.rating!.toFixed(1)}`);
+    enable("runBack", again.preset === null || (!on && rig.canControl && !rig.sessionOn));
   }
 
   const owed = rig.curveRestore;
@@ -802,6 +811,7 @@ function render() {
     $(`p${n}`).classList.toggle("on", s?.preset === n);
     enable(`p${n}`, !locked);
   }
+  enable("pCustom", !locked);
   const sel = s?.preset ?? 0;
   renderCurve(sel, celsius, heating);
   renderExtras(heating);

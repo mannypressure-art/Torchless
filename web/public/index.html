@@ -238,6 +238,17 @@
   .curJar .dockBtn { width: 32px; min-height: 44px; display: flex; align-items: center; justify-content: center; color: var(--dim); }
   .curJar .dockBtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .curJar.docked { position: static; }
+  .curJar .curText .tag { white-space: nowrap; }
+  .sessKey { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 52px; height: 52px; border-radius: 14px; border: 1px solid var(--edge); background: rgba(0,0,0,.25); }
+  .sessKey b { font: 700 24px/1 var(--cond); color: var(--live); }
+  .sessKey small { font: 600 8px var(--mono); letter-spacing: .18em; color: var(--dim); margin-top: 3px; }
+  .switchRow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; margin-top: 8px; padding: 8px 12px 8px 8px; border-radius: 14px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); text-align: left; }
+  .switchRow.on { border-color: var(--live); background: color-mix(in srgb, var(--live) 10%, var(--cardBottom)); }
+  .switchRow .jarPhoto { flex: none; }
+  .switchText { flex: 1; min-width: 0; }
+  .switchText b { display: block; font: 700 18px/1.1 var(--cond); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .switchRate { font: 700 24px var(--cond); color: var(--gold); }
+  .switchRate.none { color: var(--dim); }
   .heatBlock { position: sticky; bottom: calc(70px + env(safe-area-inset-bottom)); z-index: 4; }
   .heatBlock .bigBtn { min-height: 64px; font-size: 32px; box-shadow: 0 8px 22px rgba(0,0,0,.45); }
   .planPill { margin-left: auto; margin-right: 8px; min-height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; background: var(--live); color: var(--bg, #06090c); font: 700 11px var(--mono); letter-spacing: 1.2px; box-shadow: 0 0 14px color-mix(in srgb, var(--live) 45%, transparent); }
@@ -383,7 +394,14 @@
   .cvTipBox { fill: var(--ink); }
   .cvTipText { fill: var(--cardTop); font: 700 11px var(--mono); }
   .presetHead { margin: 0 0 6px; }
-  .presets { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .presets { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .key.custom span { font: 700 12px/1 var(--cond); letter-spacing: 1px; color: var(--gold); }
+  .planRow { display: flex; gap: 8px; margin-top: 8px; }
+  .planRow .planBtn { margin-top: 0; flex: 1; min-width: 0; font-size: 17px; letter-spacing: 2px; }
+  .runBack { flex: none; width: 116px; min-height: 48px; border-radius: 14px; border: 1px solid var(--gold); background: transparent; color: var(--gold); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+  .runBack b { font: 700 15px/1 var(--cond); letter-spacing: 1.5px; }
+  .runBack small { font: 500 8px/1 var(--mono); letter-spacing: .08em; opacity: .8; white-space: nowrap; }
+  .runBack:disabled { border-color: var(--edge); color: var(--dim); }
   .key { min-height: 44px; border-radius: 12px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); text-align: center; }
   .key small { display: block; font: 500 8.5px/1 var(--mono); color: var(--dim); margin-bottom: 1px; }
   .key span { font: 600 20px/1 var(--cond); }
@@ -815,8 +833,12 @@
           <button id="p3" class="key"><small>3</small><span id="p3t">—</span></button>
           <button id="p4" class="key"><small>4</small><span id="p4t">—</span></button>
           <button id="p5" class="key"><small>5</small><span id="p5t">—</span></button>
+          <button id="pCustom" class="key custom" aria-label="Custom curve"><small>DRAW</small><span>CUSTOM</span></button>
         </div>
-        <button id="planBtn" class="planBtn"><svg class="ico" aria-hidden="true"><use href="#i-dial"/></svg>PLAN A CURVE</button>
+        <div class="planRow">
+          <button id="planBtn" class="planBtn"><svg class="ico" aria-hidden="true"><use href="#i-dial"/></svg>PLAN A CURVE</button>
+          <button id="runBack" class="runBack" disabled><b>RUN IT BACK</b><small id="runBackLine">RATE A DAB FIRST</small></button>
+        </div>
         <div id="curveCard" class="curveCard" hidden>
           <button class="curveHead" id="curveHead" aria-label="Edit this preset">
             <div class="cvCol"><span id="curveTag" class="cvLbl">PRESET</span><span id="curveTitle" class="cvBig"></span></div>
