@@ -325,7 +325,9 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         j.category ? h("small", { class: "mono sub" }, j.category) : null,
         h("div", { class: "row", style: "margin-top:4px" }, tag("YOURS", "font-size:8px"),
           h("b", { class: "cond", style: `font-size:20px;color:${j.rating === undefined ? "var(--dim)" : "var(--gold)"}` }, Jars.ratingText(j.rating)),
-          statusTag(j.finished))));
+          statusTag(j.finished)),
+        j.globalScore !== undefined ? h("div", { class: "row", style: "margin-top:2px" }, tag("GLOBAL", "font-size:8px;color:var(--glob)"),
+          h("b", { class: "cond", style: "font-size:17px;color:var(--glob)" }, Jars.ratingText(j.globalScore))) : null));
     }
     grid.replaceChildren(g);
   }
@@ -361,8 +363,11 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     const list = h("div", { class: "stackS" });
     for (const r of rows) {
       const have = mine.has(r.id);
+      // Cover defaults to the strain's most-liked approved photo (same pick as Jar Journal).
+      const top = () => (shelf.photos(r.id) ?? []).filter(p => p.mod_status === "approved" && p.url)
+        .sort((a, b) => (b.like_count - a.like_count) || a.created_at.localeCompare(b.created_at))[0]?.url;
       const add = (finished: boolean) => editJar(null, newID => { if (!finished) store.setCurrent(newID); },
-        { strain: r.strain, producer: r.producer, category: r.category, productID: r.id, finished });
+        { strain: r.strain, producer: r.producer, category: r.category, productID: r.id, finished, photoURL: top(), avg: r.avg, count: r.count });
       list.append(h("div", { class: "panel globCard" },
         h("div", { class: "row" },
           h("div", { style: "flex:1;min-width:0" }, tag(r.producer ? r.producer.toUpperCase() : "NO PRODUCER", "font-size:8.5px;display:block"),
@@ -701,7 +706,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
   }
 
   // MARK: Log a jar / Edit
-  function editJar(original: Jar | null, onNew?: (id: string) => void, seed?: { strain: string; producer: string; category?: string; productID?: string; finished?: boolean }) {
+  function editJar(original: Jar | null, onNew?: (id: string) => void, seed?: { strain: string; producer: string; category?: string; productID?: string; finished?: boolean; photoURL?: string; avg?: number; count?: number }) {
     openSheet(close => {
       const st = {
         strain: original?.strain ?? seed?.strain ?? "", producer: original?.producer ?? seed?.producer ?? "", category: original?.category ?? seed?.category ?? null as string | null,
@@ -711,10 +716,22 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         gramsText: original?.grams !== undefined && !GRAM_PICKS.includes(original.grams) ? String(original.grams) : "",
         shop: original?.shop ?? "", bought: new Date(original ? Jars.boughtOn(original) : Date.now()),
         change: { kind: "keep" } as PhotoChange, preview: undefined as string | null | undefined,
+        globalCover: false,
       };
       const body = h("div", { class: "pageBody" });
       let failed = false;
       const draw = () => body.replaceChildren(...editPage());
+      if (!original && seed?.photoURL) void (async () => {
+        try {
+          const r = await fetch(seed.photoURL!);
+          if (!r.ok) return;
+          const big = await r.blob();
+          if (st.change.kind !== "keep" || !big.type.startsWith("image/")) return;
+          st.change = { kind: "replace", big, thumb: await thumbFromBlob(big) };
+          st.preview = URL.createObjectURL(big); st.globalCover = true;
+          draw();
+        } catch { /* no cover then */ }
+      })();
       const focusKeep = (fn: () => void) => { const a = document.activeElement as HTMLInputElement | null; const id = a?.id; const pos = a?.selectionStart; fn();
         if (id) { const el = document.getElementById(id) as HTMLInputElement | null; if (el) { el.focus(); try { if (pos !== null && pos !== undefined) el.setSelectionRange(pos, pos); } catch { /* fine */ } } } };
 
@@ -742,6 +759,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
           const big = await cropPhoto(f);
           if (!big) return;
           st.change = { kind: "replace", big, thumb: await thumbFromBlob(big) };
+          st.globalCover = false;
           if (st.preview) URL.revokeObjectURL(st.preview);
           st.preview = URL.createObjectURL(big);
         } catch { store.problem = "Couldn't read that photo. Try another one."; failed = true; }
@@ -752,6 +770,12 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         const out: HTMLElement[] = [];
         out.push(topBar(textBtn("Cancel", () => { if (st.preview) URL.revokeObjectURL(st.preview); close(); }),
           h("div", { class: "center" }, tag(original ? "EDIT" : "NEW", "font-size:9.5px"), h("div", { class: "cond", style: "font-size:24px;letter-spacing:2px" }, original ? "EDIT JAR" : "LOG A JAR")), null));
+        // From GLOBAL: show the shared score up top.
+        if (!original && seed?.productID) out.push(h("div", { class: "panel pad row", style: "gap:10px" },
+          tag("GLOBAL", "font-size:9px;color:var(--glob)"),
+          h("b", { class: "cond", style: `font-size:26px;color:${seed.avg === undefined ? "var(--dim)" : "var(--glob)"}` }, Jars.ratingText(seed.avg)),
+          h("small", { class: "mono dim", style: "font-size:9.5px;margin-left:auto" }, seed.count === 1 ? "1 rating" : `${seed.count ?? 0} ratings`)));
+        if (st.globalCover) out.push(h("small", { class: "mono dim", style: "font-size:9.5px;margin:-4px 0 0" }, "Top photo from GLOBAL. Snap your own any time."));
         // Photo
         const hasPhoto = st.preview !== undefined ? st.preview !== null : !!original?.photo;
         out.push(jarPhoto(store, { photo: original?.photo, producer: st.producer }, "100%", 18, false, st.preview));
@@ -759,7 +783,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
           h("button", { class: "photoKey", onclick: () => snapFile.click() }, icon("camera", "font-size:20px;margin-right:8px"), hasPhoto ? "RETAKE" : "SNAP IT"),
           h("button", { class: "photoKey", onclick: () => pickFile.click() }, icon("image", "font-size:20px;margin-right:8px"), "PICK"),
           hasPhoto ? h("button", { class: "photoKey", style: "flex:none;width:52px;color:var(--sub)", "aria-label": "Remove photo", onclick: () => {
-            st.change = { kind: "remove" }; if (st.preview) URL.revokeObjectURL(st.preview); st.preview = null; draw(); } }, icon("close", "font-size:18px")) : null,
+            st.change = { kind: "remove" }; st.globalCover = false; if (st.preview) URL.revokeObjectURL(st.preview); st.preview = null; draw(); } }, icon("close", "font-size:18px")) : null,
           pickFile, snapFile, extraFile));
         // New jars: two more photo slots after the cover (3 in all). Existing jars add photos on the jar page.
         if (!original) out.push(h("div", { class: "photoSlots" },
@@ -816,7 +840,12 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
           const jar: Jar = { ...base, strain: st.strain, producer: st.producer, review: st.review, finished: st.finished };
           if (st.category) jar.category = st.category; else delete jar.category;
           if (st.rating !== undefined) jar.rating = st.rating; else delete jar.rating;
-          if (!original && seed?.productID) jar.productID = seed.productID;
+          if (!original && seed?.productID) {
+            jar.productID = seed.productID;
+            if (seed.avg !== undefined) { jar.globalScore = seed.avg; jar.globalCount = seed.count; }
+            // Someone else's photo: never re-share it as this person's cover.
+            if (st.globalCover && st.change.kind === "replace") jar.shareCover = false;
+          }
           if (!original && st.askAfter && st.rating === undefined) jar.askAfterDab = true;
           const price = Number(st.price.replace("$", "").replace(",", "."));
           if (st.price.trim() && price > 0) jar.price = price; else delete jar.price;
