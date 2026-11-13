@@ -27,6 +27,18 @@ export function h(tag: string, attrs: Attrs = {}, ...kids: Kid[]): HTMLElement {
   return el;
 }
 export const tag = (text: string, style = "") => h("span", { class: "tag", style }, text);
+/** A line icon from the sheet in index.html (#i-name). Sized by font-size, coloured by the text colour. */
+export function icon(name: string, style = ""): SVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const s = document.createElementNS(ns, "svg");
+  s.setAttribute("class", "ico");
+  s.setAttribute("aria-hidden", "true");
+  if (style) s.setAttribute("style", style);
+  const u = document.createElementNS(ns, "use");
+  u.setAttribute("href", "#i-" + name);
+  s.append(u);
+  return s;
+}
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "S"}`;
 
 // MARK: Photos
@@ -66,7 +78,7 @@ function jarPhoto(store: JarStore, j: { photo?: string; producer: string }, size
   return box;
 }
 function lidSVG(producer: string): Element {
-  const letter = (producer.trim()[0] ?? "P").toUpperCase();
+  const letter = (producer.trim()[0] ?? "T").toUpperCase();
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
   svg.setAttribute("viewBox", "0 0 100 100");
@@ -101,7 +113,18 @@ function ratingDial(rating: number | undefined, size: number): HTMLElement {
 const sheetRoot = () => document.getElementById("sheets")!;
 export function openSheet(build: (close: () => void) => HTMLElement, kind: "page" | "card" = "page"): () => void {
   const wrap = h("div", { class: kind === "page" ? "page" : "cardSheet" });
-  const close = () => { wrap.remove(); document.body.classList.toggle("sheetOpen", sheetRoot().childElementCount > 0); };
+  let closed = false;
+  const gone = () => { wrap.remove(); document.body.classList.toggle("sheetOpen", sheetRoot().childElementCount > 0); };
+  // Closing fades out for a moment (CSS .closing); taps go straight through to what is underneath meanwhile.
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    let still = true;
+    try { still = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { /* no matchMedia: close at once */ }
+    if (still) { gone(); return; }
+    wrap.classList.add("closing");
+    setTimeout(gone, 170);
+  };
   wrap.append(build(close));
   sheetRoot().append(wrap);
   document.body.classList.add("sheetOpen");
@@ -161,11 +184,11 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       bits.push(plural((j.dabs ?? []).length, "DAB"));
       main.append(jarPhoto(store, j, "56px", 12),
         h("div", { class: "curText" },
-          tag(justSet ? "✓ NOW DABBING" : "NOW DABBING", `font-size:9px;color:${justSet ? "var(--gold)" : "var(--live)"}`),
+          h("span", { class: "tag", style: `font-size:9px;color:${justSet ? "var(--gold)" : "var(--live)"}` }, justSet ? icon("check", "font-size:11px;stroke-width:2.6;margin-right:4px") : null, "NOW DABBING"),
           h("b", {}, j.strain), h("small", {}, bits.join(" · "))));
     } else {
       main.append(h("span", { class: "curIcon" }, jarIcon()),
-        h("div", { class: "curText" }, tag("JARS", "font-size:9px"), h("b", {}, "Pick what you're dabbing"), h("small", {}, "Then every dab gets rated.")));
+        h("div", { class: "curText" }, tag("JARS", "font-size:9px"), h("b", { class: "twoLine" }, "Pick what you're dabbing"), h("small", { class: "twoLine" }, "Then every dab gets rated.")));
     }
     const plus = h("button", { class: "plusKey", "aria-label": "Add a jar", onclick: () => editJar(null, newID => {
       // A jar added from Home becomes the current jar, and the card says so.
@@ -195,7 +218,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     if (n) {
       const input = h("input", { type: "search", placeholder: "Search strain, producer, notes", value: query, autocomplete: "off",
         oninput: (e: Event) => { query = (e.target as HTMLInputElement).value; renderGrid(); } }) as HTMLInputElement;
-      kids.push(h("label", { class: "panel search" }, h("span", { class: "dim" }, "⌕"), input));
+      kids.push(h("label", { class: "panel search" }, h("span", { class: "dim", style: "display:flex;font-size:20px" }, icon("search")), input));
     }
     const chips = h("div", { class: "chips" });
     for (const f of ["ALL", "OPEN", "FINISHED"] as const) {
@@ -320,7 +343,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     out.push(h("div", { class: "row", style: "gap:10px" },
       h("button", { class: "btn2 tall", style: "flex:1", onclick: () => store.setFinished(j.id, !j.finished) }, j.finished ? "BACK OPEN" : "TO THE GRAVEYARD"),
       h("button", { class: "btn2 tall", style: "width:64px;color:var(--warn)", "aria-label": "Delete jar", onclick: () =>
-        confirmSheet("Delete this jar?", "The photos and review go too. This can't be undone.", "Delete jar", "Keep it", () => { void store.delete(j.id); done(); }) }, "🗑")));
+        confirmSheet("Delete this jar?", "The photos and review go too. This can't be undone.", "Delete jar", "Keep it", () => { void store.delete(j.id); done(); }) }, icon("trash", "font-size:22px"))));
     return out;
   }
 
@@ -367,8 +390,8 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       strip.append(h("button", { class: "galThumb" + (i === index ? " on" : ""), "aria-label": i === 0 ? "Cover photo" : `Photo ${i + 1}`, onclick: () => setIndex(i) }, t));
     });
     if (canAdd) strip.append(
-      h("button", { class: "galAdd", "aria-label": "Take a photo", onclick: () => snap.click() }, h("span", {}, "📷"), h("b", {}, "SNAP")),
-      h("button", { class: "galAdd", "aria-label": "Add a photo from your library", onclick: () => pick.click() }, h("span", {}, "🖼"), h("b", {}, "PICK")),
+      h("button", { class: "galAdd", "aria-label": "Take a photo", onclick: () => snap.click() }, h("span", { style: "display:flex;font-size:20px" }, icon("camera")), h("b", {}, "SNAP")),
+      h("button", { class: "galAdd", "aria-label": "Add a photo from your library", onclick: () => pick.click() }, h("span", { style: "display:flex;font-size:20px" }, icon("image")), h("b", {}, "PICK")),
       pick, snap);
 
     const box = h("div", { class: "stackS" }, main, strip);
@@ -388,7 +411,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         stems.length > 1 ? key("Move photo left", "‹", index > 0, () => move(-1)) : null,
         stems.length > 1 ? key("Move photo right", "›", index < stems.length - 1, () => move(1)) : null,
         h("button", { class: "galKey", style: "color:var(--warn)", "aria-label": "Delete this photo", onclick: () =>
-          confirmSheet("Delete this photo?", index === 0 && stems.length > 1 ? "The next photo becomes the cover." : "This can't be undone.", "Delete photo", "Keep it", () => { void store.deletePhoto(j.id, current); }) }, "🗑")));
+          confirmSheet("Delete this photo?", index === 0 && stems.length > 1 ? "The next photo becomes the cover." : "This can't be undone.", "Delete photo", "Keep it", () => { void store.deletePhoto(j.id, current); }) }, icon("trash", "font-size:20px"))));
     }
     return box;
   }
@@ -400,7 +423,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       onclick: () => {
         if (isCur) { store.setCurrent(null); flashFor = null; }
         else { store.setCurrent(j.id); flashFor = j.id; try { navigator.vibrate?.(10); } catch { /* fine */ } }
-      } }, isCur ? "✓ NOW DABBING" : "🔥 DABBING THIS");
+      } }, icon(isCur ? "check" : "flame", "font-size:22px;stroke-width:2.2;margin-right:8px"), isCur ? "NOW DABBING" : "DABBING THIS");
     const note = j.finished ? "Graveyard jars can't be the current jar."
       : isCur ? (flashFor === j.id ? "Got it. Your next dab logs to this jar." : "Your dabs log to this jar. Tap to stop.")
       : "Tap so your next dab gets logged and rated here.";
@@ -526,10 +549,10 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         const hasPhoto = st.preview !== undefined ? st.preview !== null : !!original?.photo;
         out.push(jarPhoto(store, { photo: original?.photo, producer: st.producer }, "100%", 18, false, st.preview));
         out.push(h("div", { class: "row", style: "gap:8px" },
-          h("button", { class: "photoKey", onclick: () => snapFile.click() }, hasPhoto ? "📷 RETAKE" : "📷 SNAP IT"),
-          h("button", { class: "photoKey", onclick: () => pickFile.click() }, "🖼 PICK"),
+          h("button", { class: "photoKey", onclick: () => snapFile.click() }, icon("camera", "font-size:20px;margin-right:8px"), hasPhoto ? "RETAKE" : "SNAP IT"),
+          h("button", { class: "photoKey", onclick: () => pickFile.click() }, icon("image", "font-size:20px;margin-right:8px"), "PICK"),
           hasPhoto ? h("button", { class: "photoKey", style: "flex:none;width:52px;color:var(--sub)", "aria-label": "Remove photo", onclick: () => {
-            st.change = { kind: "remove" }; if (st.preview) URL.revokeObjectURL(st.preview); st.preview = null; draw(); } }, "✕") : null,
+            st.change = { kind: "remove" }; if (st.preview) URL.revokeObjectURL(st.preview); st.preview = null; draw(); } }, icon("close", "font-size:18px")) : null,
           pickFile, snapFile));
         out.push(field("STRAIN", "Orange Starburst", "edStrain", st.strain, v => { st.strain = v; focusKeep(draw); }));
         const prod = field("PRODUCER", "Pressure", "edProducer", st.producer, v => { st.producer = v; });
@@ -720,7 +743,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         const j = jarf();
         const kids: Kid[] = [];
         kids.push(h("div", { class: "row" }, tag("HOW WAS THAT DAB?", "font-size:9.5px"),
-          tag(`${Dabs.goalText(prompt.dab)} · ${prompt.dab.seconds} S`, "margin-left:auto;font-size:9px;color:var(--sub)")));
+          tag(`${Dabs.goalText(prompt.dab)}${prompt.dab.seconds > 0 ? ` · ${prompt.dab.seconds} S` : ""}`, "margin-left:auto;font-size:9px;color:var(--sub)")));
         if (j) kids.push(h("div", { class: "bigName", style: "font-size:28px" }, j.strain));
         if (prompt.jarID === null) {
           const open = store.shelf.filter(x => !x.finished);
@@ -748,7 +771,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         // Dab size
         const sizeLabel = sizeSet
           ? h("span", { class: "row", style: "margin-left:auto;gap:4px" }, h("b", { class: "cond", style: "font-size:16px;color:var(--gold)" }, Dabs.sizeText(Dabs.gramsAt(sizePos))),
-              h("button", { class: "textBtn", "aria-label": "Clear dab size", style: "min-height:30px;min-width:30px", onclick: () => { sizeSet = false; draw(); } }, "✕"))
+              h("button", { class: "textBtn", "aria-label": "Clear dab size", style: "min-height:30px;min-width:30px", onclick: () => { sizeSet = false; draw(); } }, icon("close", "font-size:18px")))
           : tag("OPTIONAL", "margin-left:auto;font-size:8px");
         const stops = h("div", { class: "row", style: "gap:0" });
         SIZE_STOPS.forEach((s, i) => stops.append(h("button", { class: "stop" + (sizeSet && Math.abs(sizePos - i) < 0.001 ? " on" : ""),

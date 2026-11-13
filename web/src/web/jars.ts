@@ -25,6 +25,8 @@ export interface JarDab {
   cooledIn?: number;
   /** Dab size in grams (0.05 to 1). */
   grams?: number;
+  /** "torch" = timed by hand in Torch mode (glass banger and a butane torch). No temps were read. */
+  medium?: "torch";
 }
 
 export interface Jar {
@@ -163,11 +165,14 @@ export const Dabs = {
   },
   isFlat: (d: JarDab) => d.profile === undefined || d.profile === "Steady" || d.profile === "Unknown",
   goalText(d: JarDab): string {
+    if (d.medium === "torch") return d.goal !== undefined ? `TORCH · ${d.goal}°${d.unit}` : "TORCH";
     if (d.goal === undefined) return d.peak !== undefined ? `${d.peak}°${d.unit}` : "—";
     if (!Dabs.isFlat(d) && d.goalTop !== undefined && d.goalTop !== d.goal) return `${d.goal}–${d.goalTop}°${d.unit}`;
     return `${d.goal}°${d.unit}`;
   },
   groupKey(d: JarDab): string {
+    if (d.medium === "torch" && d.goal !== undefined) return `TORCH ${d.goal}°${d.unit}`;
+    if (d.medium === "torch") return `TORCH ${d.seconds}S` + (d.cooledIn !== undefined ? ` + ${d.cooledIn}S COOL` : "");
     const base = d.goal !== undefined ? `${d.goal}°${d.unit}` : "?";
     return Dabs.isFlat(d) ? base : `${base} ${(d.profile ?? "").toUpperCase()}`;
   },
