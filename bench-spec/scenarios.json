@@ -2446,6 +2446,329 @@
      "expect": "preset 3 back at 520 after the dab"
     }
    ]
+  },
+  {
+   "id": "holdExtendsUntilCut",
+   "title": "HOLD on: +10 s goes out by itself each time the countdown reaches 5 s, until CUT IT",
+   "allowedAppStarts": 1,
+   "finish": 36.0,
+   "steps": [
+    {
+     "t": 1.5,
+     "do": "setHold",
+     "args": {
+      "on": true
+     }
+    },
+    {
+     "t": 1.5,
+     "check": "!app.holdOn && app.message != null",
+     "expect": "HOLD with nothing heating is refused and he is told why"
+    },
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 4.0,
+     "do": "setHold",
+     "args": {
+      "on": true
+     }
+    },
+    {
+     "t": 4.0,
+     "check": "app.holdOn",
+     "expect": "HOLD is on"
+    },
+    {
+     "t": 14.0,
+     "check": "events.count('EXTEND to 1') == 1",
+     "expect": "+10 s reached the rig once"
+    },
+    {
+     "t": 14.0,
+     "check": "log.count('] HOLD +10 s (extend 1)') == 1",
+     "expect": "one HOLD write for that step"
+    },
+    {
+     "t": 14.0,
+     "check": "sim.remaining > 5",
+     "expect": "the countdown jumped back up"
+    },
+    {
+     "t": 27.5,
+     "check": "events.count('EXTEND to 2') == 1 && log.count('] HOLD +10 s') == 2",
+     "expect": "+10 s again, one write per step"
+    },
+    {
+     "t": 27.5,
+     "check": "sim.session != 0",
+     "expect": "still heating"
+    },
+    {
+     "t": 28.0,
+     "do": "cutIt"
+    }
+   ],
+   "final": [
+    {
+     "rule": "log.has('HOLD off: CUT IT') && !app.holdOn",
+     "expect": "HOLD went off with CUT IT"
+    },
+    {
+     "rule": "events.count('STOP by app frame') == 1 && events.count('EXTEND to 3') == 0",
+     "expect": "stopped, and no more time added after the cut"
+    },
+    {
+     "rule": "holdWrites.every(f => f.remainingWas > 3)",
+     "expect": "no HOLD write landed in the last 3 s"
+    },
+    {
+     "rule": "!log.has('SAFETY CUT')",
+     "expect": "no false safety cut"
+    },
+    {
+     "rule": "sim.sessionStarts == 1",
+     "expect": "heat never came back on"
+    }
+   ]
+  },
+  {
+   "id": "holdStopsAtCap",
+   "title": "HOLD stops itself at the 90 s limit and says so; the dab ends on the rig's own timer",
+   "allowedAppStarts": 1,
+   "finish": 94.0,
+   "setup": {
+    "sim.hold[1]": 75
+   },
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 4.0,
+     "do": "setHold",
+     "args": {
+      "on": true
+     }
+    },
+    {
+     "t": 80.0,
+     "check": "events.count('EXTEND to 1') == 1",
+     "expect": "one +10 s reached the rig"
+    },
+    {
+     "t": 80.0,
+     "check": "log.count('] HOLD off: at the 90 s limit') == 1 && !app.holdOn",
+     "expect": "HOLD went off at the limit"
+    },
+    {
+     "t": 80.0,
+     "check": "app.message != null && app.message.includes('90 s')",
+     "expect": "he is told"
+    }
+   ],
+   "final": [
+    {
+     "rule": "events.count('EXTEND to 2') == 0",
+     "expect": "nothing past the limit"
+    },
+    {
+     "rule": "events.count('STOP by its own timer') == 1 && stopsWhileHeating == 0",
+     "expect": "the dab ran to its own end"
+    },
+    {
+     "rule": "sim.heatOnTotal <= 89.5",
+     "expect": "heat was on within 2 s heat-up + 85 s"
+    },
+    {
+     "rule": "holdWrites.every(f => f.remainingWas > 3)",
+     "expect": "no HOLD write landed in the last 3 s"
+    }
+   ],
+   "notes": "preset 1 hold 75 s: one +10 s fits (85 s), a second would make 95 s"
+  },
+  {
+   "id": "holdOffWhenAppLeaves",
+   "title": "HOLD goes off when the app is left; the dab finishes on its own and heat is confirmed off",
+   "allowedAppStarts": 1,
+   "finish": 22.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 4.0,
+     "do": "setHold",
+     "args": {
+      "on": true
+     }
+    },
+    {
+     "t": 6.0,
+     "do": "appMovedToBackground"
+    },
+    {
+     "t": 6.5,
+     "check": "!app.holdOn && log.has('HOLD off: left the app')",
+     "expect": "HOLD went off"
+    }
+   ],
+   "final": [
+    {
+     "rule": "events.count('EXTEND') == 0",
+     "expect": "no time was added"
+    },
+    {
+     "rule": "events.count('STOP by its own timer') == 1 && stopsWhileHeating == 0",
+     "expect": "the dab ran to its own end"
+    },
+    {
+     "rule": "log.count('SAFE OFF (stop, session 0)') == 1",
+     "expect": "heat confirmed off after"
+    }
+   ]
+  },
+  {
+   "id": "holdOffOnRigButtonStop",
+   "title": "HOLD goes off when the rig's own button stops the dab, and is not remembered for the next dab",
+   "allowedAppStarts": 1,
+   "finish": 28.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 4.0,
+     "do": "setHold",
+     "args": {
+      "on": true
+     }
+    },
+    {
+     "t": 8.0,
+     "do": "sim.buttonStop"
+    },
+    {
+     "t": 9.5,
+     "check": "!app.holdOn && log.has('HOLD off: the dab ended')",
+     "expect": "HOLD went off when the dab ended"
+    },
+    {
+     "t": 11.0,
+     "do": "sim.buttonStart"
+    }
+   ],
+   "final": [
+    {
+     "rule": "events.count('EXTEND') == 0",
+     "expect": "no time was added to either dab"
+    },
+    {
+     "rule": "sim.sessionStarts == 2 && events.count('STOP by its own timer') == 1",
+     "expect": "the second dab ran its normal 12 s"
+    },
+    {
+     "rule": "log.count('HOLD on') == 1",
+     "expect": "HOLD was not turned back on by itself"
+    },
+    {
+     "rule": "!log.has('SAFETY CUT')",
+     "expect": "no safety cut"
+    }
+   ]
+  },
+  {
+   "id": "holdOffOnLinkLoss",
+   "title": "HOLD goes off when the link drops and stays off when it comes back",
+   "allowedAppStarts": 1,
+   "finish": 24.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 4.0,
+     "do": "setHold",
+     "args": {
+      "on": true
+     }
+    },
+    {
+     "t": 7.0,
+     "do": "world.loseLink"
+    },
+    {
+     "t": 7.5,
+     "check": "!app.holdOn && log.has('HOLD off: lost the rig')",
+     "expect": "HOLD went off"
+    },
+    {
+     "t": 9.0,
+     "do": "world.backInRange"
+    }
+   ],
+   "final": [
+    {
+     "rule": "ble.isConnected",
+     "expect": "reconnected"
+    },
+    {
+     "rule": "events.count('EXTEND') == 0",
+     "expect": "no time was added"
+    },
+    {
+     "rule": "events.count('STOP by its own timer') == 1 && stopsWhileHeating == 0",
+     "expect": "the dab ran to its own end"
+    },
+    {
+     "rule": "!app.holdOn",
+     "expect": "HOLD still off"
+    }
+   ]
+  },
+  {
+   "id": "holdTooLateInLastSeconds",
+   "title": "HOLD asked for in the last 3 s is refused; nothing is written into a dab that is ending",
+   "allowedAppStarts": 1,
+   "finish": 20.0,
+   "steps": [
+    {
+     "t": 2.0,
+     "do": "heatIt"
+    },
+    {
+     "t": 2.0,
+     "do": "sim.whenRemaining",
+     "args": {
+      "remaining": 3,
+      "delay": 0.05,
+      "then": [
+       "setHold"
+      ]
+     }
+    }
+   ],
+   "final": [
+    {
+     "rule": "log.has('Too late for that') && !app.holdOn",
+     "expect": "the tap happened and HOLD was refused"
+    },
+    {
+     "rule": "events.count('EXTEND') == 0 && !log.has('HOLD +10 s')",
+     "expect": "no time was added"
+    },
+    {
+     "rule": "events.count('STOP by its own timer') == 1 && stopsWhileHeating == 0",
+     "expect": "the dab ran to its own end"
+    }
+   ],
+   "notes": "Swift taps from sim.afterStatus when the sim shows 3 s left, 0.05 s later."
   }
  ]
 }

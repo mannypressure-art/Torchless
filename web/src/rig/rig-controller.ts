@@ -476,6 +476,7 @@ export class RigController {
       this.changed();
       return;
     }
+    this.holdOff("lost the rig");
     const wasHeating = this.prevOn || this.startPendingAt !== null;
     if (this.prevOn && this.sessionStartDate !== null) {
       this.log(`SESSION END duration=${(this.now() - this.sessionStartDate).toFixed(0)} peak=${this.sessionPeakF} (link lost)`);
@@ -566,6 +567,7 @@ export class RigController {
         this.dialTick(s);
         this.showTick(s);
         this.awayTick(s, now);
+        this.holdTick(s, now);
       }
     } else {
       this.countdownSeen = false;
@@ -807,11 +809,13 @@ export class RigController {
   /** CUT IT: drops everything waiting and sends Stop. */
   cutIt() {
     this.log("CUT IT tapped.");
+    this.holdOff("CUT IT");
     this.sendStop("CUT IT (stop, session 0)", true);
   }
 
   /** The ONLY place a Stop is created. A Stop jumps the queue, is never held back, and is resent if needed. */
   private sendStop(label: string, clearQueue: boolean, attempt = 0) {
+    this.holdOff("heat is being cut");
     if (clearQueue) {
       const dropped = this.queue;
       this.queue = [];
@@ -850,6 +854,7 @@ export class RigController {
 
   private safetyCut(why: string) {
     this.log(`SAFETY CUT: ${why}. Heat never starts on its own, so it is being cut.`);
+    this.holdOff("safety cut");
     this.lastEchoOnAt = DISTANT_PAST;
     this.say("Heat came back on by itself. Cut it.");
     this.sendStop("SAFETY CUT (stop, session 0)", true);
@@ -865,12 +870,75 @@ export class RigController {
     this.enqueue(this.item({ label: "+10 s (session extend +1)", kind: { t: "b9", change: { extendPlusOne: true }, intent: "echo" }, requireSessionOn: true }));
   }
 
+  // MARK: HOLD (keeps adding +10 s). Matches RigController.swift c99575e0. NOT YET TRIED ON A REAL RIG.
+
+  /** HOLD adds the same +10 s as the button each time the countdown gets down to this many seconds. */
+  static readonly holdTriggerAt = 5;
+  /** HOLD is on for the dab that is running. Never remembered between dabs. */
+  holdOn = false;
+  /** The extend value the last HOLD write asked for, until a status shows the rig took it. */
+  private holdAwaitExtend: number | null = null;
+  private holdAwaitSince = DISTANT_PAST;
+
+  /** HOLD on or off, for the dab that is running only. While on, the app sends +10 s by itself when the
+   *  countdown reaches 5 s (never in the last 3 s), once per 10 s step, up to the button's own limit
+   *  (extra 0-9 and hold + extra <= 90 s). It never starts heat. */
+  setHold(on: boolean) {
+    if (!on) { this.holdOff("turned off"); return; }
+    if (this.holdOn) return;
+    const s = this.gate();
+    if (s === null) return;
+    if (s.sessionByte <= 0) { this.say("HOLD only works while heating."); return; }
+    if (this.away) { this.say("HOLD only works with the app open."); return; }
+    const hold = this.heldHoldSeconds;
+    if (hold === undefined) { this.say("Can't hold: the rig hasn't reported this preset's hold time."); return; }
+    if (this.countdownSeen && s.sessionTimeRemaining <= 3) { this.say("Too late for that: the dab is in its last 3 seconds."); return; }
+    const n = s.sessionExtend + 1;
+    if (!(n <= RigLimits.extend[1] && hold + 10 * n <= RigLimits.maxTotalHold)) { this.say("Can't hold: hold plus extra is already at 90 s."); return; }
+    this.holdOn = true;
+    this.holdAwaitExtend = null;
+    this.log("HOLD on");
+    this.changed();
+  }
+
+  private holdOff(why: string, tell = false) {
+    if (!this.holdOn) return;
+    this.holdOn = false;
+    this.holdAwaitExtend = null;
+    this.log(`HOLD off: ${why}`);
+    if (tell) this.say(`HOLD off: ${why}.`);
+    this.changed();
+  }
+
+  /** Runs on every status that shows a session, after the away checks. */
+  private holdTick(s: LiveStatus, now: number) {
+    if (!this.holdOn) return;
+    if (this.away) { this.holdOff("nobody is at the app"); return; }
+    if (this.holdAwaitExtend !== null) {
+      if (s.sessionExtend >= this.holdAwaitExtend) this.holdAwaitExtend = null;
+      else if (now - this.holdAwaitSince > 3.0) { this.holdOff("the rig did not take the extra time", true); return; }
+      else return;
+    }
+    const hold = this.heldHoldSeconds;
+    if (hold === undefined) { this.holdOff("hold time unknown", true); return; }
+    const n = s.sessionExtend + 1;
+    if (!(n <= RigLimits.extend[1] && hold + 10 * n <= RigLimits.maxTotalHold)) { this.holdOff("at the 90 s limit", true); return; }
+    if (!(this.counting && s.sessionTimeRemaining <= RigController.holdTriggerAt && s.sessionTimeRemaining > 3)) return;
+    this.holdAwaitExtend = n;
+    this.holdAwaitSince = now;
+    const label = `HOLD +10 s (extend ${n})`;
+    this.log(label);
+    this.enqueue(this.item({ label, kind: { t: "b9", change: { extendPlusOne: true }, intent: "echo" }, requireSessionOn: true,
+      onDrop: () => this.holdOff("the extra time could not be sent", true), auto: true }));
+  }
+
   // MARK: Away: leaving the app, losing the link, disconnecting mid-dab
 
   appMovedToBackground() {
     if (this.inBackground) return;
     this.inBackground = true;
     this.quietSince = null;
+    this.holdOff("left the app");
     this.ble?.appMovedToBackground();
     if (this.sessionOn || this.startPendingAt !== null) {
       this.log("APP: left the app mid-dab. Letting the dab finish. Heat gets confirmed off after.");
@@ -889,6 +957,7 @@ export class RigController {
 
   /** Disconnect button. Mid-dab the first tap waits for the dab to finish; a second tap drops the link now. */
   askDisconnect() {
+    this.holdOff("disconnect tapped");
     if (this.sessionOn && this.connected && this.linkFresh && !this.disconnectWaiting) {
       this.disconnectWaiting = true;
       this.log("Disconnect asked mid-dab. Letting the dab finish first, then disconnecting. A second tap disconnects right away.");
@@ -1509,6 +1578,7 @@ export class RigController {
   }
 
   private sessionEnded() {
+    this.holdOff("the dab ended");
     if (this.sessionStartDate !== null) {
       this.log(`SESSION END duration=${(this.now() - this.sessionStartDate).toFixed(0)} peak=${this.sessionPeakF}`);
     }

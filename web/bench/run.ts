@@ -88,6 +88,7 @@ function runScenario(sc: Scenario): boolean {
       received, b9s, saves,
       stopsWhileHeating: stopsHeating.length,
       curveFrames: received.filter(f => [179, 183, 181, 186, 187].includes(f.bytes[0])),
+      holdWrites: b9s.filter(f => f.sessionWas !== 0 && f.bytes[12] > 0),
       curveProblem: (steps: { t: number; f: number }[]) => RigController.curveProblem(steps),
       firstStopWhileHeating: stopsHeating[0] ?? null,
       firstB9Off: b9s.find(f => f.bytes[10] === 0) ?? null,
@@ -130,6 +131,21 @@ function runScenario(sc: Scenario): boolean {
       case "saveCurve": rig.saveCurve(a.slot, a.steps); break;
       case "saveCurveOnce": rig.saveCurveOnce(a.slot, a.steps); break;
       case "putBackNow": rig.putBackNow(); break;
+      case "setHold": rig.setHold(a.on !== false); break;
+      case "sim.whenRemaining": {
+        // Once, on the first status that shows heat with exactly this many seconds left.
+        const then: string[] = a.then ?? [];
+        const delay: number = a.delay ?? 0;
+        const prev = sim.afterStatus;
+        sim.afterStatus = () => {
+          prev?.();
+          if (sim.session === 0 || sim.remaining !== a.remaining) return;
+          sim.afterStatus = null;
+          const run = () => then.forEach(n => act(n));
+          if (delay > 0) clock.after(delay, run); else run();
+        };
+        break;
+      }
       case "dialNudge": rig.dialNudge(a.by); break;
       case "setDialMode": rig.dialMode = a.mode; break;
       case "askDisconnect": rig.askDisconnect(); break;

@@ -252,9 +252,15 @@
   #heat { color: var(--liveInk); background: linear-gradient(#5FF0FF, var(--liveFill), #10B9D0); box-shadow: 0 0 16px color-mix(in srgb, var(--liveFill) 35%, transparent); }
   #heat:disabled { opacity: .4; box-shadow: none; }
   #cut { color: var(--goldInk); background: linear-gradient(#FFD27A, var(--goldFill), #C98F25); box-shadow: 0 0 16px color-mix(in srgb, var(--goldFill) 35%, transparent); flex: 1; }
-  #extend { width: 92px; flex: none; min-height: 84px; text-align: center; }
+  #extend { width: 78px; flex: none; min-height: 84px; text-align: center; }
   #extend b { display: block; font: 700 30px/1 var(--cond); color: var(--live); margin-bottom: 4px; }
   #extend:disabled { opacity: .4; }
+  #holdBtn { width: 72px; flex: none; min-height: 84px; text-align: center; }
+  #holdBtn b { display: block; font: 700 24px/1 var(--cond); color: var(--dim); margin-bottom: 6px; letter-spacing: 1px; }
+  #holdBtn.on { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+  #holdBtn.on b, #holdBtn.on .tag { color: var(--gold); }
+  #holdBtn:disabled { opacity: .4; }
+  #cutRow #cut { white-space: nowrap; min-width: 0; letter-spacing: 3px; }
   .hint { text-align: center; color: var(--sub); font: 500 11px var(--mono); min-height: 14px; margin-top: 6px; }
 
   /* Strips */
@@ -583,6 +589,7 @@
         <div id="cutRow" class="row" style="gap:10px" hidden>
           <button id="cut" class="bigBtn">■ CUT IT</button>
           <button id="extend" class="panel"><b>+10s</b><span class="tag" style="font-size:8.5px">MORE TIME</span></button>
+          <button id="holdBtn" class="panel" aria-pressed="false"><b>HOLD</b><span id="holdTag" class="tag" style="font-size:8.5px">OFF</span></button>
         </div>
         <div id="heatHint" class="hint"></div>
       </div>

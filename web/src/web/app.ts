@@ -19,7 +19,7 @@ import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./
 import { HeatFX, heatSound, heatTrack, HEAT_SOUNDS, HEAT_TRACKS, validSound, validTrack } from "./heatfx";
 import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 
-const BUILD = "app-4i.0";
+const BUILD = "app-4j.0";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -162,6 +162,7 @@ central.onChooserClosed = (why) => {
 $("heat").onclick = () => rig.heatIt();
 $("cut").onclick = () => rig.cutIt();
 $("extend").onclick = () => rig.extendTen();
+$("holdBtn").onclick = () => rig.setHold(!rig.holdOn);
 $("gotIt").onclick = () => { rig.awayNote = null; schedule(); };
 for (let n = 1; n <= 5; n++) $(`p${n}`).onclick = () => rig.selectPreset(n);
 
@@ -721,6 +722,10 @@ function render() {
   }
   enable("heat", rig.canHeat);
   enable("extend", rig.canExtend);
+  enable("holdBtn", rig.holdOn || rig.canExtend);
+  $("holdBtn").classList.toggle("on", rig.holdOn);
+  $("holdBtn").setAttribute("aria-pressed", String(rig.holdOn));
+  setText("holdTag", rig.holdOn ? "ON" : "OFF");
   setText("heatHint", !linked ? "" : !rig.linkFresh ? "Waiting on the rig…" : rig.startPendingAt !== null ? "Starting…" : "");
 
   // Home lights strip
