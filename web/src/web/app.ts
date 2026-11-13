@@ -308,6 +308,9 @@ for (let n = 1; n <= 5; n++) $(`p${n}`).onclick = () => rig.selectPreset(n);
 
 let curveKey = "";
 let curveView: CurveView | null = null;
+function endsOnSlope(pts: { t: number; f: number }[]): boolean {
+  return pts.length >= 2 && pts[pts.length - 1].f !== pts[pts.length - 2].f;
+}
 function renderCurve(sel: number, celsius: boolean, heating: boolean) {
   const p = sel >= 1 && sel <= 5 ? rig.presets[sel] : undefined;
   const pts = p ? waypointsOf(p) : [];
@@ -319,7 +322,9 @@ function renderCurve(sel: number, celsius: boolean, heating: boolean) {
   const key = `${sel}|${celsius}|${extend}|${elapsed}|${p?.custom170?.join(",")}|${p?.custom171?.join(",")}|${p?.profile}`;
   if (key === curveKey) return;
   curveKey = key;
-  const view = drawCurve(pts, celsius, elapsed, extend, p?.profile === 177);
+  // Manny's rig log 2026-11-13: on Valley the extra time kept climbing past the target (471 -> 501 F), same as
+  // Ascent. Any preset whose curve ends on a slope keeps that slope through +10 s.
+  const view = drawCurve(pts, celsius, elapsed, extend, endsOnSlope(pts));
   curveView = view;
   $("curveCard").hidden = !view;
   if (!view || !p) return;
@@ -421,7 +426,7 @@ function renderExtras(heating: boolean) {
   const cycles = heatCyclesFrom(ble.extra);
   const since = extras.dabsSinceClean(cycles), every = extras.cleanEvery;
   // Only when it's due; how often lives on the Rig tab.
-  show("careCard", fresh && !heating && since >= every);
+  show("careCard", extras.cleanOn && fresh && !heating && since >= every);
   setText("cleanCount", `${since} DABS SINCE DEEP CLEAN`);
 }
 /** Dabs left on this charge, for the header under the battery. */
@@ -665,11 +670,8 @@ const rigUI = mountRig(ble, rig, {
   build: BUILD,
   showTutorial: () => showTutorial(),
   cleanEvery: () => extras.cleanEvery,
-  nextCleanEvery: () => {
-    const i = CLEAN_CHOICES.indexOf(extras.cleanEvery);
-    extras.cleanEvery = CLEAN_CHOICES[(i + 1) % CLEAN_CHOICES.length];
-    schedule();
-  },
+  cleanOn: () => extras.cleanOn,
+  setClean: (on, every) => { extras.cleanOn = on; if (CLEAN_CHOICES.includes(every)) extras.cleanEvery = every; schedule(); },
   onFindRig: () => { lookAround = false; schedule(); },
   lookLabel: () => `${faceID.toUpperCase()} · ${(prefs.get("look") ?? "dark").replace("light", "bright").toUpperCase()}`,
   buildLook: (page) => buildLookInto(page),
@@ -908,7 +910,7 @@ function render() {
   show("heatRow", !heating);
   show("cutRow", heating);
   // Ride the dial strip (DialStrip): only while heating. Same controller calls as the Rig > Ride the dial page.
-  show("dialStrip", heating && linked);
+  show("dialStrip", false);  // Manny 2026-11-13: Ride the dial removed from the app
   if (heating && linked) {
     const off = rig.dialDisabledReason !== null && rig.dialDisabledReason !== undefined;
     const locked = rig.dialCurrent !== rig.dialStart;
@@ -920,10 +922,13 @@ function render() {
   }
   enable("heat", rig.canHeat);
   enable("extend", rig.canExtend);
-  enable("holdBtn", rig.holdOn || rig.canExtend);
+  // HOLD only where the extra time stays flat: on a curve that ends climbing, every +10 s keeps heating past the target.
+  const selPts = s && s.preset >= 1 && s.preset <= 5 ? waypointsOf(rig.presets[s.preset]) : [];
+  const climbs = endsOnSlope(selPts) && selPts[selPts.length - 1].f > selPts[selPts.length - 2].f;
+  enable("holdBtn", rig.holdOn || (rig.canExtend && !climbs));
   $("holdBtn").classList.toggle("on", rig.holdOn);
   $("holdBtn").setAttribute("aria-pressed", String(rig.holdOn));
-  setText("holdTag", rig.holdOn ? "ON" : "OFF");
+  setText("holdTag", rig.holdOn ? "ON" : climbs ? "FLAT ONLY" : "OFF");
   setText("heatHint", !linked ? "" : !rig.linkFresh ? "Waiting on the rig…" : rig.startPendingAt !== null ? "Starting…" : "");
 
   // Home lights strip
