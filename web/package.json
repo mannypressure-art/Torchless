@@ -7,7 +7,9 @@
     "build": "tsc -p tsconfig.json",
     "bench": "tsc -p tsconfig.json && node dist/bench/run.js",
     "page": "esbuild src/web/test-page.ts --bundle --format=iife --target=safari15,chrome100 --outfile=public/test/app.js",
-    "app": "esbuild src/web/app.ts --bundle --format=iife --target=safari15,chrome100 --minify --loader:.worklet=text --outfile=public/app.js"
+    "app": "esbuild src/web/app.ts --bundle --format=iife --target=safari15,chrome100 --minify --define:__PEAK__=false --loader:.worklet=text --outfile=public/app.js",
+    "peak": "esbuild src/web/app.ts --bundle --format=iife --target=safari15,chrome100 --minify --define:__PEAK__=true --loader:.worklet=text --outfile=public/peak/app.js && node scripts/peak-page.js",
+    "bench:peak": "tsc -p tsconfig.json && node dist/bench/peak-run.js"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

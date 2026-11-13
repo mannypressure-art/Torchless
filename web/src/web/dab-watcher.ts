@@ -2,6 +2,7 @@
 // asks for a rating 15 s after heat stops. It only READS rig state. It never writes to the rig.
 
 import { RigController, HeatProfile } from "../rig/rig-controller";
+import type { RigReadView } from "../rig/rig-view";
 import { JarStore, JarDab, Dabs, uid } from "./jars";
 
 export interface DabPrompt {
@@ -45,7 +46,7 @@ export class DabWatcher {
   }
 
   /** Call on every status frame. */
-  update(rig: RigController): void {
+  update(rig: RigReadView): void {
     const s = rig.live;
     if (!s || !rig.linkFresh) return;
     const on = rig.sessionOn;

@@ -34,3 +34,19 @@ python3 /tmp/presh-shared/bench-spec/check-parity.py <saved output>
 
 Any change to the heat or Bluetooth logic goes into the Swift files and these files together, and both
 benches must pass all 30 before either ships.
+
+## Puffco Peak Pro (test build only)
+
+Compatible with Puffco Peak Pro. Not affiliated with Puffco. Not tested on a real Peak yet.
+
+- `src/rig/puffco/lorax.ts`: the Lorax protocol (UUIDs, packets, paths, login token, value parsing).
+- `src/rig/puffco/peak-controller.ts`: link, login, 1 s polling, HEAT IT / CUT IT (checked, resent once) / boost,
+  the four heat profiles, reconnect, and a full log (raw packets for the first 80 exchanges of each link, every
+  state change, a heartbeat line). No SAFETY CUT for the Peak: button-started dabs are normal and the Peak ends
+  its own cycle.
+- `src/rig/puffco/web-lorax.ts`: Web Bluetooth transport, and the chooser routing (name first, then a service check).
+- `src/rig/rig-view.ts`: the shared read-only shape the gauge, jar dab log and heat-up look read, for either rig.
+- The normal build (`npm run app`) leaves the Peak off. `npm run peak` builds the test page to `public/peak/`
+  (served at `/peak/`, same storage as the app).
+- `npm run bench:peak`: 26 scenarios against a simulated Peak (`bench/peak-sim.ts`, our reading of public notes).
+  `node test/peak-check.js public` is a headless page check with a fake Peak.

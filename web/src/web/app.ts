@@ -8,6 +8,9 @@ import { LocalStore } from "../rig/storage";
 import { BLEManager } from "../rig/ble-manager";
 import { RigController, LightModes, HeatProfile, RigLimits, LightShow, ShowStep, newStepID } from "../rig/rig-controller";
 import { WebCentral } from "../rig/web-central";
+import { PeakController } from "../rig/puffco/peak-controller";
+import { WebLorax, isPeakDevice } from "../rig/puffco/web-lorax";
+import { LORAX_SERVICE, LEGACY_SERVICE, PEAK_NAME_PREFIXES } from "../rig/puffco/lorax";
 import { chargingOf } from "../rig/frames";
 import { JarStore, IDBJarBackend, MemoryJarBackend } from "./jars";
 import { DabWatcher } from "./dab-watcher";
@@ -23,13 +26,36 @@ import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./
 import { HeatFX, heatSound, heatTrack, HEAT_SOUNDS, HEAT_TRACKS, validSound, validTrack } from "./heatfx";
 import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 
-const BUILD = "app-5.6";
+// Puffco Peak support is only in the Peak test build (esbuild --define:__PEAK__=true, see package.json "peak").
+// The normal build leaves it out entirely, so the Switch app is unchanged until Manny says go live.
+declare const __PEAK__: boolean;
+const PEAK = typeof __PEAK__ !== "undefined" && __PEAK__;
+const BUILD = PEAK ? "app-5.6-peak.1" : "app-5.6";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
 const rig = new RigController(clock, new LocalStore("presh."));
 rig.attach(ble);
 ble.log(`Torchless web ${BUILD} started. ${navigator.userAgent}`);
+// The Peak logs into the same Log as the Switch, so SHARE IT carries both.
+const peak = PEAK ? new PeakController(clock, s => ble.log(s)) : null;
+/** The Peak is the rig in use (linking, linked or getting it back). */
+const peakOn = (): boolean => !!peak && peak.link !== "none" && peak.link !== "failed";
+const peakNow = (): PeakController | null => (peakOn() ? peak : null);
+const COMPAT = PEAK ? "Compatible with Dr. Dabber Switch 2 and Puffco Peak Pro. Not affiliated with Dr. Dabber or Puffco." : undefined;
+if (peak) {
+  central.extraScan = {
+    filters: [{ services: [LORAX_SERVICE] }, { services: [LEGACY_SERVICE] }, ...PEAK_NAME_PREFIXES.map(namePrefix => ({ namePrefix }))],
+    optionalServices: [LORAX_SERVICE, LEGACY_SERVICE],
+  };
+  central.router = async (device) => {
+    if (!(await isPeakDevice(device, t => ble.log(t)))) return false;
+    connectAfterPick = false;
+    peak.take(new WebLorax(device, t => ble.log(t)));
+    return true;
+  };
+  ble.log("Peak test build: the chooser lists Dr. Dabber Switch 2 and Puffco Peak rigs.");
+}
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const prefs = {
@@ -189,7 +215,7 @@ window.addEventListener("pageshow", () => { if (document.visibilityState === "vi
   try { localStorage.setItem("torchless.tabHello", `${me}|${Date.now()}`); } catch { /* storage off */ }
 }
 // The browser drops the wake lock when the page is hidden; ask again when it comes back mid-dab.
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && (rig.sessionOn || ble.isConnected || torchAwake || (torchHandle?.running ?? false))) void keepAwake(true); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && (rig.sessionOn || ble.isConnected || (peak?.connected ?? false) || torchAwake || (torchHandle?.running ?? false))) void keepAwake(true); });
 
 // Keep the screen on while heating where the browser allows it: a locked phone freezes the page.
 type Lock = { release(): Promise<void> };
@@ -207,7 +233,7 @@ async function keepAwake(on: boolean) {
 let torchAwake = false;
 let torchHandle: TorchUI | null = null;   // set once the Torch tab is mounted (it may ask for the screen while mounting)
 // Manny 2026-11-13: also the whole time the rig is linked, not just mid-dab.
-const syncAwake = () => void keepAwake(rig.sessionOn || ble.isConnected || torchAwake || (torchHandle?.running ?? false));
+const syncAwake = () => void keepAwake(rig.sessionOn || ble.isConnected || (peak?.connected ?? false) || torchAwake || (torchHandle?.running ?? false));
 
 // MARK: Mode (how you dab): "rig" is the Switch 2 over Bluetooth, "torch" is glass and a butane torch (timer only, no rig).
 
@@ -270,6 +296,7 @@ let connectAfterPick = false;
 function openChooser(all: boolean) {
   linkTapped = true;
   connectAfterPick = true;
+  if (peak && !peakOn()) peak.message = null;
   ble.devices = [];
   ble.showAll = all;
   ble.startScan();   // opens the browser's chooser; must stay inside this tap
@@ -297,12 +324,12 @@ central.onChooserClosed = (why) => {
 
 // MARK: Home actions
 
-$("heat").onclick = () => rig.heatIt();
-$("cut").onclick = () => rig.cutIt();
-$("extend").onclick = () => rig.extendTen();
+$("heat").onclick = () => { const pk = peakNow(); if (pk) pk.heatIt(); else rig.heatIt(); };
+$("cut").onclick = () => { const pk = peakNow(); if (pk) pk.cutIt(); else rig.cutIt(); };
+$("extend").onclick = () => { const pk = peakNow(); if (pk) pk.boost(); else rig.extendTen(); };
 $("holdBtn").onclick = () => rig.setHold(!rig.holdOn);
-$("gotIt").onclick = () => { rig.awayNote = null; schedule(); };
-for (let n = 1; n <= 5; n++) $(`p${n}`).onclick = () => rig.selectPreset(n);
+$("gotIt").onclick = () => { const pk = peakNow(); if (pk) pk.awayNote = null; else rig.awayNote = null; schedule(); };
+for (let n = 1; n <= 5; n++) $(`p${n}`).onclick = () => { const pk = peakNow(); if (pk) pk.selectProfile(n - 1); else rig.selectPreset(n); };
 
 // MARK: Preset curve chart (the rig's own waypoints for the selected preset; nothing is sent)
 
@@ -663,6 +690,8 @@ bright.oninput = () => {
 
 const rigUI = mountRig(ble, rig, {
   build: BUILD,
+  peak: PEAK ? peakNow : undefined,
+  compatLine: COMPAT,
   showTutorial: () => showTutorial(),
   cleanEvery: () => extras.cleanEvery,
   nextCleanEvery: () => {
@@ -774,6 +803,7 @@ function fadeLabels(root: ParentNode, frac: number, sel: (i: number) => string) 
 const clamp01 = (v: number) => Math.min(Math.max(v, 0), 1);
 const clockText = (s: number) => { const v = Math.max(s, 0); return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, "0")}`; };
 function setText(id: string, t: string) { const el = $(id); if (el.textContent !== t) el.textContent = t; }
+function setTextEl(el: Element, t: string) { if (el.textContent !== t) el.textContent = t; }
 function enable(id: string, on: boolean) { ($(id) as HTMLButtonElement).disabled = !on; }
 function show(id: string, on: boolean) { const el = $(id); if (el.hidden === on) el.hidden = !on; }
 
@@ -786,9 +816,15 @@ function render() {
     connectAfterPick = false;
     ble.connect(ble.devices[0]);
   }
-  const s = rig.live;
-  const linked = ble.isConnected;
-  const heating = rig.sessionOn;
+  // Either rig through the same read-only shape (rig-view.ts). pk is set only in the Peak test build with a Peak in use.
+  const pk = peakNow();
+  document.body.classList.toggle("peak", !!pk);
+  const view = pk ?? rig;
+  const s = view.live;
+  const linked = pk ? pk.connected : ble.isConnected;
+  const heating = view.sessionOn;
+  const fresh = view.linkFresh;
+  const reconnecting = pk ? pk.link !== "ready" : ble.reconnecting;
   if (heating !== wasHeating || linked !== wasLinked) { wasHeating = heating; wasLinked = linked; syncAwake(); }
   document.querySelectorAll<HTMLButtonElement>(".pvBtn").forEach(b => { if (b.disabled === rig.canPreview) b.disabled = !rig.canPreview; });
 
@@ -803,37 +839,43 @@ function render() {
   // Front page until the rig is linked (or coming back), unless looking around or in torch mode.
   if (linked) lookAround = false;
   const torch = mode === "torch";
-  const onLink = holdFront || (!torch && !linked && !ble.reconnecting && !lookAround);
+  const onLink = holdFront || (!torch && !linked && !(pk ? pk.link === "reconnecting" : ble.reconnecting) && !lookAround);
   show("linkScreen", onLink);
   show("main", !onLink);
   // The rig layer still says the app's old name in its Bluetooth message: show today's name.
   const btMessage = ble.btMessage ? ble.btMessage.replace(/\bPresh\b/g, "Torchless") : "";
-  setText("linkState", connectAfterPick || ble.connectionText === "Scanning" ? "Pick your rig in the list that opened." : ble.connectionText);
+  const peakLinkText = !peak ? null
+    : peak.link === "connecting" ? "Connecting to the Peak… (first time: pairing mode, light pulsing blue)"
+    : peak.link === "unlocking" ? "Logging in to the Peak…"
+    : peak.link === "reading" ? "Reading the Peak…"
+    : (peak.link === "failed" || peak.link === "none") && peak.message && !ble.isConnected ? peak.message : null;
+  setText("linkState", peakLinkText ?? (connectAfterPick || ble.connectionText === "Scanning" ? "Pick your rig in the list that opened." : ble.connectionText));
   setText("btMsg", btMessage);
   show("btMsg", !!btMessage);
   show("btMsg2", !!btMessage && !torch);
   setText("btMsg2", btMessage);
 
   // Header
-  const linkText = torch ? "TORCH MODE" : linked ? (rig.linkFresh ? "SWITCH 2 · LINKED" : "LINKED · WAITING ON THE RIG")
-    : ble.reconnecting ? "GETTING THE RIG BACK…" : "NOT LINKED";
+  const linkText = torch ? "TORCH MODE" : linked ? (fresh ? (pk ? "PEAK · LINKED" : "SWITCH 2 · LINKED") : "LINKED · WAITING ON THE RIG")
+    : reconnecting ? "GETTING THE RIG BACK…" : "NOT LINKED";
   setText("linkTag", linkText);
-  $("linkDot").classList.toggle("live", !torch && linked && rig.linkFresh);
+  $("linkDot").classList.toggle("live", !torch && linked && fresh);
   $("linkDot").classList.toggle("torch", torch);
   show("batBox", !torch);
-  show("modeBtn", !torch && !linked && !ble.reconnecting);
+  show("modeBtn", !torch && !linked && !reconnecting);
   setText("battery", s ? `${s.battery}%` : "");
-  setText("batteryTag", s ? (chargingOf(s) ? "CHARGING" : dabsLeftText() ?? "BATTERY") : "");
+  setText("batteryTag", s ? (chargingOf(s) ? "CHARGING" : (pk ? null : dabsLeftText()) ?? "BATTERY") : "");
 
   // Notices (wording from the controller, unchanged)
-  const m = rig.message;
+  const m = pk ? pk.message : rig.message;
   show("notice", !!m);
   if (m) {
-    setText("noticeTag", m.startsWith("Heat came back on") ? "SAFETY CUT" : "HEADS UP");
+    setText("noticeTag", !pk && m.startsWith("Heat came back on") ? "SAFETY CUT" : "HEADS UP");
     setText("noticeText", m);
   }
-  show("away", !!rig.awayNote);
-  setText("awayText", rig.awayNote ?? "");
+  const away = pk ? pk.awayNote : rig.awayNote;
+  show("away", !!away);
+  setText("awayText", away ?? "");
 
   // Gauge readout
   const celsius = s?.unitByte === 12;
@@ -842,18 +884,26 @@ function render() {
   labels.forEach((v, i) => setText(`gL${i}`, String(v)));
   let frac = 0, targetFrac: number | null = null, targetText = "---", status = linked ? "WAITING ON THE RIG" : "NOT LINKED";
   let profileText = "--";
+  const presets = view.presets;
   if (s) {
     frac = clamp01((s.tempRaw - lo) / (hi - lo));
     if (s.preset >= 0 && s.preset <= 5) {
-      const ps = rig.presets[s.preset];
+      const ps = presets[s.preset];
       const t = celsius ? ps.tempC : ps.tempF;
       if (t !== undefined) { targetText = `${t}°`; targetFrac = clamp01((t - lo) / (hi - lo)); }
-      if (ps.profile !== undefined) profileText = HeatProfile.name(ps.profile);
+      if (pk) profileText = pk.activeProfile !== null ? pk.profileName(pk.activeProfile) : "--";
+      else if (ps.profile !== undefined) profileText = HeatProfile.name(ps.profile);
     }
+    if (pk) {
+      status = !fresh ? "WAITING ON THE RIG" : pk.phaseText === "preheat" ? "HEATING UP"
+        : heating ? `HEATING · ${clockText(s.sessionTimeRemaining)} LEFT`
+        : s.tempRaw > room + 50 ? "COOLING · HEAT OFF" : "COOL · READY";
+    } else {
     const eta = heating && extras.atTempAt === null ? extras.heatUpETA(rig) : null;
     status = !rig.linkFresh ? "WAITING ON THE RIG" : heating && extras.preheating && extras.atTempAt === null ? (eta !== null ? `HEATING UP · AT TEMP IN ~${eta}S` : "HEATING UP")
       : heating ? `HEATING · ${clockText(s.sessionTimeRemaining)} LEFT`
       : s.tempRaw > room + 50 ? "COOLING · HEAT OFF" : "COOL · READY";
+    }
   }
   document.body.classList.toggle("heating", heating);
   setText("gTemp", s ? `${s.tempRaw}°` : "---");
@@ -870,26 +920,27 @@ function render() {
   {
     let fill = 0, presetLine = "";
     if (s && s.preset >= 0 && s.preset <= 5) {
-      const ps = rig.presets[s.preset];
+      const ps = presets[s.preset];
       const t = celsius ? ps.tempC : ps.tempF;
       if (t !== undefined && t > room) fill = clamp01((s.tempRaw - room) / (t - room));
-      presetLine = `PRESET ${s.preset} · ${ps.profile !== undefined ? HeatProfile.name(ps.profile).toUpperCase() : "—"}`;
+      presetLine = pk ? `PROFILE ${s.preset} · ${profileText.toUpperCase()}`
+        : `PRESET ${s.preset} · ${ps.profile !== undefined ? HeatProfile.name(ps.profile).toUpperCase() : "—"}`;
     }
     const now = Date.now();
     if (s && now - lastTraceAt >= 450) { lastTraceAt = now; trace.add(fill, heating); }
     const ro: Readout = { tempText: s ? `${s.tempRaw}°` : "---", targetText, fill, heating, secondsLeft: s?.sessionTimeRemaining ?? 0, statusLine: status, presetLine };
     face?.update(ro, trace.points);
   }
-  const hold = rig.heldHoldSeconds;
+  const hold = pk ? (pk.profileSeconds !== null ? Math.round(pk.profileSeconds) : undefined) : rig.heldHoldSeconds;
   setText("cHold", hold !== undefined ? `${hold}s` : "--");
   setText("cProfile", profileText);
   setText("cLeft", heating && s ? clockText(s.sessionTimeRemaining) : "--");
 
   // Presets
-  const locked = !rig.canControl || heating;
-  setText("presetTag", heating ? "PRESETS · LOCKED WHILE HEATING" : "PRESETS");
+  const locked = pk ? !pk.canPickProfile : !rig.canControl || heating;
+  setText("presetTag", pk ? (heating ? "PROFILES · LOCKED WHILE HEATING" : "PEAK PROFILES") : heating ? "PRESETS · LOCKED WHILE HEATING" : "PRESETS");
   for (let n = 1; n <= 5; n++) {
-    const p = rig.presets[n];
+    const p = presets[n];
     const t = celsius ? p.tempC : p.tempF;
     setText(`p${n}t`, t !== undefined ? `${t}°` : "—");
     $(`p${n}`).classList.toggle("on", s?.preset === n);
@@ -918,13 +969,19 @@ function render() {
     enable("dialA", !locked); enable("dialB", !locked);
     setText("dialSay", rig.dialDisabledReason ?? rig.dialReadout);
   }
-  enable("heat", rig.canHeat);
-  enable("extend", rig.canExtend);
+  enable("heat", pk ? pk.canHeat : rig.canHeat);
+  enable("extend", pk ? pk.canBoost : rig.canExtend);
+  if (PEAK) {
+    const b = $("extend").querySelector("b"), t = $("extend").querySelector(".tag");
+    if (b) setTextEl(b, pk ? "BOOST" : "+10s");
+    if (t) setTextEl(t, pk ? "PEAK BOOST" : "MORE TIME");
+  }
   enable("holdBtn", rig.holdOn || rig.canExtend);
   $("holdBtn").classList.toggle("on", rig.holdOn);
   $("holdBtn").setAttribute("aria-pressed", String(rig.holdOn));
   setText("holdTag", rig.holdOn ? "ON" : "OFF");
-  setText("heatHint", !linked ? "" : !rig.linkFresh ? "Waiting on the rig…" : rig.startPendingAt !== null ? "Starting…" : "");
+  setText("heatHint", !linked ? "" : !fresh ? "Waiting on the rig…" : (pk ? pk.startPendingAt : rig.startPendingAt) !== null ? "Starting…"
+    : pk && pk.stopPendingAt !== null ? "Stopping…" : "");
 
   // Home lights strip
   {
@@ -1026,6 +1083,21 @@ $("dialA").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMo
 $("dialB").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMode = "active"; schedule(); } };
 const heatFX = new HeatFX($("faceCard"), () => prefs.get("heatSound") ?? "chimes", () => prefs.get("heatTrack") ?? "look", () => faceID);
 rig.onChange = () => { watcher.update(rig); heatFX.update(rig); extras.update(rig); plannerRefresh?.(); schedule(); };
+// The Peak feeds the same jar dab log and heat-up look through the shared read-only shape. Not extras: its battery
+// maths and clean counts are tuned to the Switch.
+if (peak) peak.onChange = () => { if (peakOn()) { watcher.update(peak); heatFX.update(peak); } schedule(); };
+if (PEAK) {
+  // Switch-only parts of Home hide while a Peak is the rig.
+  const st = document.createElement("style");
+  st.textContent = "body.peak #p5,body.peak #pCustom,body.peak #editBtn,body.peak .planRow,body.peak #curveCard,body.peak #dialStrip,"
+    + "body.peak #holdBtn,body.peak #againStrip,body.peak #owedStrip,body.peak #careCard,body.peak .strip[data-tab=lights]{display:none!important}";
+  document.head.append(st);
+  const note = document.createElement("p");
+  note.className = "mono dim center";
+  note.style.cssText = "font-size:10px;margin:6px 0 0";
+  note.textContent = COMPAT!;
+  $("linkState").after(note);
+}
 // Audio can only start after a tap: unlock it on the first tap of any kind, and resume after an interruption.
 for (const ev of ["pointerdown", "pointerup", "touchend", "click"]) document.addEventListener(ev, () => heatSound.unlock(), { capture: true, passive: true });
 setInterval(schedule, 500);
