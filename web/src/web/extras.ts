@@ -15,7 +15,8 @@ const get = (k: string): string | null => { try { return localStorage.getItem(k)
 const set = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode */ } };
 const num = (k: string): number | null => { const v = get(k); const n = v === null ? NaN : Number(v); return Number.isFinite(n) ? n : null; };
 
-export const CLEAN_CHOICES = [5, 10, 15, 20, 30];
+/** Deep clean reminder: the user's pick (Dr. Dabber gives no number). */
+export const CLEAN_CHOICES = [10, 20, 30, 50, 75, 100];
 
 /** Heat cycles from the rig's analytics frame (0xA2, 19 or 20 bytes: u16 at bytes 6-7). Seen in the Logs of
  *  2026-11-11 and 2026-11-12 going 404 to 405 and 416 to 417 across one dab each. */
@@ -117,7 +118,7 @@ export class RigExtras {
 
   // Clean reminders
 
-  get cleanEvery(): number { const n = num(K.cleanEvery); return n && CLEAN_CHOICES.includes(n) ? n : 10; }
+  get cleanEvery(): number { const n = num(K.cleanEvery); return n && CLEAN_CHOICES.includes(n) ? n : 50; }
   set cleanEvery(n: number) { set(K.cleanEvery, String(n)); }
   /** Dabs since the last clean: the rig's own counter when known, else the dabs this app saw. */
   dabsSinceClean(cycles: number | null): number {

@@ -43,7 +43,7 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
     return { b, upd: () => set(n, note()) };
   };
   const look = row("Look", "🎨", () => hooks.lookLabel(), "var(--dim)", openLook);
-  const clean = row("Clean reminder", "✦", () => `EVERY ${hooks.cleanEvery()} DABS`, "var(--dim)", () => { hooks.nextCleanEvery(); render(); });
+  const clean = row("Deep clean", "✦", () => `EVERY ${hooks.cleanEvery()} DABS`, "var(--dim)", () => { hooks.nextCleanEvery(); render(); });
   const log = row("Log", "≡", () => "SHARE IT", "var(--dim)", openLog);
   const dial = row("Ride the dial", "◐", () => "TEST", "var(--gold)", openDial);
   const raw = row("Raw status", "∿", () => "", "var(--dim)", openRaw);

@@ -268,7 +268,7 @@ function renderExtras(heating: boolean) {
   const since = extras.dabsSinceClean(cycles), every = extras.cleanEvery;
   // Only when it's due; how often lives on the Rig tab.
   show("careCard", fresh && !heating && since >= every);
-  setText("cleanCount", `${since} DABS SINCE CLEAN`);
+  setText("cleanCount", `${since} DABS SINCE DEEP CLEAN`);
 }
 /** Dabs left on this charge, for the header under the battery. */
 function dabsLeftText(): string | null {
