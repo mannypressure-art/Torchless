@@ -1156,7 +1156,14 @@ export class RigController {
   /** Compares the rig's own read-back (0xAA / 0xAB) with the curve that was just sent. */
   private curveCheck(p: number, sentA: number[], sentB: number[]) {
     const payload = (b: number[] | undefined | null): number[] | null => (b && b.length >= 18 ? Array.from(b.slice(3, 18)) : null);
-    const same = (x: number[] | null, y: number[]) => x !== null && x.length === y.length && x.every((v, i) => v === y[i]);
+    // Each step is F hi, F lo, C hi, C lo, seconds. The rig keeps its own °C for curve steps (rounded down from °F,
+    // where the app rounds to nearest), so the °C pair may read back 1 lower. °F and seconds must match exactly.
+    const same = (x: number[] | null, y: number[]) => x !== null && x.length === y.length && x.every((v, i) => {
+      const k = i % 5;
+      if (k === 3) return true;   // checked with its high byte
+      if (k === 2) return Math.abs(((x[i] << 8) | x[i + 1]) - ((y[i] << 8) | y[i + 1])) <= 1;
+      return v === y[i];
+    });
     const gotA = payload(this.presets[p].custom170), gotB = payload(this.presets[p].custom171);
     if (gotA === null && gotB === null) {
       this.curveCheckResult = "no report";
