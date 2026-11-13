@@ -363,11 +363,8 @@ for (let n = 1; n <= 5; n++) $(`p${n}`).onclick = () => { const pk = peakNow(); 
 
 let curveKey = "";
 let curveView: CurveView | null = null;
-/** Preset key colour by temp (the rig reports no preset colours): cool to hot. */
-function heatColor(f?: number): string {
-  if (f === undefined) return "var(--edge)";
-  return f < 450 ? "#4fc8ff" : f < 490 ? "#e8b04a" : f < 530 ? "#ff8a3d" : "#ff4d5e";
-}
+/** Switch 2 slot colours: the rig's LED band shows the same colour per preset slot. */
+const SLOT_COLORS = ["", "#A131E6", "#4E95FF", "#00E1ED", "#FF9D2E", "#FFFFFF"];
 function endsOnSlope(pts: { t: number; f: number }[]): boolean {
   return pts.length >= 2 && pts[pts.length - 1].f !== pts[pts.length - 2].f;
 }
@@ -980,7 +977,7 @@ function render() {
     const t = celsius ? p.tempC : p.tempF;
     setText(`p${n}t`, t !== undefined ? `${t}°` : "—");
     $(`p${n}`).classList.toggle("on", s?.preset === n);
-    $(`p${n}`).style.setProperty("--pc", heatColor(p.tempF));
+    $(`p${n}`).style.setProperty("--pc", pk ? "transparent" : SLOT_COLORS[n]);
     enable(`p${n}`, !locked);
   }
   enable("pCustom", !locked);
