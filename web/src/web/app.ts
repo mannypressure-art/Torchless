@@ -23,7 +23,9 @@ import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./
 import { HeatFX, heatSound, heatTrack, HEAT_SOUNDS, HEAT_TRACKS, validSound, validTrack } from "./heatfx";
 import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 
-const BUILD = "app-5.7";
+const BUILD = "app-5.8";
+/** Set on the front page when this browser has no Web Bluetooth: what to do on this kind of device. */
+let noBtMessage = "";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -275,17 +277,43 @@ function openChooser(all: boolean) {
   ble.startScan();   // opens the browser's chooser; must stay inside this tap
 }
 $("linkIt").onclick = () => openChooser(false);
-// Safari and other iPhone browsers have no Bluetooth: offer a one-tap jump into Bluefy instead.
+// No Web Bluetooth in this browser: send people to one that has it, for the device they're on.
+// iPhone/iPad (Safari, Chrome, Firefox there): Bluefy. Android (Firefox, in-app browsers, any browser
+// without it): Chrome. A computer (Safari, Firefox): Chrome or Edge, or set it up on the phone.
 const hasBt = !!(navigator as unknown as { bluetooth?: unknown }).bluetooth;
+const ua = navigator.userAgent;
+const onAndroid = /Android/i.test(ua);
+const onIos = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const CHROME_PLAY = "https://play.google.com/store/apps/details?id=com.android.chrome";
 if (!hasBt) {
+  const open = $<HTMLAnchorElement>("openBluefy");
+  const getIt = document.querySelector<HTMLAnchorElement>("#noBt .getBluefy")!;
+  const here = new URL(location.href.split("#")[0]);
   $("noBt").hidden = false;
-  $<HTMLAnchorElement>("openBluefy").href = "bluefy://open?url=" + encodeURIComponent(location.href.split("#")[0]);
   ($("linkIt") as HTMLButtonElement).hidden = true;
   $("linkAll").hidden = true;
   $("linkState").hidden = true;   // "Not connected" says nothing here: the message above already explains
+  if (onIos) {
+    open.href = "bluefy://open?url=" + encodeURIComponent(here.href);
+    noBtMessage = "This browser can't use Bluetooth. Open Torchless in Bluefy.";
+  } else if (onAndroid) {
+    // Chrome opens this same page; without Chrome, the fallback is Chrome's Play listing.
+    open.href = `intent://${here.host}${here.pathname}${here.search}#Intent;scheme=${here.protocol.slice(0, -1)};package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(CHROME_PLAY)};end`;
+    open.textContent = "OPEN IN CHROME";
+    getIt.href = CHROME_PLAY;
+    getIt.textContent = "No Chrome? Get it free on Google Play";
+    noBtMessage = "This browser can't use Bluetooth. Open Torchless in Chrome.";
+  } else {
+    open.href = "/get/";
+    open.textContent = "USE YOUR PHONE";
+    getIt.href = "https://www.google.com/chrome/";
+    getIt.textContent = "Or get Chrome for this computer";
+    noBtMessage = "This browser can't use Bluetooth. Use Chrome or Edge, or your phone.";
+  }
 }
-// The Bluefy note only helps on an iPhone or iPad (or anywhere Bluetooth is missing).
-if (hasBt && /Android/i.test(navigator.userAgent)) $("bluefyNote").hidden = true;
+// The Bluefy note is for iPhone, and for computers that can link. Android never needs it, and a
+// computer without Bluetooth already has the message above.
+if (onAndroid || (!hasBt && !onIos)) $("bluefyNote").hidden = true;
 $("linkAll").onclick = () => openChooser(true);
 central.onChooserClosed = (why) => {
   ble.log(`Chooser closed without a rig: ${why}`);
@@ -809,7 +837,8 @@ function render() {
   show("linkScreen", onLink);
   show("main", !onLink);
   // The rig layer still says the app's old name in its Bluetooth message: show today's name.
-  const btMessage = ble.btMessage ? ble.btMessage.replace(/\bPresh\b/g, "Torchless") : "";
+  // Without Web Bluetooth, say what to do on this kind of device (the rig layer's message lists every platform).
+  const btMessage = noBtMessage || (ble.btMessage ? ble.btMessage.replace(/\bPresh\b/g, "Torchless") : "");
   setText("linkState", connectAfterPick || ble.connectionText === "Scanning" ? "Pick your rig in the list that opened." : ble.connectionText);
   setText("btMsg", btMessage);
   show("btMsg", !!btMessage);
