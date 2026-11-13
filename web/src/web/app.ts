@@ -11,7 +11,7 @@ import { WebCentral } from "../rig/web-central";
 import { chargingOf } from "../rig/frames";
 import { JarStore, IDBJarBackend, MemoryJarBackend } from "./jars";
 import { DabWatcher } from "./dab-watcher";
-import { mountJars, h, tag, openSheet, topBar, textBtn, confirmSheet } from "./jar-ui";
+import { mountJars, h, tag, openSheet, topBar, textBtn, confirmSheet, thumbFromBlob } from "./jar-ui";
 import { openPlanner } from "./planner";
 import { RigExtras, heatCyclesFrom, doThatAgain, CLEAN_CHOICES } from "./extras";
 import { mountTorch, TorchUI } from "./torch";
@@ -66,7 +66,37 @@ function showTabSoon() {
   });
 }
 watcher.onPrompt = () => jarUI.renderPrompt();
-void jars.load().then(() => watcher.appOpened());
+const jarsLoaded = jars.load().then(() => watcher.appOpened());
+void jarsLoaded;
+// Domain move rescue (2026-11-13): torchlessapp.github.io/rescue/ reads the jars left under the old address and
+// hands them over, either by postMessage (#rescue, opened from that page) or in the address (#rescue-data=).
+{
+  const OLD = "https://torchlessapp.github.io";
+  const take = async (text: string): Promise<number> => {
+    await jarsLoaded;
+    const n = await jars.importBackup(text, thumbFromBlob);
+    return n;
+  };
+  if (location.hash === "#rescue" && window.opener) {
+    window.addEventListener("message", e => {
+      if (e.origin !== OLD || e.data?.t !== "rescue-data" || typeof e.data.text !== "string") return;
+      void take(e.data.text).then(n => { (e.source as Window | null)?.postMessage({ t: "rescue-done", n }, OLD); history.replaceState(null, "", location.pathname); alertMoved(n); });
+    });
+    try { window.opener.postMessage({ t: "rescue-ready" }, OLD); } catch { /* opener gone */ }
+  } else if (location.hash.startsWith("#rescue-data=")) {
+    const text = decodeURIComponent(location.hash.slice("#rescue-data=".length));
+    history.replaceState(null, "", location.pathname);
+    void take(text).then(alertMoved).catch(() => alertMoved(-1));
+  }
+  function alertMoved(n: number) {
+    const box = document.createElement("div");
+    box.className = "mono";
+    box.style.cssText = "position:fixed;left:12px;right:12px;top:calc(12px + env(safe-area-inset-top));z-index:9999;padding:14px 16px;border-radius:14px;background:var(--cardBottom);border:1px solid var(--live);color:var(--ink)";
+    box.textContent = n < 0 ? "Couldn't bring your jars over. Try again from the rescue page." : `Moved ${n} jar${n === 1 ? "" : "s"} from the old address.`;
+    document.body.append(box);
+    setTimeout(() => box.remove(), 6000);
+  }
+}
 // Ask the browser to keep this site's storage (Chrome grants it for installed apps; others may ignore it).
 try { void (navigator.storage as StorageManager | undefined)?.persist?.(); } catch { /* fine */ }
 

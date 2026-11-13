@@ -484,10 +484,17 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       h("div", { class: "row", style: "gap:10px;margin-top:12px" },
         h("button", { class: "btn2", style: "flex:1", disabled: !store.jars.length, onclick: async () => {
           const blob = await store.exportBackup();
-          const a = h("a", { href: URL.createObjectURL(blob),
-            download: `Torchless-jars-${new Date().toISOString().slice(0, 10)}.json` }) as HTMLAnchorElement;
-          a.click();
-          setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+          const name = `Torchless-jars-${new Date().toISOString().slice(0, 10)}.json`;
+          // Bluefy (iPhone) ignores downloads: use the share sheet (Save to Files) when the browser has one.
+          const file = new File([blob], name, { type: "application/json" });
+          let shared = false;
+          try { if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file] }); shared = true; } }
+          catch (e) { if ((e as Error)?.name === "AbortError") { msg.textContent = "Backup not saved."; return; } }
+          if (!shared) {
+            const a = h("a", { href: URL.createObjectURL(blob), download: name }) as HTMLAnchorElement;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+          }
           backupNote = "Backup saved. Keep the file somewhere safe, like Files or Drive.";
           msg.textContent = backupNote;
         } }, "Save backup"),
