@@ -23,7 +23,7 @@ import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./
 import { HeatFX, heatSound, heatTrack, HEAT_SOUNDS, HEAT_TRACKS, validSound, validTrack } from "./heatfx";
 import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 
-const BUILD = "app-5.6";
+const BUILD = "app-5.7";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -924,7 +924,7 @@ function render() {
   enable("extend", rig.canExtend);
   // HOLD only where the extra time stays flat: on a curve that ends climbing, every +10 s keeps heating past the target.
   const selPts = s && s.preset >= 1 && s.preset <= 5 ? waypointsOf(rig.presets[s.preset]) : [];
-  const climbs = endsOnSlope(selPts) && selPts[selPts.length - 1].f > selPts[selPts.length - 2].f;
+  const climbs = endsOnSlope(selPts);  // rising or falling end: extra time keeps that slope going
   enable("holdBtn", rig.holdOn || (rig.canExtend && !climbs));
   $("holdBtn").classList.toggle("on", rig.holdOn);
   $("holdBtn").setAttribute("aria-pressed", String(rig.holdOn));

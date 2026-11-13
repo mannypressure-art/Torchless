@@ -1013,6 +1013,20 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         closeAll();
       }
 
+      /** − / + pair: tap steps once, hold repeats; the sheet redraws on release. */
+      function stepper(what: string, down: () => void, up: () => void, style: string, small = false): HTMLElement {
+        const sz = small ? "width:40px;height:34px;font-size:22px" : "width:52px;height:52px;font-size:30px";
+        const key = (label: string, aria: string, fn: () => void) => {
+          let t: number | undefined, rep: number | undefined;
+          const stop = () => { if (t === undefined && rep === undefined) return; clearTimeout(t); clearInterval(rep); t = rep = undefined; draw(); };
+          return h("button", { class: "quick stepKey", "aria-label": aria, style: `${sz};padding:0;line-height:1;touch-action:none;user-select:none;-webkit-user-select:none`,
+            onpointerdown: (e: Event) => { e.preventDefault(); fn(); t = window.setTimeout(() => { rep = window.setInterval(fn, 80); }, 380); },
+            onpointerup: stop, onpointerleave: stop, onpointercancel: stop, oncontextmenu: (e: Event) => e.preventDefault(),
+            onkeydown: (e: Event) => { const k = (e as KeyboardEvent).key; if (k === "Enter" || k === " ") { e.preventDefault(); fn(); draw(); } } }, label);
+        };
+        return h("div", { class: "row", style: `gap:8px;${style}` }, key("−", `Lower ${what}`, down), key("+", `Raise ${what}`, up));
+      }
+
       function draw() {
         const j = jarf();
         const kids: Kid[] = [];
@@ -1033,26 +1047,36 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         }
         const big = h("b", { class: "cond", style: "font-size:64px;line-height:1;color:var(--gold)" }, Jars.ratingText(rating));
         const last = lastSame();
-        kids.push(h("div", { class: "row", style: "align-items:baseline" }, big, h("span", { class: "cond dim", style: "font-size:20px;margin-left:6px" }, "/ 10"),
-          last !== undefined ? h("div", { style: "margin-left:auto;text-align:right" }, tag("LAST TIME AT " + Dabs.goalText(prompt.dab), "font-size:8px"),
-            h("b", { class: "cond", style: "display:block;font-size:22px;color:var(--sub)" }, Jars.ratingText(last))) : null));
+        const showRating = () => { big.textContent = Jars.ratingText(rating); slider.value = String(rating);
+          quick.querySelectorAll("button").forEach(b => b.classList.toggle("on", Number(b.textContent) === rating)); };
+        const rStep = (d: number) => { rating = Dabs.clamp(rating + d); showRating(); };
+        kids.push(h("div", { class: "row", style: "align-items:center" }, big, h("span", { class: "cond dim", style: "font-size:20px;margin-left:6px;align-self:flex-end" }, "/ 10"),
+          last !== undefined ? h("div", { style: "margin-left:auto;text-align:right" }, tag("LAST TIME", "font-size:8px"),
+            h("b", { class: "cond", style: "display:block;font-size:22px;color:var(--sub)" }, Jars.ratingText(last))) : null,
+          stepper("rating", () => rStep(-0.1), () => rStep(0.1), last !== undefined ? "margin-left:12px" : "margin-left:auto")));
         const quick = h("div", { class: "row", style: "gap:8px" });
         const slider = h("input", { type: "range", min: 1, max: 10, step: 0.1, value: String(rating), class: "gold",
-          oninput: (e: Event) => { rating = Dabs.clamp(Number((e.target as HTMLInputElement).value)); big.textContent = Jars.ratingText(rating);
-            quick.querySelectorAll("button").forEach(b => b.classList.toggle("on", Number(b.textContent) === rating)); } });
+          oninput: (e: Event) => { rating = Dabs.clamp(Number((e.target as HTMLInputElement).value)); showRating(); } }) as HTMLInputElement;
         for (const v of [6, 7, 8, 9]) quick.append(h("button", { class: "quick" + (rating === v ? " on" : ""), onclick: () => { rating = v; draw(); } }, String(v)));
         kids.push(slider, quick);
         // Dab size
         const sizeLabel = sizeSet
-          ? h("span", { class: "row", style: "margin-left:auto;gap:4px" }, h("b", { class: "cond", style: "font-size:16px;color:var(--gold)" }, Dabs.sizeText(Dabs.gramsAt(sizePos))),
+          ? h("span", { class: "row", style: "margin-left:auto;gap:4px" }, h("b", { class: "cond sizeNow", style: "font-size:16px;color:var(--gold)" }, Dabs.sizeText(Dabs.gramsAt(sizePos))),
               h("button", { class: "textBtn", "aria-label": "Clear dab size", style: "min-height:30px;min-width:30px", onclick: () => { sizeSet = false; draw(); } }, icon("close", "font-size:18px")))
           : tag("OPTIONAL", "margin-left:auto;font-size:8px");
         const stops = h("div", { class: "row", style: "gap:0" });
         SIZE_STOPS.forEach((s, i) => stops.append(h("button", { class: "stop" + (sizeSet && Math.abs(sizePos - i) < 0.001 ? " on" : ""),
           onclick: () => { sizePos = i; sizeSet = true; sizeTouched = true; draw(); } },
           h("b", {}, s.name), h("small", {}, (s.grams < 0.1 ? s.grams.toFixed(2) : s.grams.toFixed(1)) + "g"))));
-        kids.push(h("div", {}, h("div", { class: "row" }, tag("DAB SIZE", "font-size:9px"), sizeLabel),
-          h("input", { type: "range", min: 0, max: SIZE_STOPS.length - 1, step: 0.01, value: String(sizePos), class: sizeSet ? "gold" : "dimRange",
+        const sStep = (d: number) => {
+          const g = Dabs.gramsAt(sizePos);
+          const inc = g < 0.1 || (g === 0.1 && d < 0) ? 0.01 : g < 0.4 || (g === 0.4 && d < 0) ? 0.05 : 0.1;
+          sizePos = Dabs.positionFor(Dabs.clampGrams(sizeSet ? g + d * inc : g)); sizeSet = true; sizeTouched = true;
+          const r = card.querySelector<HTMLInputElement>("input.sizeRange"); if (r) { r.value = String(sizePos); r.className = "sizeRange gold"; }
+          const b = card.querySelector(".sizeNow"); if (b) b.textContent = Dabs.sizeText(Dabs.gramsAt(sizePos));
+        };
+        kids.push(h("div", {}, h("div", { class: "row" }, tag("DAB SIZE", "font-size:9px"), sizeLabel, stepper("dab size", () => sStep(-1), () => sStep(1), "margin-left:10px", true)),
+          h("input", { type: "range", min: 0, max: SIZE_STOPS.length - 1, step: 0.01, value: String(sizePos), class: sizeSet ? "sizeRange gold" : "sizeRange dimRange",
             onchange: (e: Event) => { sizePos = Dabs.snap(Number((e.target as HTMLInputElement).value)); sizeSet = true; sizeTouched = true; draw(); },
             oninput: (e: Event) => { sizePos = Dabs.snap(Number((e.target as HTMLInputElement).value)); sizeSet = true; sizeTouched = true;
               const b = card.querySelector(".sizeNow"); if (b) b.textContent = Dabs.sizeText(Dabs.gramsAt(sizePos)); } }),
