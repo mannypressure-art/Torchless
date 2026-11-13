@@ -1,13 +1,13 @@
 // Torchless for Android: a Trusted Web Activity. The app opens the Torchless
-// web app (GitHub Pages) full screen in Chrome, which has Web Bluetooth.
+// web app (GitHub Pages, custom domain torchless.brickandsignal.com) full screen in Chrome, which has Web Bluetooth.
 // All rig logic lives in the web app; this shell has none.
 
 plugins {
     id("com.android.application")
 }
 
-val siteHost = "torchlessapp.github.io"
-val startUrl = "https://$siteHost/Torchless/"
+val siteHost = "torchless.brickandsignal.com"
+val startUrl = "https://$siteHost/"
 
 android {
     namespace = "com.brickandsignal.torchless"
@@ -18,7 +18,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
-        versionName = "0.1.0"
+        versionName = "0.1.1"
         manifestPlaceholders["hostName"] = siteHost
         manifestPlaceholders["launchUrl"] = startUrl
         resValue("string", "asset_statements",
