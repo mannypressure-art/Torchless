@@ -252,6 +252,16 @@
   .plHalo { fill: var(--live); opacity: 0; } .plHalo.on { opacity: .16; }
   .plSel { fill: var(--gold); }
   .plProblem { font-size: 10.5px; color: var(--warn); margin: 8px 0 0; }
+  .plWrap { position: relative; }
+  .plPill { position: absolute; transform: translate(-50%, calc(-100% - 16px)); display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; background: color-mix(in srgb, var(--live) 14%, var(--cardBottom)); border: 1px solid var(--live); box-shadow: 0 6px 18px rgba(0,0,0,.45); z-index: 2; white-space: nowrap; }
+  .plPill.below { transform: translate(-50%, 16px); }
+  .plPill button { width: 44px; height: 44px; border-radius: 50%; font: 700 24px/1 var(--cond); color: var(--live); }
+  .plPill button:active { background: color-mix(in srgb, var(--live) 22%, transparent); }
+  .plPill b { min-width: 44px; text-align: center; font-size: 18px; }
+  .plPill i { width: 1px; height: 26px; background: var(--edge); margin: 0 2px; }
+  .plTools { position: absolute; top: 0; right: 0; display: flex; gap: 6px; }
+  .plTools button { min-width: 44px; height: 32px; padding: 0 8px; border-radius: 10px; border: 1px solid var(--edge); background: var(--cardBottom); font: 700 11px var(--mono); letter-spacing: 1px; color: var(--ink); }
+  .plTools button:disabled { opacity: .35; }
   .plPointRow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .plStep { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; gap: 4px 6px; padding: 10px; border: 1px solid var(--edge); border-radius: 14px; background: var(--cardBottom); }
   .plStep .tag { grid-column: 1 / -1; }

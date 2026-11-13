@@ -145,8 +145,10 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
     const head = h("div", { class: "curveHead" });
     const stats = h("div", { class: "curveStats" });
     const problemLine = h("p", { class: "mono plProblem", role: "status" });
-    const pointRow = h("div", { class: "plPointRow" });
-    const tools = h("div", { class: "row", style: "gap:8px;flex-wrap:wrap" });
+    // The chart's own controls: a −/+ pill over the picked point, and add / remove point in the corner.
+    const pill = h("div", { class: "plPill", role: "group", "aria-label": "Tune this point" });
+    const tools = h("div", { class: "plTools" });
+    const wrap = h("div", { class: "plWrap" }, svg, pill, tools);
     const tmplRow = h("div", { class: "plChips" });
     const libBox = h("div", { class: "stackS" });
     const sendBox = h("div", { class: "stackS" });
@@ -207,10 +209,15 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
       const why = RigController.curveProblem(steps);
       problemLine.textContent = why ? why.replace(/ F a second/, "°F a second") : "";
       problemLine.hidden = !why;
-      const p = steps[sel];
-      pointRow.replaceChildren(
-        stepper(`POINT ${sel + 1} · TEMP`, deg(p.f), "temperature", () => nudge(0, -SNAP_F), () => nudge(0, SNAP_F)),
-        stepper(sel === 0 ? "TIME · 0 S" : `POINT ${sel + 1} · TIME`, `${p.t}s`, "time", () => nudge(-1, 0), () => nudge(1, 0), sel === 0));
+      const p = steps[sel], g = geo(span);
+      const key = (label: string, aria: string, fn: () => void) => h("button", { "aria-label": aria, onclick: (e: Event) => { e.stopPropagation(); fn(); } }, label);
+      pill.replaceChildren(
+        key("−", "Lower temperature", () => nudge(0, -SNAP_F)), h("b", { class: "cond" }, deg(p.f)), key("+", "Raise temperature", () => nudge(0, SNAP_F)),
+        ...(sel === 0 ? [] : [h("i"), key("−", "Earlier", () => nudge(-1, 0)), h("b", { class: "cond" }, `${p.t}s`), key("+", "Later", () => nudge(1, 0))]));
+      const x = g.px(p.t) / W * 100, y = g.py(p.f) / H * 100;
+      pill.style.left = `${Math.min(Math.max(x, 22), 78)}%`;
+      pill.style.top = `${y}%`;
+      pill.classList.toggle("below", y < 38);
     };
     const stepper = (label: string, v: string, what: string, down: () => void, up: () => void, locked = false) =>
       h("div", { class: "plStep" }, h("span", { class: "tag", style: "font-size:8.5px" }, label),
@@ -270,8 +277,8 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
     redraw = () => {
       drawChart();
       tools.replaceChildren(
-        h("button", { class: "chip", disabled: steps.length >= 5, onclick: addPoint }, "+ POINT"),
-        h("button", { class: "chip", disabled: steps.length <= 2 || sel === 0, onclick: removePoint }, "− POINT"));
+        h("button", { "aria-label": "Add a point", disabled: steps.length >= 5, onclick: addPoint }, "+ PT"),
+        h("button", { "aria-label": "Remove this point", disabled: steps.length <= 2 || sel === 0, onclick: removePoint }, "− PT"));
       tmplRow.replaceChildren(...CURVE_TEMPLATES.map(c => h("button", { class: "chip", onclick: () => {
         steps = clean(c.steps); sel = 0; span = spanFor(steps); status = ""; redraw();
       } }, c.name)));
@@ -324,9 +331,8 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
 
     body.append(
       topBar(textBtn("Done", () => { closeIt(); }), h("b", { class: "cond", style: "font-size:20px;letter-spacing:2px" }, "RIDE PLANNER"), null),
-      h("div", { class: "curveCard", style: "margin-top:4px" }, head, svg, stats, problemLine,
-        h("p", { class: "mono dim", style: "font-size:10px;margin:8px 0 0" }, "Drag the points.")),
-      pointRow, tools,
+      h("div", { class: "curveCard", style: "margin-top:4px" }, head, wrap, stats, problemLine,
+        h("p", { class: "mono dim", style: "font-size:10px;margin:8px 0 0" }, "Tap a point, then − or +. Or drag it.")),
       tag("START FROM", "font-size:9.5px;margin-top:4px"), tmplRow,
       tag("MY CURVES", "font-size:9.5px;margin-top:4px"), libBox,
       tag("SEND", "font-size:9.5px;margin-top:4px"), sendBox,
