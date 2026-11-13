@@ -14,10 +14,10 @@ import { mountJars, h, tag, openSheet, topBar, textBtn } from "./jar-ui";
 import { mountRig } from "./rig-ui";
 import { Account, JarSync } from "./cloud";
 import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
-import { HeatFX, heatSound, HEAT_SOUNDS } from "./heatfx";
+import { HeatFX, heatSound, heatTrack, HEAT_SOUNDS, HEAT_TRACKS, validSound, validTrack } from "./heatfx";
 import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 
-const BUILD = "app-4e.0";
+const BUILD = "app-4f.0";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -440,21 +440,29 @@ const rigUI = mountRig(ble, rig, {
     buildSoundPicker(page);
   },
 });
-// Heat-up sound picker (Rig > Look), same rows and words as HeatSoundPicker.
+// Heat-up look and soundtrack picker (Rig > Look), same rows and words as HeatSoundPicker.
 function buildSoundPicker(page: HTMLElement) {
-  const box = h("div", { class: "stackS" });
+  const box = h("div", { class: "stackS" }), trackBox = h("div", { class: "stackS" });
+  const row = (c: { id: string; name: string; line: string }, on: boolean, label: string, pick: () => void) =>
+    h("button", { class: "soundRow" + (on ? " on" : ""), "aria-label": label + (on ? ", on" : ""), onclick: pick },
+      h("div", { style: "flex:1;min-width:0" }, h("b", { class: "cond" }, c.name), h("small", { class: "mono" }, c.line)), on ? tag("ON", "color:var(--live);font-size:9px") : null);
   const draw = () => {
-    const cur = prefs.get("heatSound") ?? "chimes";
-    box.replaceChildren(...HEAT_SOUNDS.map(c => {
-      const on = cur === c.id;
-      return h("button", { class: "soundRow" + (on ? " on" : ""), "aria-label": `${c.name} sound${on ? ", on" : ""}`, onclick: () => {
-        prefs.set("heatSound", c.id); heatSound.preview(c.id); draw(); rigUI.render();
-      } }, h("div", { style: "flex:1;min-width:0" }, h("b", { class: "cond" }, c.name), h("small", { class: "mono" }, c.line)), on ? tag("ON", "color:var(--live);font-size:9px") : null);
-    }));
+    const cur = validSound(prefs.get("heatSound")), track = validTrack(prefs.get("heatTrack"));
+    box.replaceChildren(...HEAT_SOUNDS.map(c => row(c, cur === c.id, `${c.name} sound`, () => {
+      prefs.set("heatSound", c.id); heatTrack.stopPreview(); heatSound.preview(c.id); draw(); rigUI.render();
+    })));
+    trackBox.replaceChildren(...HEAT_TRACKS.map(c => row(c, track === c.id, c.name, () => {
+      prefs.set("heatTrack", c.id);
+      heatSound.preview(c.id === "look" ? validSound(prefs.get("heatSound")) : "off");
+      heatTrack.preview(c.id);
+      draw(); rigUI.render();
+    })));
   };
   draw();
-  page.append(tag("HEAT-UP SOUND", "font-size:9.5px;margin-top:8px"), box,
-    h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "Tap one to hear a short preview; tapping another cuts it off. Follows the silent switch on iPhone where the browser allows it, and plays over your own music. Phone taps happen with every option on Android."));
+  page.append(tag("HEAT-UP LOOK", "font-size:9.5px;margin-top:8px"), box,
+    h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "Tap one to hear a short heat-up, hold and cooldown. Tapping another cuts it off. Follows the silent switch on iPhone where the browser allows it, and plays over your own music. Phone taps happen with every option on Android."),
+    tag("SOUNDTRACK", "font-size:9.5px;margin-top:8px"), trackBox,
+    h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "A soundtrack replaces the look's own sound and keeps its motion. The beat drops the moment the rig reaches temp."));
 }
 $("lookAround").onclick = () => { lookAround = true; schedule(); };
 $("linkJars").onclick = () => { lookAround = true; showTab("jars"); };
@@ -729,7 +737,7 @@ $("dialDown").onclick = () => rig.dialNudge(-RigController.dialStep);
 $("dialUp").onclick = () => rig.dialNudge(RigController.dialStep);
 $("dialA").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMode = "live"; schedule(); } };
 $("dialB").onclick = () => { if (rig.dialCurrent === rig.dialStart) { rig.dialMode = "active"; schedule(); } };
-const heatFX = new HeatFX($("faceCard"), () => prefs.get("heatSound") ?? "chimes", () => faceID);
+const heatFX = new HeatFX($("faceCard"), () => prefs.get("heatSound") ?? "chimes", () => prefs.get("heatTrack") ?? "look", () => faceID);
 rig.onChange = () => { watcher.update(rig); heatFX.update(rig); schedule(); };
 // Audio can only start after a tap: unlock it on the first tap of any kind, and resume after an interruption.
 for (const ev of ["pointerdown", "pointerup", "touchend", "click"]) document.addEventListener(ev, () => heatSound.unlock(), { capture: true, passive: true });
