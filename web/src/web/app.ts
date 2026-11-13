@@ -250,11 +250,6 @@ function renderCurve(sel: number, celsius: boolean, heating: boolean) {
   $("cvPeak").textContent = deg(view.peak);
   $("cvLow").textContent = deg(view.low);
   $("cvHold").textContent = `${view.seconds}s`;
-  $("curveNote").textContent = extend > 0
-    ? `+${10 * extend} s added to this dab.`
-    : p.profile === 161 || p.profile === 177
-      ? "What +10 s adds. Drag across the chart to read any moment."
-      : "+10 s on this profile hasn't been measured yet. Drag to read any moment.";
 }
 {
   // Touch readout: drag across the chart to read time and temp. Vertical drags still scroll the page.
