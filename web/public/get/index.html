@@ -5,7 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#060708">
 <title>Get Torchless</title>
-<meta name="description" content="Torchless: heat-up control for your e-rig, from your phone. Get it on iPhone or Android.">
+<meta name="description" content="Heat your Dr. Dabber Switch 2 from your phone and watch the temp live. iPhone and Android.">
+<link rel="canonical" href="https://torchless.brickandsignal.com/get/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://torchless.brickandsignal.com/get/">
+<meta property="og:title" content="Torchless">
+<meta property="og:description" content="Heat your Dr. Dabber Switch 2 from your phone and watch the temp live.">
+<meta property="og:image" content="https://torchless.brickandsignal.com/icon-512.png">
+<meta name="twitter:card" content="summary">
 <link rel="apple-touch-icon" href="/icon-180.png">
 <link rel="icon" href="/icon-192.png">
 <script>
@@ -35,104 +42,182 @@
     background: linear-gradient(var(--bgTop), var(--bg) 320px) var(--bg); background-color: var(--bg);
     color: var(--ink); font: 16px/1.4 -apple-system, system-ui, sans-serif; min-height: 100vh;
   }
+  :focus-visible { outline: 2px solid var(--live); outline-offset: 2px; }
   .wrap { max-width: 480px; margin: 0 auto; padding: calc(16px + env(safe-area-inset-top)) 16px calc(40px + env(safe-area-inset-bottom)); }
   .tag { font: 600 10px/1 var(--mono); letter-spacing: 1.8px; color: var(--dim); text-transform: uppercase; }
   .head { display: flex; align-items: center; gap: 12px; }
   .head img { width: 56px; height: 56px; border-radius: 14px; }
-  .brand { font: 600 34px/1 var(--cond); letter-spacing: 3px; }
+  h1 { margin: 0; font: 600 34px/1 var(--cond); letter-spacing: 3px; text-transform: uppercase; }
   .lede { color: var(--sub); margin: 18px 0 22px; font-size: 17px; }
+  .nb { white-space: nowrap; }
   .tabs { display: flex; gap: 8px; margin-bottom: 14px; }
-  .tabs button { flex: 1; min-height: 48px; border-radius: 12px; border: 1px solid var(--edge); background: none; color: var(--sub); font: 600 20px var(--cond); letter-spacing: 1.5px; cursor: pointer; }
+  .tabs button { flex: 1; min-height: 48px; border-radius: 12px; border: 1px solid var(--edge); background: none; color: var(--sub); font: 600 20px var(--cond); letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; }
   .tabs button[aria-selected="true"] { border-color: var(--live); color: var(--live); background: #0B2F38; }
   .panel { background: linear-gradient(var(--cardTop), var(--cardBottom)); border: 1px solid var(--edge); border-radius: 20px; padding: 18px; }
   ol { margin: 0; padding: 0; list-style: none; counter-reset: s; }
-  li { counter-increment: s; position: relative; padding-left: 40px; margin-bottom: 18px; }
-  li:last-child { margin-bottom: 0; }
-  li::before { content: counter(s); position: absolute; left: 0; top: -2px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--gold); color: var(--gold); font: 700 17px/26px var(--cond); text-align: center; }
-  li b { display: block; font: 600 21px/1.1 var(--cond); letter-spacing: .5px; margin-bottom: 3px; }
+  ol > li { counter-increment: s; position: relative; padding-left: 40px; margin-bottom: 20px; }
+  ol > li:last-child { margin-bottom: 0; }
+  ol > li::before { content: counter(s); position: absolute; left: 0; top: -2px; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--gold); color: var(--gold); font: 700 17px/26px var(--cond); text-align: center; }
+  h2 { margin: 0 0 3px; font: 600 21px/1.1 var(--cond); letter-spacing: .5px; }
   li p { margin: 0; color: var(--sub); }
-  .btn { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 60px; margin-top: 10px; border-radius: 16px; font: 700 24px/1 var(--cond); letter-spacing: 3px; text-decoration: none; }
+  .btn { display: flex; align-items: center; justify-content: center; text-align: center; width: 100%; min-height: 60px; margin-top: 10px; padding: 8px 14px; border-radius: 16px; font: 700 24px/1.05 var(--cond); letter-spacing: 3px; text-transform: uppercase; text-decoration: none; }
   .btn.gold { color: var(--goldInk); background: linear-gradient(#FFD27A, var(--goldFill), #C98F25); }
   .btn.live { color: var(--liveInk); background: linear-gradient(#5FF0FF, var(--liveFill), #10B9D0); }
-  .btn.ghost { border: 1px solid var(--edge); color: var(--sub); font-size: 19px; letter-spacing: 1px; }
-  .btn.off { border: 1px dashed var(--edge); color: var(--dim); font-size: 19px; letter-spacing: 1px; pointer-events: none; }
-  .note { color: var(--dim); font-size: 14px; margin-top: 12px; }
+  .btn.ghost { border: 1px solid var(--edge); color: var(--ink); font-size: 20px; letter-spacing: 1.5px; }
+  .alt { margin-top: 10px !important; font-size: 15px; }
+  .alt a { color: var(--live); }
+  .row { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+  .row p { flex: 1; font-size: 15px; }
+  .mini { flex: none; min-width: 84px; min-height: 44px; padding: 0 14px; border: 1px solid var(--edge); border-radius: 12px; background: #0B2F38; color: var(--live); font: 700 18px/1 var(--cond); letter-spacing: 1.5px; text-transform: uppercase; cursor: pointer; }
+  .note { color: var(--sub); font-size: 15px; margin: 16px 0 0; }
+  .note + .note { margin-top: 8px; }
+  .note b { color: var(--ink); font-weight: 600; }
+  details { margin-top: 18px; border-top: 1px solid var(--edge); padding-top: 14px; }
+  summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; cursor: pointer; font: 600 20px/1.1 var(--cond); letter-spacing: .5px; color: var(--ink); list-style: none; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: "+"; font: 600 26px/1 var(--cond); color: var(--gold); }
+  details[open] summary::after { content: "\2013"; }
+  summary small { display: block; font: 400 14px/1.3 -apple-system, system-ui, sans-serif; color: var(--dim); letter-spacing: 0; margin-top: 2px; }
+  details ol { margin-top: 12px; }
+  details ol > li { margin-bottom: 16px; padding-left: 34px; }
+  details ol > li::before { width: 24px; height: 24px; top: -1px; font-size: 15px; line-height: 22px; border-color: var(--edge); color: var(--sub); }
+  .saveIcon { display: block; width: 88px; height: 88px; border-radius: 20px; margin: 8px 0 0; }
+  .desk { display: flex; align-items: center; gap: 16px; margin: 0 0 18px; padding: 14px; border: 1px solid var(--edge); border-radius: 16px; }
+  .desk svg { flex: none; width: 112px; height: 112px; border-radius: 8px; background: #fff; }
+  .desk p { margin: 0; color: var(--sub); }
+  .desk b { display: block; color: var(--ink); font: 600 21px/1.1 var(--cond); letter-spacing: .5px; margin-bottom: 4px; }
   .foot { color: var(--dim); font-size: 13px; margin-top: 28px; text-align: center; }
+  .foot a { color: var(--sub); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   [hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<div class="wrap">
+<main class="wrap">
   <header class="head">
     <img src="/icon-192.png" alt="">
     <div>
-      <div class="brand">TORCHLESS</div>
-      <div class="tag" style="margin-top:6px">Heat-up control for your e-rig</div>
+      <h1>Torchless</h1>
+      <div class="tag" style="margin-top:6px">Heat-up control</div>
     </div>
   </header>
-  <p class="lede">Heat, watch and cut your rig from your phone. Works with the Dr. Dabber Switch 2. For adults 21 and over.</p>
+  <p class="lede">Heat your <span class="nb">Dr. Dabber</span> <span class="nb">Switch 2</span> from your phone and watch the temp live. <span class="nb">For adults 21+.</span></p>
 
-  <div class="tabs" role="tablist">
-    <button id="tabIos" role="tab" aria-selected="true">IPHONE</button>
-    <button id="tabAnd" role="tab" aria-selected="false">ANDROID</button>
+  <div id="desk" class="desk" hidden>
+    <svg viewBox="-2 -2 33 33" role="img" aria-label="QR code for torchless.brickandsignal.com/get"><path fill="#060708" d="M0 0h7v1h-7zM8 0h2v1h-2zM11 0h1v1h-1zM14 0h1v1h-1zM16 0h1v1h-1zM18 0h1v1h-1zM22 0h7v1h-7zM0 1h1v1h-1zM6 1h1v1h-1zM8 1h2v1h-2zM16 1h4v1h-4zM22 1h1v1h-1zM28 1h1v1h-1zM0 2h1v1h-1zM2 2h3v1h-3zM6 2h1v1h-1zM8 2h8v1h-8zM22 2h1v1h-1zM24 2h3v1h-3zM28 2h1v1h-1zM0 3h1v1h-1zM2 3h3v1h-3zM6 3h1v1h-1zM9 3h1v1h-1zM13 3h1v1h-1zM15 3h3v1h-3zM20 3h1v1h-1zM22 3h1v1h-1zM24 3h3v1h-3zM28 3h1v1h-1zM0 4h1v1h-1zM2 4h3v1h-3zM6 4h1v1h-1zM8 4h2v1h-2zM14 4h1v1h-1zM16 4h4v1h-4zM22 4h1v1h-1zM24 4h3v1h-3zM28 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM9 5h1v1h-1zM11 5h4v1h-4zM17 5h2v1h-2zM20 5h1v1h-1zM22 5h1v1h-1zM28 5h1v1h-1zM0 6h7v1h-7zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM18 6h1v1h-1zM20 6h1v1h-1zM22 6h7v1h-7zM9 7h1v1h-1zM11 7h1v1h-1zM13 7h1v1h-1zM15 7h2v1h-2zM19 7h2v1h-2zM0 8h1v1h-1zM3 8h6v1h-6zM10 8h1v1h-1zM14 8h1v1h-1zM16 8h2v1h-2zM21 8h1v1h-1zM24 8h1v1h-1zM26 8h3v1h-3zM0 9h4v1h-4zM5 9h1v1h-1zM7 9h3v1h-3zM14 9h2v1h-2zM17 9h3v1h-3zM23 9h2v1h-2zM26 9h2v1h-2zM3 10h1v1h-1zM5 10h4v1h-4zM10 10h2v1h-2zM15 10h2v1h-2zM20 10h3v1h-3zM26 10h1v1h-1zM3 11h1v1h-1zM5 11h1v1h-1zM11 11h2v1h-2zM14 11h6v1h-6zM22 11h4v1h-4zM28 11h1v1h-1zM0 12h1v1h-1zM4 12h3v1h-3zM9 12h1v1h-1zM15 12h2v1h-2zM19 12h1v1h-1zM22 12h2v1h-2zM28 12h1v1h-1zM0 13h1v1h-1zM2 13h1v1h-1zM5 13h1v1h-1zM12 13h2v1h-2zM15 13h2v1h-2zM18 13h1v1h-1zM22 13h7v1h-7zM1 14h1v1h-1zM3 14h4v1h-4zM8 14h4v1h-4zM13 14h4v1h-4zM19 14h1v1h-1zM26 14h1v1h-1zM28 14h1v1h-1zM0 15h1v1h-1zM3 15h3v1h-3zM7 15h2v1h-2zM10 15h1v1h-1zM12 15h1v1h-1zM14 15h2v1h-2zM18 15h3v1h-3zM22 15h1v1h-1zM24 15h1v1h-1zM26 15h1v1h-1zM28 15h1v1h-1zM0 16h1v1h-1zM3 16h2v1h-2zM6 16h2v1h-2zM9 16h3v1h-3zM13 16h2v1h-2zM20 16h1v1h-1zM25 16h1v1h-1zM0 17h1v1h-1zM2 17h2v1h-2zM5 17h1v1h-1zM7 17h2v1h-2zM10 17h1v1h-1zM12 17h2v1h-2zM15 17h3v1h-3zM19 17h2v1h-2zM24 17h1v1h-1zM26 17h2v1h-2zM0 18h3v1h-3zM6 18h2v1h-2zM9 18h2v1h-2zM12 18h1v1h-1zM15 18h2v1h-2zM18 18h3v1h-3zM22 18h1v1h-1zM25 18h1v1h-1zM28 18h1v1h-1zM0 19h2v1h-2zM5 19h1v1h-1zM8 19h2v1h-2zM11 19h1v1h-1zM13 19h1v1h-1zM16 19h1v1h-1zM21 19h1v1h-1zM23 19h1v1h-1zM25 19h2v1h-2zM0 20h2v1h-2zM3 20h1v1h-1zM6 20h2v1h-2zM10 20h1v1h-1zM12 20h2v1h-2zM16 20h2v1h-2zM20 20h8v1h-8zM8 21h1v1h-1zM10 21h2v1h-2zM13 21h3v1h-3zM17 21h2v1h-2zM20 21h1v1h-1zM24 21h2v1h-2zM0 22h7v1h-7zM8 22h1v1h-1zM13 22h1v1h-1zM15 22h6v1h-6zM22 22h1v1h-1zM24 22h2v1h-2zM0 23h1v1h-1zM6 23h1v1h-1zM8 23h2v1h-2zM12 23h2v1h-2zM16 23h2v1h-2zM20 23h1v1h-1zM24 23h1v1h-1zM27 23h2v1h-2zM0 24h1v1h-1zM2 24h3v1h-3zM6 24h1v1h-1zM8 24h2v1h-2zM13 24h1v1h-1zM15 24h2v1h-2zM19 24h7v1h-7zM27 24h1v1h-1zM0 25h1v1h-1zM2 25h3v1h-3zM6 25h1v1h-1zM8 25h3v1h-3zM13 25h4v1h-4zM18 25h1v1h-1zM21 25h1v1h-1zM28 25h1v1h-1zM0 26h1v1h-1zM2 26h3v1h-3zM6 26h1v1h-1zM10 26h1v1h-1zM15 26h3v1h-3zM19 26h1v1h-1zM23 26h2v1h-2zM26 26h3v1h-3zM0 27h1v1h-1zM6 27h1v1h-1zM9 27h2v1h-2zM12 27h4v1h-4zM19 27h1v1h-1zM22 27h1v1h-1zM24 27h3v1h-3zM28 27h1v1h-1zM0 28h7v1h-7zM8 28h2v1h-2zM14 28h1v1h-1zM19 28h2v1h-2zM22 28h1v1h-1zM24 28h2v1h-2z"/></svg>
+    <p><b>On a computer?</b>Scan this with your phone to set it up there.</p>
   </div>
 
-  <section id="ios" class="panel">
-    <ol>
-      <li><b>Install Bluefy</b>
-        <p>Apple's Safari can't talk to Bluetooth devices. Bluefy is a free browser that can.</p>
-        <a class="btn ghost" href="https://apps.apple.com/app/id1492822055">Get Bluefy from the App Store</a></li>
-      <li><b>Open Torchless in Bluefy</b>
-        <p>Tap the button below. If it doesn't switch over, open Bluefy and type <strong>torchless.brickandsignal.com</strong>.</p>
-        <a id="openBluefy" class="btn gold" href="bluefy://open?url=https%3A%2F%2Ftorchless.brickandsignal.com%2F">OPEN IN BLUEFY</a></li>
-      <li><b>Link your rig</b>
-        <p>Turn the rig on and keep it close. Confirm you're 21+, tap LINK IT and pick your rig from the list.</p></li>
-      <li><b>Add the Torchless icon</b>
-        <p>Get the Torchless Shortcut, then in Shortcuts tap its share button and choose Add to Home Screen. The icon opens Torchless in Bluefy. The first time, allow it to use Files.</p>
-        <a class="btn ghost" href="https://www.icloud.com/shortcuts/71db7e38a45c41a08ee69adf04dfe22f">Get the Torchless Shortcut</a>
-        <p>Want the gold T icon? Tap below, then press and hold the picture and choose Save to Photos. In Add to Home Screen, tap the icon and pick it from Photos. Optional.</p>
-        <a class="btn ghost" href="/icon-512.png" target="_self">Save the Torchless icon</a></li>
-      <li><b>Go full screen</b>
-        <p>Open Bluefy's menu and turn on Full-screen Mode. Bluefy turns it off each time it opens, so Torchless reminds you.</p></li>
+  <div class="tabs" role="tablist" aria-label="Your phone">
+    <button id="tabIos" type="button" role="tab" aria-selected="true" aria-controls="ios">iPhone</button>
+    <button id="tabAnd" type="button" role="tab" aria-selected="false" aria-controls="and" tabindex="-1">Android</button>
+  </div>
+
+  <section id="ios" class="panel" role="tabpanel" aria-labelledby="tabIos">
+    <ol role="list">
+      <li><h2>Get Bluefy</h2>
+        <p>Safari can't use Bluetooth. Bluefy is a free browser that can.</p>
+        <a class="btn live" href="https://apps.apple.com/app/id1492822055">Get Bluefy (free)</a></li>
+      <li><h2>Open Torchless in Bluefy</h2>
+        <a id="openBluefy" class="btn gold" href="bluefy://open?url=https%3A%2F%2Ftorchless.brickandsignal.com%2F">Open in Bluefy</a>
+        <div class="row"><p>Didn't open? Copy the link and paste it in Bluefy.</p>
+          <button id="copyLink" class="mini" type="button" aria-label="Copy the Torchless link"><span id="copyLbl">Copy</span></button></div></li>
+      <li><h2>Link your rig</h2>
+        <p>Turn it on, keep it close, tap LINK IT and pick it. Tap Allow if asked.</p></li>
     </ol>
-    <p class="note">Keep Torchless open during a dab. If you leave it, the rig finishes the dab on its own timer.</p>
-    <p class="note">Closed the Torchless tab? Type <strong>torchless.brickandsignal.com</strong> in Bluefy once and the icon works again.</p>
+    <p class="note"><b>Next time, just open Bluefy.</b> Torchless stays in it. If you close its tab, go to torchless.brickandsignal.com in Bluefy.</p>
+    <p class="note">Keep Torchless open while you dab. If you leave, the rig finishes on its own timer.</p>
+
+    <details>
+      <summary><span>Add a Torchless icon<small>Optional. A gold T on your Home Screen.</small></span></summary>
+      <ol role="list">
+        <li><p>Press and hold the icon, then tap Save to Photos.</p>
+          <img class="saveIcon" src="/icon-512.png" alt="Torchless icon. Press and hold to save it."></li>
+        <li><p>Get the Shortcut and tap Add Shortcut.</p>
+          <a class="btn ghost" href="https://www.icloud.com/shortcuts/71db7e38a45c41a08ee69adf04dfe22f">Get the Shortcut</a></li>
+        <li><p>In Shortcuts, open Torchless's share menu and tap Add to Home Screen. Tap the icon there and pick the gold T from Photos.</p></li>
+        <li><p>The first time you tap it, tap Allow.</p></li>
+      </ol>
+    </details>
   </section>
 
-  <section id="and" class="panel" hidden>
-    <ol>
-      <li><b>Get Torchless on Google Play</b>
-        <p id="playSoon">The Play Store version is on its way. Until then, you can use it in Chrome right now.</p>
-        <a id="playBtn" class="btn off" href="#">COMING SOON TO GOOGLE PLAY</a></li>
-      <li><b>Or open it in Chrome</b>
-        <p>Chrome on Android talks to Bluetooth directly, no extra app needed.</p>
-        <a class="btn live" href="/">OPEN TORCHLESS</a></li>
-      <li><b>Link your rig</b>
-        <p>Turn the rig on and keep it close. Confirm you're 21+, tap LINK IT and pick your rig. Allow Bluetooth and Nearby devices if Android asks.</p></li>
+  <section id="and" class="panel" role="tabpanel" aria-labelledby="tabAnd" hidden>
+    <ol role="list">
+      <li id="andPlay" hidden><h2>Get Torchless</h2>
+        <a class="btn live" id="playBtn" href="#">Get it on Google Play</a>
+        <p class="alt">Or <a class="andWebLink" href="/">use it in Chrome</a>.</p></li>
+      <li id="andWeb"><h2>Open Torchless</h2>
+        <p>Chrome has Bluetooth built in. Nothing to install.</p>
+        <a id="andOpen" class="btn live andWebLink" href="/">Open Torchless</a></li>
+      <li><h2>Link your rig</h2>
+        <p>Turn it on, keep it close, tap LINK IT and pick it. Tap Allow if asked.</p></li>
     </ol>
+    <p class="note" id="playSoon">Google Play version coming soon.</p>
+    <p class="note">Keep Torchless open while you dab. If you leave, the rig finishes on its own timer.</p>
   </section>
 
-  <p class="foot">Not affiliated with Dr. Dabber.</p>
-</div>
+  <p class="foot"><a href="/privacy/">Privacy</a> · Not affiliated with Dr. Dabber.</p>
+  <p id="status" class="sr" role="status" aria-live="polite"></p>
+</main>
 <script>
   // Flip to true once the Play listing is live.
   var PLAY_LIVE = false;
   var PLAY_URL = "https://play.google.com/store/apps/details?id=com.brickandsignal.torchless";
+  var SITE = "https://torchless.brickandsignal.com/";
+  var ua = navigator.userAgent || "";
+  var isAndroid = /Android/i.test(ua);
+  var isIos = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  function $(id) { return document.getElementById(id); }
+
   if (PLAY_LIVE) {
-    var b = document.getElementById("playBtn");
-    b.className = "btn live"; b.textContent = "GET IT ON GOOGLE PLAY"; b.href = PLAY_URL;
-    document.getElementById("playSoon").textContent = "Install it like any other app. It opens straight to your rig.";
+    $("andPlay").hidden = false; $("andWeb").hidden = true; $("playSoon").hidden = true;
+    $("playBtn").href = PLAY_URL;
   }
+  // Android browser without Web Bluetooth (Firefox, in-app browsers): hand the link to Chrome.
+  if (isAndroid && !("bluetooth" in navigator)) {
+    var intent = "intent://torchless.brickandsignal.com/#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(SITE) + ";end";
+    var links = document.querySelectorAll(".andWebLink");
+    for (var i = 0; i < links.length; i++) links[i].href = intent;
+    $("andOpen").textContent = "Open in Chrome";
+  }
+  // On a computer: offer the QR code to move to the phone.
+  if (!isAndroid && !isIos) $("desk").hidden = false;
+
+  // Tabs
+  var tabs = [$("tabIos"), $("tabAnd")];
   function show(which) {
     var ios = which === "ios";
-    document.getElementById("ios").hidden = !ios;
-    document.getElementById("and").hidden = ios;
-    document.getElementById("tabIos").setAttribute("aria-selected", ios);
-    document.getElementById("tabAnd").setAttribute("aria-selected", !ios);
+    $("ios").hidden = !ios; $("and").hidden = ios;
+    tabs[0].setAttribute("aria-selected", ios); tabs[1].setAttribute("aria-selected", !ios);
+    tabs[0].tabIndex = ios ? 0 : -1; tabs[1].tabIndex = ios ? -1 : 0;
   }
-  document.getElementById("tabIos").onclick = function () { show("ios"); };
-  document.getElementById("tabAnd").onclick = function () { show("and"); };
-  if (/Android/i.test(navigator.userAgent)) show("and");
+  tabs[0].onclick = function () { show("ios"); };
+  tabs[1].onclick = function () { show("and"); };
+  tabs.forEach(function (t, i) {
+    t.addEventListener("keydown", function (e) {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      var next = tabs[1 - i]; next.click(); next.focus(); e.preventDefault();
+    });
+  });
+  if (isAndroid) show("and");
+
+  // Copy the link for pasting into Bluefy
+  $("copyLink").onclick = function () {
+    function done(ok) {
+      $("copyLbl").textContent = ok ? "Copied" : "Copy";
+      $("status").textContent = ok ? "Link copied" : "Copy failed. Type torchless.brickandsignal.com in Bluefy.";
+      if (ok) setTimeout(function () { $("copyLbl").textContent = "Copy"; }, 2500);
+    }
+    function fallback() {
+      var t = document.createElement("textarea");
+      t.value = SITE; t.setAttribute("readonly", ""); t.style.position = "fixed"; t.style.opacity = "0";
+      document.body.appendChild(t); t.select(); t.setSelectionRange(0, SITE.length);
+      var ok = false; try { ok = document.execCommand("copy"); } catch (e) {}
+      document.body.removeChild(t); done(ok);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(SITE).then(function () { done(true); }, fallback);
+    else fallback();
+  };
 </script>
 </body>
 </html>
