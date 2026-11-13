@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Transition harness</title>
+<style>
+  :root { --bg:#060708; --bgTop:#0D1114; --ink:#F4F6F8; --dim:#8D96A3; --edge:#1D232A; --cardTop:#101317; --cardBottom:#0A0C0E; --live:#19E3FF; --gold:#E8B24A; --warn:#FF8A3D;
+    --cond:"Barlow Condensed","Arial Narrow",-apple-system,system-ui,sans-serif; --mono:ui-monospace,Menlo,monospace; color-scheme:dark; }
+  :root[data-theme="light"] { --bg:#EEF0F2; --bgTop:#FFFFFF; --ink:#0C1014; --dim:#5B6570; --edge:#D9DDE2; --cardTop:#FFFFFF; --cardBottom:#F6F7F8; --live:#007F96; --gold:#8F610A; --warn:#B04A08; color-scheme:light; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; }
+  body { background:linear-gradient(var(--bgTop),var(--bg) 320px) var(--bg); background-color:var(--bg); color:var(--ink); font:16px/1.35 -apple-system,system-ui,sans-serif; min-height:100vh; }
+  .wrap { max-width:480px; margin:0 auto; padding:16px 16px 40px; }
+  .tag { font:600 10px/1 var(--mono); letter-spacing:1.8px; color:var(--dim); text-transform:uppercase; }
+  .brand { font:700 26px/1 var(--cond); letter-spacing:2px; }
+  h1 { font:700 44px/1 var(--cond); letter-spacing:1px; margin:26px 0 6px; }
+  p { color:var(--dim); margin:0 0 18px; }
+  .card { display:flex; align-items:center; gap:14px; width:100%; text-align:left; padding:18px; margin-top:14px; border-radius:20px; border:1px solid var(--edge);
+    background:linear-gradient(var(--cardTop),var(--cardBottom)); color:inherit; font:inherit; cursor:pointer; }
+  .card b { font:700 30px/1 var(--cond); letter-spacing:1.5px; display:block; }
+  .card small { color:var(--dim); }
+  .dot { width:44px; height:44px; border-radius:50%; border:2px solid currentColor; flex:none; }
+  .row { display:flex; gap:8px; margin-top:22px; flex-wrap:wrap; }
+  .row button { font:600 11px/1 var(--mono); letter-spacing:1px; padding:10px 12px; border-radius:10px; border:1px solid var(--edge); background:none; color:var(--dim); }
+  .big { font:700 120px/1 var(--cond); margin:30px 0 0; }
+  .panel { border:1px solid var(--edge); border-radius:20px; padding:18px; margin-top:14px; background:linear-gradient(var(--cardTop),var(--cardBottom)); }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<section id="front" class="wrap">
+  <div class="brand">TORCHLESS</div><span class="tag">pick a mode</span>
+  <h1>HOW ARE YOU DABBING?</h1>
+  <p>Harness front page. Tap a mode to play its transition.</p>
+  <button class="card" data-kind="rig" style="color:var(--live)"><span class="dot"></span><span><b>E-RIG</b><small>Link and run your rig</small></span></button>
+  <button class="card" data-kind="torch" style="color:var(--warn)"><span class="dot"></span><span><b>TORCH</b><small>Timer for glass and a torch</small></span></button>
+  <button class="card" data-kind="jars" style="color:var(--gold)"><span class="dot"></span><span><b>JARS</b><small>Your jar library</small></span></button>
+  <div class="row">
+    <button id="toDark">NEXT: DARK</button><button id="toLight">NEXT: BRIGHT</button><span id="status" class="tag" style="align-self:center"></span>
+  </div>
+</section>
+<section id="next" class="wrap" hidden>
+  <div class="brand">TORCHLESS</div><span id="nextTag" class="tag"></span>
+  <div id="nextBig" class="big"></div>
+  <div class="panel"><span class="tag">next page</span><p style="margin:8px 0 0">This is the page the transition lands on.</p></div>
+  <div class="panel"><span class="tag">swap count</span><p id="count" style="margin:8px 0 0"></p></div>
+  <div class="row"><button id="back">BACK</button></div>
+</section>
+<script src="harness.js"></script>
+</body>
+</html>
