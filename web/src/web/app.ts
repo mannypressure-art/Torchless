@@ -15,8 +15,9 @@ import { mountRig } from "./rig-ui";
 import { Account, JarSync } from "./cloud";
 import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
 import { HeatFX, heatSound, HEAT_SOUNDS } from "./heatfx";
+import { waypointsOf, drawCurve } from "./curve";
 
-const BUILD = "app-4d.2";
+const BUILD = "app-4e.0";
 const clock = new RealClock();
 const central = new WebCentral();
 const ble = new BLEManager(central, clock);
@@ -161,6 +162,34 @@ $("cut").onclick = () => rig.cutIt();
 $("extend").onclick = () => rig.extendTen();
 $("gotIt").onclick = () => { rig.awayNote = null; schedule(); };
 for (let n = 1; n <= 5; n++) $(`p${n}`).onclick = () => rig.selectPreset(n);
+
+// MARK: Preset curve chart (the rig's own waypoints for the selected preset; nothing is sent)
+
+let curveKey = "";
+function renderCurve(sel: number, celsius: boolean, heating: boolean) {
+  const p = sel >= 1 && sel <= 5 ? rig.presets[sel] : undefined;
+  const pts = p ? waypointsOf(p) : [];
+  const s = rig.live;
+  const extend = heating && s ? s.sessionExtend : 0;
+  const total = pts.length ? pts[pts.length - 1].t + 10 * extend : 0;
+  // The rig's countdown only runs once it is at temp, so total - remaining is the place on the curve.
+  const elapsed = heating && s && pts.length && s.sessionTimeRemaining < total ? total - s.sessionTimeRemaining : null;
+  const key = `${sel}|${celsius}|${extend}|${elapsed}|${p?.custom170?.join(",")}|${p?.custom171?.join(",")}|${p?.profile}`;
+  if (key === curveKey) return;
+  curveKey = key;
+  const view = drawCurve(pts, celsius, elapsed, extend, p?.profile === 177);
+  $("curveCard").hidden = !view;
+  if (!view || !p) return;
+  $("curveSvg").innerHTML = view.svg;
+  const name = p.profile !== undefined ? HeatProfile.name(p.profile).toUpperCase() : "—";
+  $("curveTag").textContent = `PRESET ${sel} · ${name} · ${view.seconds}S`;
+  $("curveRange").textContent = view.range;
+  $("curveNote").textContent = extend > 0
+    ? `+${10 * extend} s added. Gold dashes show where the extra time goes.`
+    : p.profile === 161 || p.profile === 177
+      ? "This is the curve your rig reports. Gold dashes show what +10 s adds."
+      : "This is the curve your rig reports. What +10 s does on this profile hasn't been measured yet.";
+}
 
 // MARK: Preset editor
 
@@ -549,6 +578,7 @@ function render() {
     enable(`p${n}`, !locked);
   }
   const sel = s?.preset ?? 0;
+  renderCurve(sel, celsius, heating);
   show("editBtn", sel >= 1 && sel <= 5);
   setText("editBtn", `EDIT ${sel}`);
   enable("editBtn", !locked);
