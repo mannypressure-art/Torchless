@@ -30,7 +30,7 @@ import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 // The normal build leaves it out entirely, so the Switch app is unchanged until Manny says go live.
 declare const __PEAK__: boolean;
 const PEAK = typeof __PEAK__ !== "undefined" && __PEAK__;
-const BUILD = PEAK ? "app-5.7-peak.1" : "app-5.9";
+const BUILD = PEAK ? "app-5.7-peak.1" : "app-5.10";
 /** Set on the front page when this browser has no Web Bluetooth: what to do on this kind of device. */
 let noBtMessage = "";
 const clock = new RealClock();
@@ -143,8 +143,22 @@ $("ageNo").onclick = () => { $("ageMsg").hidden = false; };
 function checkFsTip() {
   const hasBt = !!(navigator as unknown as { bluetooth?: unknown }).bluetooth;
   const barShowing = window.innerHeight < screen.height - 60;
-  $("fsTip").hidden = !(hasBt && barShowing && !fsTipClosed && prefs.get("fsTip") !== "done");
+  $("fsTip").hidden = !(hasBt && barShowing && !fsTipClosed && !appShell && prefs.get("fsTip") !== "done");
 }
+// Bluefy gets its menu steps; other browsers (Android Chrome) get FULL SCREEN plus Add to Home screen.
+// Inside the Play app (TWA) or an installed icon the page already runs full screen: no tip.
+const isBluefy = /Bluefy/i.test(navigator.userAgent);
+const appShell = (() => {
+  try { if (document.referrer.startsWith("android-app://")) sessionStorage.setItem("torchless.shell", "1"); } catch { /* fine */ }
+  let flag = false; try { flag = sessionStorage.getItem("torchless.shell") === "1"; } catch { /* fine */ }
+  return flag || matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: fullscreen)").matches;
+})();
+$("fsBluefy").hidden = !isBluefy;
+$("fsChrome").hidden = isBluefy;
+$("fsTip").classList.toggle("noArrow", !isBluefy);
+let installAsk: (Event & { prompt: () => Promise<void> }) | null = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installAsk = e as typeof installAsk; if (!isBluefy) $("fsInstall").hidden = false; });
+$("fsInstall").onclick = async () => { const a = installAsk; installAsk = null; $("fsInstall").hidden = true; try { await a?.prompt(); } catch { /* fine */ } };
 let fsTipClosed = false;
 $("fsGotIt").onclick = () => { fsTipClosed = true; $("fsTip").hidden = true; };
 $("fsNever").onclick = () => { prefs.set("fsTip", "done"); $("fsTip").hidden = true; };

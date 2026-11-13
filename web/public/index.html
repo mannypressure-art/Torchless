@@ -84,6 +84,9 @@
   #fsTip::after { content: ""; position: absolute; right: 18px; bottom: -22px; width: 0; height: 0; border: 11px solid transparent; border-top: 14px solid var(--gold); animation: fsPoint 1s ease-in-out infinite; }
   @keyframes fsPoint { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(5px); } }
   @media (prefers-reduced-motion: reduce) { #fsTip::after { animation: none; } }
+  #fsTip.noArrow::after { display: none; }
+  #fsTip .fsBtns { display: flex; flex-direction: column; gap: 8px; flex: none; }
+  #fsTip .fsBtns .gotIt { margin: 0; }
   .burger { display: inline-flex; flex-direction: column; justify-content: center; gap: 3px; width: 22px; height: 20px; padding: 0 3px; vertical-align: middle; border: 1px solid var(--gold); border-radius: 5px; }
   .burger i { display: block; height: 2px; background: var(--gold); border-radius: 1px; }
   .notice p { margin: 4px 0 0; font: 600 19px/1.15 var(--cond); }
@@ -752,10 +755,14 @@
 <section id="linkScreen">
       <div id="fsTip" class="notice note" hidden>
         <span class="icon" style="color:var(--gold)"><svg class="ico" aria-hidden="true"><use href="#i-expand"/></svg></span>
-        <div><span class="tag">FULL SCREEN</span><p>Tap <span class="burger" aria-label="menu"><i></i><i></i><i></i></span> at the bottom right, then turn on <b>Full-screen Mode</b>.</p>
+        <div><span class="tag">FULL SCREEN</span><p id="fsBluefy">Tap <span class="burger" aria-label="menu"><i></i><i></i><i></i></span> at the bottom right, then turn on <b>Full-screen Mode</b>.</p>
+          <p id="fsChrome" hidden>Tap <b>FULL SCREEN</b>. To always open full screen, tap <b>⋮</b> then <b>Add to Home screen</b>.</p>
           <button id="fsNever" class="tag" style="background:none;border:0;padding:8px 0 0;color:var(--gold);text-decoration:underline">DON'T SHOW AGAIN</button></div>
+        <div class="fsBtns">
         <button id="fsGo" class="gotIt" hidden>FULL SCREEN</button>
+        <button id="fsInstall" class="gotIt" hidden>INSTALL</button>
         <button id="fsGotIt" class="gotIt">GOT IT</button>
+        </div>
       </div>
   <div class="linkHead head">
     <svg class="mark"><use href="#markSym"/></svg>
