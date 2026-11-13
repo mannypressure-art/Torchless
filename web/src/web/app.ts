@@ -46,7 +46,7 @@ const jars = new JarStore(backend);
 const watcher = new DabWatcher(jars);
 // Sign-in and the shared catalog (optional; only the jar's own rating goes up).
 // Off until Google/Apple sign-in is set up, tested on a real phone, and Play Data safety is updated (Manny's go).
-const CLOUD_LIVE = false;
+const CLOUD_LIVE = true;
 const account = new Account();
 const sync = new JarSync(jars, account);
 const jarUI = mountJars(jars, watcher, (t) => showTab(t), CLOUD_LIVE ? { account, sync } : undefined);
