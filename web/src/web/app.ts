@@ -15,7 +15,7 @@ import { chargingOf } from "../rig/frames";
 import { JarStore, IDBJarBackend, MemoryJarBackend } from "./jars";
 import { DabWatcher } from "./dab-watcher";
 import { mountJars, h, tag, openSheet, topBar, textBtn, confirmSheet, thumbFromBlob } from "./jar-ui";
-import { openPlanner } from "./planner";
+import { openPlanner, curveLibrary } from "./planner";
 import { RigExtras, heatCyclesFrom, doThatAgain, CLEAN_CHOICES } from "./extras";
 import { mountTorch, TorchUI } from "./torch";
 import { playTransition } from "./transition";
@@ -30,7 +30,7 @@ import { waypointsOf, drawCurve, CurveView, CURVE_W } from "./curve";
 // The normal build leaves it out entirely, so the Switch app is unchanged until Manny says go live.
 declare const __PEAK__: boolean;
 const PEAK = typeof __PEAK__ !== "undefined" && __PEAK__;
-const BUILD = PEAK ? "app-5.7-peak.1" : "app-5.11";
+const BUILD = PEAK ? "app-5.7-peak.1" : "app-5.12";
 /** Set on the front page when this browser has no Web Bluetooth: what to do on this kind of device. */
 let noBtMessage = "";
 const clock = new RealClock();
@@ -455,7 +455,26 @@ $("againBtn").onclick = runAgain;
 // Manny 2026-11-13: RUN IT BACK beside PLAN A CURVE (the same "do that again": the top-rated setup on this
 // jar), and a CUSTOM key after preset 5 that opens the planner. The old strip stays hidden.
 $("runBack").onclick = runAgain;
-$("pCustom").onclick = () => $("planBtn").click();
+// MY CURVE (Manny 2026-11-13: a 6th preset that's all his). The rig has 5 slots, so My Curve lives in the app and
+// borrows the selected preset for one dab (saveCurveOnce); that preset goes back after the dab.
+let mineState: "" | "sending" | "ready" | "sent" | "failed" = "";
+$("pCustom").onclick = () => {
+  const mine = curveLibrary.mine();
+  if (!mine) { openPlannerWith(curveStartForPlanner()); return; }
+  const p = rig.live?.preset ?? 0;
+  const deg = (f: number) => rig.live?.unitByte === 12 ? `${RigLimits.celsius(f)}°C` : `${f}°`;
+  const line = mine.map(x => `${deg(x.f)} at ${x.t}s`).join(", ");
+  openSheet(close => h("div", { class: "cardBody" }, h("h3", {}, "My Curve"), h("p", { class: "mono sub" }, line),
+    p >= 1 && p <= 5 ? h("button", { class: "goldBtn", disabled: !rig.canControl || rig.sessionOn, onclick: () => {
+      close();
+      mineState = "sending"; schedule();
+      const went = rig.saveCurveOnce(p, mine.map(x => ({ ...x })), r => { mineState = r === "ok" ? "ready" : r === "no report" ? "sent" : "failed"; schedule(); });
+      if (!went) { mineState = ""; schedule(); }
+    } }, `USE ON P${p} FOR ONE DAB`) : h("p", { class: "mono dim" }, "Pick a preset first. My Curve borrows it for one dab."),
+    h("small", { class: "mono dim", style: "display:block;margin:6px 0 10px" }, "That preset goes back after the dab."),
+    h("button", { class: "btn2 wide", onclick: () => { close(); openPlannerWith(mine); } }, "EDIT MY CURVE"),
+    h("button", { class: "textBtn", style: "margin-top:8px", onclick: close }, "Cancel")), "card");
+};
 $("cleanedBtn").onclick = () => { extras.cleaned(heatCyclesFrom(ble.extra)); schedule(); };
 function renderExtras(heating: boolean) {
   const s = rig.live;
@@ -510,12 +529,13 @@ function dabsLeftText(): string | null {
 
 let plannerRefresh: (() => void) | null = null;
 $("owedBtn").onclick = () => rig.putBackNow();
-$("planBtn").onclick = () => {
+function curveStartForPlanner(): { t: number; f: number }[] {
   const sel = rig.live?.preset ?? 0;
   const p = sel >= 1 && sel <= 5 ? rig.presets[sel] : undefined;
   const start = p ? waypointsOf(p).map(w => ({ t: w.t, f: w.f })) : [];
-  openPlannerWith(start.length >= 2 && !RigController.curveProblem(start) ? start : []);
-};
+  return start.length >= 2 && !RigController.curveProblem(start) ? start : [];
+}
+$("planBtn").onclick = () => openPlannerWith(curveStartForPlanner());
 function openPlannerWith(start: { t: number; f: number }[]) {
   plannerRefresh = openPlanner({
     rig,
@@ -523,6 +543,7 @@ function openPlannerWith(start: { t: number; f: number }[]) {
     celsius: () => rig.live?.unitByte === 12,
     currentJar: () => { const j = jars.current; return j ? { id: j.id, name: j.strain || j.producer || "this jar" } : null; },
     confirm: (title, body, yes, onYes) => confirmSheet(title, body, yes, "Not now", onYes),
+    onMine: () => schedule(),
   }, start);
 }
 
@@ -995,6 +1016,13 @@ function render() {
     enable(`p${n}`, !locked);
   }
   enable("pCustom", !locked);
+  {
+    const mine = curveLibrary.mine();
+    if (heating && mineState) mineState = "";
+    setText("pCustomTop", mineState === "sending" ? "SENDING" : mineState === "ready" ? `ON P${rig.live?.preset ?? ""}` : mineState === "sent" ? "SENT" : mineState === "failed" ? "TRY AGAIN" : "MY");
+    setText("pCustomBot", mine ? "CURVE" : "+ CURVE");
+    $("pCustom").classList.toggle("on", mineState === "ready");
+  }
   const sel = s?.preset ?? 0;
   renderCurve(sel, celsius, heating);
   renderExtras(heating);

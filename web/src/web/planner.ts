@@ -31,6 +31,7 @@ function readJSON<T>(k: string, fallback: T): T {
 function writeJSON(k: string, v: unknown) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode */ } }
 const clean = (s: CurveStep[]) => s.map(x => ({ t: Math.round(x.t), f: Math.round(x.f) }));
 
+const KEY_MINE = "torchless.myCurve";
 export const curveLibrary = {
   all(): PlannedCurve[] { return readJSON<PlannedCurve[]>(KEY_LIB, []).filter(c => c && Array.isArray(c.steps) && !RigController.curveProblem(c.steps)); },
   save(name: string, steps: CurveStep[]) {
@@ -43,6 +44,12 @@ export const curveLibrary = {
     const s = readJSON<Record<string, CurveStep[]>>(KEY_JAR, {})[id];
     return s && !RigController.curveProblem(s) ? s : null;
   },
+  /** MY CURVE: Manny's own 6th "preset". Kept in the app; loaded into a preset for one dab when used. */
+  mine(): CurveStep[] | null {
+    const s = readJSON<CurveStep[] | null>(KEY_MINE, null);
+    return s && Array.isArray(s) && !RigController.curveProblem(s) ? s : null;
+  },
+  setMine(steps: CurveStep[]) { writeJSON(KEY_MINE, clean(steps)); },
   setJar(id: string, steps: CurveStep[] | null) {
     const all = readJSON<Record<string, CurveStep[]>>(KEY_JAR, {});
     if (steps) all[id] = clean(steps); else delete all[id];
@@ -117,6 +124,8 @@ export interface PlannerHooks {
   /** The current jar, if there is one: its id and a short name. */
   currentJar(): { id: string; name: string } | null;
   confirm(title: string, body: string, yes: string, onYes: () => void): void;
+  /** Called after SET AS MY CURVE. */
+  onMine?(): void;
 }
 
 /** Opens the planner on `start` (the selected preset's curve, a jar's curve or a template). Returns a
@@ -305,6 +314,9 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
             const name = (nameBox.value || `CURVE ${lib.length + 1}`).trim().toUpperCase().slice(0, 24);
             curveLibrary.save(name, steps); nameBox.value = ""; status = `Saved as ${name}.`; redraw();
           } }, "SAVE CURVE"),
+          h("button", { class: "btn2", style: "flex:1;color:var(--gold);border-color:var(--gold)", disabled: !ok, onclick: () => {
+            curveLibrary.setMine(steps); status = "Saved as MY CURVE. Tap MY CURVE on Home to use it."; redraw(); hooks.onMine?.();
+          } }, "SET AS MY CURVE"),
           jar ? h("button", { class: "btn2", style: "flex:1", disabled: !ok, onclick: () => {
             curveLibrary.setJar(jar.id, steps); status = `Saved on ${jar.name}.`; redraw();
           } }, "SAVE ON JAR") : null),
