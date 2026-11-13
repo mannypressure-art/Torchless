@@ -53,7 +53,7 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
     linkCard,
     h("div", { class: "tiles" }, tBat.el, tPow.el, tUnit.el),
     h("div", { class: "stackS" }, unlink, unlinkNote, findRig),
-    h("div", { class: "panel toolList" }, look.b, h("hr"), clean.b),
+    h("div", { class: "panel toolList" }, clean.b),
     h("div", {}, tag("SHOP TOOLS", "font-size:9.5px"), h("div", { class: "panel toolList", style: "margin-top:8px" }, log.b, h("hr"), dial.b, h("hr"), raw.b)),
     h("p", { class: "mono dim center", style: "font-size:9.5px;margin-top:6px" }, `Compatible with Dr. Dabber Switch 2. Not an official Dr. Dabber app. Build ${hooks.build}.`),
   );

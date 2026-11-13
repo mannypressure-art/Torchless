@@ -251,6 +251,15 @@ function renderCurve(sel: number, celsius: boolean, heating: boolean) {
   $("cvLow").textContent = deg(view.low);
   $("cvHold").textContent = `${view.seconds}s`;
 }
+// The heat curve folds away so HEAT IT and the jar stay on screen. Folded by default; remembered.
+{
+  const card = $("curveCard"), head = $("curveHead");
+  const setFold = (folded: boolean) => { card.classList.toggle("folded", folded); head.setAttribute("aria-expanded", String(!folded)); };
+  setFold(prefs.get("curveOpen") !== "yes");
+  const flip = () => { const folded = !card.classList.contains("folded"); prefs.set("curveOpen", folded ? "no" : "yes"); setFold(folded); };
+  head.onclick = flip;
+  head.onkeydown = (e: KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } };
+}
 {
   // Touch readout: drag across the chart to read time and temp. Vertical drags still scroll the page.
   const svg = $("curveSvg") as unknown as SVGSVGElement;
@@ -567,7 +576,11 @@ const rigUI = mountRig(ble, rig, {
   },
   onFindRig: () => { lookAround = false; schedule(); },
   lookLabel: () => `${faceID.toUpperCase()} · ${(prefs.get("look") ?? "dark").replace("light", "bright").toUpperCase()}`,
-  buildLook: (page) => {
+  buildLook: (page) => buildLookInto(page),
+});
+// Look settings: on the Style tab (Look first, then Lights).
+function buildLookInto(page: HTMLElement) {
+  {
     const cur = prefs.get("look") ?? "dark";
     const seg = h("div", { class: "seg" });
     for (const [id, label] of [["dark", "DARK"], ["light", "BRIGHT"], ["auto", "AUTO"]]) {
@@ -581,19 +594,36 @@ const rigUI = mountRig(ble, rig, {
       h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "Every face shows the same live temp, target and time left. HEAT IT and CUT IT never move."));
     drawFaceGrid(grid);
     buildSoundPicker(page);
-  },
-});
+  }
+}
+/** Look previews run for about 1.5 s when they scroll into view (and again on a tap), then rest. Reduced motion: never. */
+const previewObserver = typeof IntersectionObserver === "function" ? new IntersectionObserver(es => {
+  for (const e of es) if (e.isIntersecting) playPreview(e.target as HTMLElement);
+}, { threshold: 0.6 }) : null;
+function playPreview(el: HTMLElement) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  el.classList.add("play");
+  window.setTimeout(() => el.classList.remove("play"), 1500);
+}
+function watchPreviews(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>(".lookSw").forEach(el => { previewObserver?.observe(el); el.parentElement?.addEventListener("pointerdown", () => playPreview(el)); });
+}
 // Heat-up look and soundtrack picker (Rig > Look), same rows and words as HeatSoundPicker.
 function buildSoundPicker(page: HTMLElement) {
-  const box = h("div", { class: "stackS" }), trackBox = h("div", { class: "stackS" });
+  const box = h("div", { class: "lookGrid" }), trackBox = h("div", { class: "stackS" });
   const row = (c: { id: string; name: string; line: string }, on: boolean, label: string, pick: () => void) =>
     h("button", { class: "soundRow" + (on ? " on" : ""), "aria-label": label + (on ? ", on" : ""), onclick: pick },
       h("div", { style: "flex:1;min-width:0" }, h("b", { class: "cond" }, c.name), h("small", { class: "mono" }, c.line)), on ? tag("ON", "color:var(--live);font-size:9px") : null);
   const draw = () => {
     const cur = validSound(prefs.get("heatSound")), track = validTrack(prefs.get("heatTrack"));
-    box.replaceChildren(...HEAT_SOUNDS.map(c => row(c, cur === c.id, `${c.name} sound`, () => {
-      prefs.set("heatSound", c.id); heatTrack.stopPreview(); heatSound.preview(c.id); draw(); rigUI.render();
-    })));
+    box.replaceChildren(...HEAT_SOUNDS.map(c => {
+      const on = cur === c.id;
+      const sw = h("span", { class: `lookSw sw-${c.id}`, "aria-hidden": "true" });
+      return h("button", { class: "lookCard" + (on ? " on" : ""), "aria-label": `${c.name} look${on ? ", on" : ""}`, onclick: () => {
+        prefs.set("heatSound", c.id); heatTrack.stopPreview(); heatSound.preview(c.id); draw(); rigUI.render();
+      } }, sw, h("div", { class: "row" }, h("b", { class: "cond" }, c.name), on ? tag("ON", "margin-left:auto;color:var(--live);font-size:9px") : null), h("small", {}, c.line));
+    }));
+    watchPreviews(box);
     trackBox.replaceChildren(...HEAT_TRACKS.map(c => row(c, track === c.id, c.name, () => {
       prefs.set("heatTrack", c.id);
       heatSound.preview(c.id === "look" ? validSound(prefs.get("heatSound")) : "off");
@@ -603,9 +633,9 @@ function buildSoundPicker(page: HTMLElement) {
   };
   draw();
   page.append(tag("HEAT-UP LOOK", "font-size:9.5px;margin-top:8px"), box,
-    h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "Tap one to hear a short heat-up, hold and cooldown. Tapping another cuts it off. Follows the silent switch on iPhone where the browser allows it, and plays over your own music. Phone taps happen with every option on Android."),
+    h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "Tap one to hear it."),
     tag("SOUNDTRACK", "font-size:9.5px;margin-top:8px"), trackBox,
-    h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "A soundtrack replaces the look's own sound and keeps its motion. The beat drops the moment the rig reaches temp."));
+    h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "Plays instead of the look's sound. Drops when the rig hits temp."));
 }
 $("lookAround").onclick = () => { linkTapped = false; lookAround = true; showTab("home"); };
 $("linkJarsBig").onclick = () => {
@@ -915,6 +945,15 @@ rig.onChange = () => { watcher.update(rig); heatFX.update(rig); extras.update(ri
 for (const ev of ["pointerdown", "pointerup", "touchend", "click"]) document.addEventListener(ev, () => heatSound.unlock(), { capture: true, passive: true });
 setInterval(schedule, 500);
 setFace(faceID);
+// Style tab: built once the gauge helpers above exist.
+buildLookInto($("lookFold"));
+for (const [btn, box] of [["lookFoldBtn", "lookFold"], ["lightsFoldBtn", "lightsFold"]]) {
+  const b = $(btn), x = $(box);
+  const set = (open: boolean) => { x.hidden = !open; b.setAttribute("aria-expanded", String(open)); };
+  // Look starts open, Lights folded; each remembers.
+  set(box === "lookFold" ? prefs.get(box) !== "closed" : prefs.get(box) === "open");
+  b.onclick = () => { const open = x.hidden; prefs.set(box, open ? "open" : "closed"); set(open); };
+}
 { // The Link screen's dim gauge, as on iPhone: needle at rest, no readout.
   const g = $("gauge").cloneNode(true) as SVGSVGElement;
   g.removeAttribute("id");
