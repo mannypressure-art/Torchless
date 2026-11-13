@@ -33,38 +33,63 @@ export interface TorchUI {
 // MARK: Setups (saved times)
 
 type Style = "hot" | "cold";
+/** One stretch of torching. A setup has one to three: a slurper might go BOTTOM, MIDDLE, BOTTOM. */
+interface Step { cue: string; secs: number }
 interface Setup {
   name: string;
   style: Style;
-  /** Seconds of torch for a hot dab. */
-  torch: number;
+  /** Hot dab: torch steps, run back to back. */
+  steps: Step[];
   /** Seconds of cool-down for a hot dab. */
   cool: number;
-  /** Seconds of torch for a cold start. */
-  cold: number;
+  /** Cold start: the seconds of the last time DONE TORCHING was tapped (a guide mark on the dial), if any. */
+  cold?: number;
 }
 
-const LIMITS = { torch: [5, 120], cool: [0, 180], cold: [5, 60] } as const;
+const LIMITS = { torch: [5, 120], cool: [0, 180], cold: [1, 90] } as const;
 const MAX_SETUPS = 4;
+const MAX_STEPS = 3;
 const NAME_MAX = 18;
+/** Cold start counts up and stops here, whatever happens. */
+const COLD_CAP = 90;
+/** The heads-up before the torch or the cool-down ends. */
+const WARN_AT = 10;
+const CUES = ["ALL OVER", "BOTTOM", "MIDDLE", "TOP", "WALLS"];
+/** Starting points for a new setup. Only a guide: every time stays editable. */
+const TEMPLATES: { name: string; label: string; steps: Step[]; cool: number }[] = [
+  { name: "THIN QUARTZ", label: "THIN QUARTZ", steps: [{ cue: "ALL OVER", secs: 25 }], cool: 45 },
+  { name: "THICK 25MM", label: "THICK 25MM QUARTZ", steps: [{ cue: "ALL OVER", secs: 45 }], cool: 60 },
+  { name: "SLURPER", label: "SLURPER · 3 STEPS", steps: [{ cue: "BOTTOM", secs: 40 }, { cue: "MIDDLE", secs: 40 }, { cue: "BOTTOM", secs: 20 }], cool: 60 },
+];
+/** Small torch: this much more heat on the first step. */
+const SMALL_TORCH = 15;
 /** The rating pop-up shows this long after DAB IT, same wait as a rig dab. DONE shows it at once. */
 const PROMPT_DELAY = DabWatcher.promptDelay;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const num = (v: unknown, d: number, [lo, hi]: readonly [number, number]) =>
   typeof v === "number" && Number.isFinite(v) ? clamp(Math.round(v), lo, hi) : d;
+const torchTotal = (s: { steps: Step[] }) => s.steps.reduce((a, x) => a + x.secs, 0);
 
-function freshSetup(name: string): Setup { return { name, style: "hot", torch: 30, cool: 45, cold: 10 }; }
+function freshSetup(name: string): Setup { return { name, style: "hot", steps: [{ cue: "ALL OVER", secs: 30 }], cool: 45 }; }
 
 function readSetups(raw: string | null): Setup[] {
   let list: Setup[] = [];
   try {
     const data: unknown = raw ? JSON.parse(raw) : null;
     if (Array.isArray(data)) {
-      list = data.slice(0, MAX_SETUPS).filter((x): x is Record<string, unknown> => !!x && typeof x === "object").map((x, i) => ({
-        name: (typeof x.name === "string" ? x.name.trim().slice(0, NAME_MAX) : "") || `SETUP ${i + 1}`,
-        style: x.style === "cold" ? "cold" : "hot",
-        torch: num(x.torch, 30, LIMITS.torch), cool: num(x.cool, 45, LIMITS.cool), cold: num(x.cold, 10, LIMITS.cold),
-      }));
+      list = data.slice(0, MAX_SETUPS).filter((x): x is Record<string, unknown> => !!x && typeof x === "object").map((x, i) => {
+        const raw = Array.isArray(x.steps) ? x.steps.slice(0, MAX_STEPS).filter((y): y is Record<string, unknown> => !!y && typeof y === "object") : [];
+        let steps: Step[] = raw.map(y => ({ cue: typeof y.cue === "string" && CUES.includes(y.cue) ? y.cue : "ALL OVER", secs: num(y.secs, 30, LIMITS.torch) }));
+        if (!steps.length) steps = [{ cue: "ALL OVER", secs: num(x.torch, 30, LIMITS.torch) }];   // first version kept one "torch" number
+        const s: Setup = {
+          name: (typeof x.name === "string" ? x.name.trim().slice(0, NAME_MAX) : "") || `SETUP ${i + 1}`,
+          style: x.style === "cold" ? "cold" : "hot",
+          steps, cool: num(x.cool, 45, LIMITS.cool),
+        };
+        // The first version kept a fixed cold-start time; a count-up only keeps a guide, and only once it was tapped.
+        if (typeof x.cold === "number" && Array.isArray(x.steps)) s.cold = num(x.cold, 10, LIMITS.cold);
+        return s;
+      });
     }
   } catch { /* bad JSON: start over */ }
   return list.length ? list : [freshSetup("MY BANGER")];
@@ -114,8 +139,28 @@ const CSS = `
 .tm-side { width: 74px; flex: none; min-height: 84px; text-align: center; }
 .tm-side b { display: block; font: 700 28px/1 var(--cond); color: var(--live); margin-bottom: 5px; }
 .tm-off { width: 100%; min-height: 58px; margin-top: 10px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--warn) 60%, transparent); color: var(--warn); font: 700 22px var(--cond); letter-spacing: 3px; }
+.tm-mid { font-size: 30px; letter-spacing: 3px; }
+.tm-off .ico { width: 20px; height: 20px; margin-right: 8px; vertical-align: -3px; }
+.tm-status.tm-capIt { margin-top: 2px; font-size: 13px; letter-spacing: 5px; color: var(--gold); }
+.tm-stepMark { stroke: var(--sub); stroke-width: 2.5; stroke-linecap: round; }
+.tm-refMark { stroke: var(--gold); stroke-width: 3; stroke-linecap: round; }
+.tm-refTip { fill: var(--gold); }
+.tm-next { margin-top: 22px; padding: 14px; border-radius: 18px; }
+.tm-nextRow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+.tm-nextKey { min-height: 48px; border-radius: 12px; border: 1px solid var(--edge); background: var(--cardBottom); color: var(--sub); font: 600 17px var(--cond); letter-spacing: 1px; white-space: nowrap; }
+.tm-nextKey.on { color: var(--goldInk); background: var(--goldFill); border-color: var(--goldFill); }
+.tm-next .tm-say { min-height: 1.5em; }
 .tm-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .tm-sheet .seg { margin-top: 8px; }
+.tm-sheet .sheetBody { max-height: calc(100vh - 16px); overflow-y: auto; overscroll-behavior: contain; }
+.tm-sheet .field .row { gap: 8px; }
+.tm-sheet .field > .row + .row { margin-top: 8px; }
+.tm-sheet select.tm-cue { width: auto; flex: 1; min-width: 0; max-width: 170px; margin: 0; min-height: 44px; font-size: 16px; }
+.tm-sheet .tm-x { flex: none; display: grid; place-items: center; color: var(--sub); }
+.tm-sheet .tm-x .ico { width: 18px; height: 18px; }
+.tm-sheet .tm-addStep { margin: -4px 0 16px; color: var(--gold); border-style: dashed; border-color: color-mix(in srgb, var(--gold) 60%, transparent); }
+.tm-sheet .catGrid { margin-top: 8px; }
+.tm-sheet .catKey { font-size: 15px; padding: 0 6px; }
 .tm-sheet input[type=range] { flex: 1; min-width: 0; }
 .tm-sheet .textLine { margin-top: 8px; text-transform: uppercase; }
 .tm-sheet .field b small { font: 600 15px var(--cond); color: var(--dim); margin-left: 3px; }
@@ -152,10 +197,18 @@ interface Mote { x: number; y: number; vx: number; vy: number; life: number; max
 type Phase = "ready" | "torch" | "cool" | "dab";
 interface Run {
   style: Style;
+  /** Which saved setup this run came from (the editor is shut while a run is on, so it stays put). */
+  setupIdx: number;
   startAt: number;
+  /** Hot dab: the steps and when each one ends (absolute ms). Cold start: none. */
+  steps: Step[];
+  stepEnds: number[];
+  /** Hot dab: the end of the last step. Cold start: the safety cap. */
   torchEnd: number;
-  /** Planned torch length (ms), for the dial. */
+  /** Ring length of the torch phase (ms): the planned torch, or the cap for a cold start. */
   torchPlan: number;
+  /** Cold start: the guide mark (s) at the start of this run. */
+  coldRef?: number;
   /** Planned cool-down (s). */
   coolSecs: number;
   /** Torch time actually run (ms), set when the torch phase ends. */
@@ -166,6 +219,14 @@ interface Run {
   heatOff: number;
   lastTick: number;
   dabAt: number;
+  /** The step the user was last told about. */
+  step: number;
+  warnedTorch: boolean;
+  warnedCool: boolean;
+  passedRef: boolean;
+  capped: boolean;
+  /** After DAB IT: the one-tap "next time" nudge. */
+  next: { orig: number; pick: -1 | 0 | 1 | null; note: string } | null;
 }
 
 export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
@@ -183,9 +244,11 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
   let pending: { jarID: string | null; dab: JarDab; at: number } | null = null;
   let shown = true;
   let timer = 0;
-  let awayMsg: string | null = null;
+  let note: { tag: string; text: string } | null = null;
   const theme = () => deps.prefs.get("heatSound") ?? "chimes";
   const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  /** A moment that passed more than this long ago (the page was away) gets no sound. */
+  const FRESH = 1500;
 
   // MARK: The dial card
   const NS = "http://www.w3.org/2000/svg";
@@ -205,10 +268,13 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     `<circle cx="130" cy="130" r="138" class="bezelEdge"/><circle cx="130" cy="130" r="137" class="bezel"/>` +
     `<circle cx="130" cy="130" r="130" fill="url(#tmFace)"/><circle id="tmHeatDisc" cx="130" cy="130" r="130" fill="url(#tmHeat)" opacity="0"/>` +
     ticks + `<circle cx="130" cy="130" r="106" class="tm-track"/>` +
-    `<circle id="tmArc" cx="130" cy="130" r="106" class="tm-arc" transform="rotate(-90 130 130)" stroke-dasharray="0 ${C}" visibility="hidden"/>`;
+    `<circle id="tmArc" cx="130" cy="130" r="106" class="tm-arc" transform="rotate(-90 130 130)" stroke-dasharray="0 ${C}" visibility="hidden"/>` +
+    `<g id="tmMarks"></g>`;
   const arc = svg.querySelector("#tmArc") as SVGCircleElement;
   const heatDisc = svg.querySelector("#tmHeatDisc") as SVGCircleElement;
   const heatStops = Array.from(svg.querySelectorAll("#tmHeat stop")) as SVGStopElement[];
+  const marks = svg.querySelector("#tmMarks") as SVGGElement;
+  let marksKey = "";
 
   const canvas = h("canvas", { class: "tm-fx", "aria-hidden": "true" }) as HTMLCanvasElement;
   const g2 = canvas.getContext("2d");
@@ -227,12 +293,14 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
   const sr = h("div", { class: "tm-sr", "aria-live": "assertive" });
   const say = (t: string) => { sr.textContent = t; };
 
-  // "While you were away"
-  const awayText = h("p", {});
-  const away = h("div", { class: "notice note", hidden: true },
+  // A note above the dial: "While you were away", or the cold-start safety cap.
+  const noteTag = tag("");
+  const noteText = h("p", {});
+  const noteBox = h("div", { class: "notice note", hidden: true },
     h("span", { class: "icon", style: "color:var(--gold)" }, icon("check")),
-    h("div", {}, tag("WHILE YOU WERE AWAY"), awayText),
-    h("button", { class: "gotIt", onclick: () => { awayMsg = null; paint(); } }, "GOT IT"));
+    h("div", {}, noteTag, noteText),
+    h("button", { class: "gotIt", onclick: () => { note = null; paint(); } }, "GOT IT"));
+  const away = (text: string) => { note = { tag: "WHILE YOU WERE AWAY", text }; };
 
   // MARK: Controls
   const segHot = h("button", { onclick: () => setStyle("hot") }, "HOT DAB");
@@ -248,19 +316,30 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     h("p", { class: "tm-note" }, "Torchless can't read your glass. These times are yours: tune them to your banger and torch."));
 
   const goBtn = h("button", { class: "bigBtn tm-go", onclick: start }, icon("torch"), "TORCH IT");
-  const offBtn = h("button", { class: "tm-off", onclick: torchOffNow }, "TORCH OFF NOW");
   const torchRow = h("div", { hidden: true },
-    h("button", { class: "bigBtn tm-stop", onclick: stop }, icon("stop"), "STOP"), offBtn);
+    h("button", { class: "bigBtn tm-stop", onclick: stop }, icon("stop"), "STOP"),
+    h("button", { class: "tm-off", onclick: torchOffNow }, "TORCH OFF NOW"));
+  // Cold start: the big button is the one they tap when it bubbles. STOP is there, but smaller.
+  const coldRow = h("div", { hidden: true },
+    h("button", { class: "bigBtn tm-go tm-mid", onclick: torchOffNow }, icon("check"), "DONE TORCHING"),
+    h("button", { class: "tm-off", onclick: stop }, icon("stop"), "STOP"));
   const coolRow = h("div", { class: "row", style: "gap:10px", hidden: true },
     h("button", { class: "bigBtn tm-stop", onclick: stop }, icon("stop"), "STOP"),
     h("button", { class: "panel tm-side", "aria-label": "5 seconds less cool-down", onclick: () => nudge(-5) }, h("b", {}, "−5s"), tag("LESS", "font-size:8.5px")),
     h("button", { class: "panel tm-side", "aria-label": "5 seconds more cool-down", onclick: () => nudge(5) }, h("b", {}, "+5s"), tag("MORE", "font-size:8.5px")));
   const doneBtn = h("button", { class: "bigBtn tm-go", hidden: true, onclick: done }, icon("check"), "DONE");
   const hint = h("div", { class: "hint" });
-  const actions = h("div", {}, goBtn, torchRow, coolRow, doneBtn, hint);
+
+  // After DAB IT: how was the heat? One tap tunes the saved setup for next time.
+  const nextKeys = ([[1, "TOO HOT"], [0, "JUST RIGHT"], [-1, "TOO COOL"]] as const).map(([k, label]) =>
+    h("button", { class: "tm-nextKey", "data-k": String(k), onclick: () => pickNext(k) }, label));
+  const nextSay = h("p", { class: "tm-say", style: "margin-top:10px" });
+  const nextBox = h("div", { class: "panel tm-next", hidden: true },
+    tag("NEXT TIME", "font-size:9px"), h("div", { class: "tm-nextRow", role: "group", "aria-label": "Next time" }, ...nextKeys), nextSay);
+  const actions = h("div", {}, goBtn, torchRow, coldRow, coolRow, doneBtn, hint, nextBox);
 
   const jarBox = h("div", { class: "curJar panel" });
-  root.replaceChildren(away, card, readyBox, actions, jarBox, sr);
+  root.replaceChildren(noteBox, card, readyBox, actions, jarBox, sr);
 
   // MARK: Setups on the Ready screen
   function setStyle(s: Style) {
@@ -269,11 +348,15 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     saveSetups();
     paint();
   }
-  function keyText(s: Setup) { return s.style === "cold" ? `${s.cold}s` : `${s.torch}/${s.cool}`; }
+  function keyText(s: Setup) { return s.style === "cold" ? (s.cold !== undefined ? `~${s.cold}s` : "COUNT") : `${torchTotal(s)}/${s.cool}`; }
+  function keyLabel(s: Setup) {
+    if (s.style === "cold") return `${s.name}: cold start, counts up` + (s.cold !== undefined ? `, last time ${s.cold} seconds` : "");
+    const st = s.steps.length > 1 ? s.steps.map(x => `${x.cue.toLowerCase()} ${x.secs}`).join(", ") + " seconds" : `${s.steps[0].secs} seconds`;
+    return `${s.name}: torch ${st}, cool down ${s.cool} seconds`;
+  }
   function renderKeys() {
     const kids = setups.map((s, i) => h("button", {
-      class: "key" + (i === sel ? " on" : ""), "aria-pressed": String(i === sel),
-      "aria-label": `${s.name}: ${s.style === "cold" ? `cold start, ${s.cold} seconds of torch` : `torch ${s.torch} seconds, cool down ${s.cool} seconds`}`,
+      class: "key" + (i === sel ? " on" : ""), "aria-pressed": String(i === sel), "aria-label": keyLabel(s),
       onclick: () => { sel = i; saveSetups(); paint(); },
     }, h("small", {}, s.name), h("span", {}, keyText(s))));
     if (setups.length < MAX_SETUPS) {
@@ -286,7 +369,10 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
   function editSetup(index: number) {
     if (phase !== "ready") return;
     const isNew = index < 0;
-    const d: Setup = isNew ? freshSetup(`SETUP ${setups.length + 1}`) : { ...setups[index] };
+    const src = isNew ? freshSetup(`SETUP ${setups.length + 1}`) : setups[index];
+    const d: Setup = { ...src, steps: src.steps.map(x => ({ ...x })) };
+    let named = !isNew;            // a template may name a new setup until the user types a name
+    let tpl = -1, small = false;
     const host = document.getElementById("sheets") ?? document.body;
     const body = h("div", { class: "sheetBody" });
     const sheet = h("div", { class: "sheet tm-sheet", onclick: (e: Event) => { if (e.target === sheet) close(); } }, body);
@@ -294,28 +380,44 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
     document.addEventListener("keydown", onKey);
 
-    function field(label: string, key: "torch" | "cool" | "cold", what: string): HTMLElement {
-      const [lo, hi] = LIMITS[key];
+    /** A seconds value with − and + keys and a slider between them. */
+    function stepper(head: HTMLElement[], get: () => number, put: (v: number) => void, [lo, hi]: readonly [number, number], what: string, tail: HTMLElement | null = null): HTMLElement {
       const val = h("b", {});
-      const range = h("input", { type: "range", min: lo, max: hi, step: 1, "aria-label": what,
-        oninput: () => set(Number(range.value)) }) as HTMLInputElement;
+      const range = h("input", { type: "range", min: lo, max: hi, step: 1, "aria-label": what, oninput: () => set(Number(range.value)) }) as HTMLInputElement;
       const set = (v: number) => {
-        d[key] = clamp(Math.round(v), lo, hi);
-        range.value = String(d[key]);
-        val.replaceChildren(d[key] === 0 ? "NONE" : String(d[key]), d[key] === 0 ? "" : h("small", {}, "S"));
+        put(clamp(Math.round(v), lo, hi));
+        const x = get();
+        range.value = String(x);
+        val.replaceChildren(x === 0 ? "NONE" : String(x), x === 0 ? "" : h("small", {}, "S"));
       };
-      set(d[key]);
+      set(get());
       return h("div", { class: "field" },
-        h("div", { class: "row" }, tag(label), val),
+        h("div", { class: "row" }, ...head, val, tail),
         h("div", { class: "row" },
-          h("button", { class: "step", "aria-label": `${what}: 1 second less`, onclick: () => set(d[key] - 1) }, "−"),
+          h("button", { class: "step", "aria-label": `${what}: 1 second less`, onclick: () => set(get() - 1) }, "−"),
           range,
-          h("button", { class: "step", "aria-label": `${what}: 1 second more`, onclick: () => set(d[key] + 1) }, "+")));
+          h("button", { class: "step", "aria-label": `${what}: 1 second more`, onclick: () => set(get() + 1) }, "+")));
+    }
+
+    function useTemplate(i: number) {
+      const t = TEMPLATES[i];
+      tpl = i;
+      d.style = "hot";
+      d.steps = t.steps.map(x => ({ ...x }));
+      d.cool = t.cool;
+      if (small) d.steps[0].secs = clamp(d.steps[0].secs + SMALL_TORCH, ...LIMITS.torch);
+      if (!named) d.name = t.name;
+      draw();
+    }
+    function toggleSmall() {
+      small = !small;
+      d.steps[0].secs = clamp(d.steps[0].secs + (small ? SMALL_TORCH : -SMALL_TORCH), ...LIMITS.torch);
+      draw();
     }
 
     function draw() {
       const name = h("input", { class: "panel textLine", type: "text", maxlength: NAME_MAX, value: d.name, placeholder: "25MM QUARTZ",
-        autocomplete: "off", "aria-label": "Setup name", oninput: () => { d.name = name.value; } }) as HTMLInputElement;
+        autocomplete: "off", "aria-label": "Setup name", oninput: () => { d.name = name.value; named = true; } }) as HTMLInputElement;
       const pick = (s: Style, label: string) => h("button", { class: d.style === s ? "on" : "", "aria-pressed": String(d.style === s),
         onclick: () => { d.style = s; draw(); } }, label);
       const save = () => {
@@ -328,17 +430,55 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
         sel = clamp(sel > index ? sel - 1 : sel, 0, setups.length - 1);
         saveSetups(); close(); paint();
       };
-      body.replaceChildren(
+      const kids: (HTMLElement | null)[] = [
         h("h3", {}, isNew ? "New setup" : "Setup"),
         h("div", { class: "field" }, tag("NAME"), name),
         h("div", { class: "field" }, tag("STYLE"),
           h("div", { class: "seg", style: "grid-template-columns:1fr 1fr" }, pick("hot", "HOT DAB"), pick("cold", "COLD START"))),
-        d.style === "hot" ? field("TORCH TIME", "torch", "Torch time") : field("TORCH TIME", "cold", "Torch time"),
-        d.style === "hot" ? field("COOL DOWN", "cool", "Cool-down") : h("p", { class: "tm-say", style: "margin:0 0 16px" }, "Load first. A short torch, then dab right away. No cool-down."),
-        h("div", { class: "row", style: "gap:10px" },
-          !isNew && setups.length > 1 ? h("button", { class: "btn2 danger", onclick: remove }, "DELETE") : null,
-          h("button", { class: "btn2", style: "flex:1", onclick: close }, "Cancel"),
-          h("button", { class: "btn2", style: "flex:1;background:var(--goldFill);color:var(--goldInk);border-color:var(--goldFill)", onclick: save }, "SAVE")));
+      ];
+      if (d.style === "hot") {
+        if (isNew) {
+          const chip = (label: string, on: boolean, onclick: () => void) =>
+            h("button", { class: "catKey" + (on ? " on" : ""), "aria-pressed": String(on), onclick }, label);
+          kids.push(h("div", { class: "field" }, tag("STARTING POINT, TUNE IT", "color:var(--gold)"),
+            h("div", { class: "catGrid" }, ...TEMPLATES.map((t, i) => chip(t.label, tpl === i, () => useTemplate(i))),
+              chip(`SMALL TORCH +${SMALL_TORCH}S`, small, toggleSmall))));
+        }
+        const n = d.steps.length;
+        d.steps.forEach((st, i) => {
+          const head: HTMLElement[] = n === 1 ? [tag("TORCH TIME")] : [
+            tag(`STEP ${i + 1}`),
+            h("select", { class: "tm-cue", "aria-label": `Step ${i + 1}: where to torch`,
+              onchange: (e: Event) => { st.cue = (e.target as HTMLSelectElement).value; } },
+              ...CUES.map(c => h("option", { value: c, selected: c === st.cue }, c))),
+          ];
+          const x = n === 1 ? null : h("button", { class: "step tm-x", "aria-label": `Remove step ${i + 1}`, onclick: () => { d.steps.splice(i, 1); draw(); } }, icon("close"));
+          kids.push(stepper(head, () => st.secs, v => { st.secs = v; }, LIMITS.torch, n === 1 ? "Torch time" : `Step ${i + 1} torch time`, x));
+        });
+        if (n < MAX_STEPS) {
+          kids.push(h("button", { class: "btn2 wide tm-addStep", onclick: () => {
+            if (n === 1 && d.steps[0].cue === "ALL OVER") d.steps[0].cue = "BOTTOM";
+            d.steps.push({ cue: ["BOTTOM", "MIDDLE", "BOTTOM"][n], secs: 20 });
+            draw();
+          } }, "+ ADD STEP"));
+        }
+        kids.push(stepper([tag("COOL DOWN")], () => d.cool, v => { d.cool = v; }, LIMITS.cool, "Cool-down"));
+      } else {
+        kids.push(h("p", { class: "tm-say", style: "margin:0 0 12px" },
+          `Load first. TORCH IT counts up: torch until it bubbles, then tap DONE TORCHING. It stops at ${COLD_CAP} s. No cool-down.`));
+        if (d.cold !== undefined) {
+          kids.push(h("div", { class: "row field", style: "justify-content:space-between" },
+            h("div", {}, tag("LAST TIME"), h("b", { class: "cond", style: "display:block;font-size:28px;color:var(--gold)" }, `${d.cold} S`)),
+            h("button", { class: "btn2", onclick: () => { delete d.cold; draw(); } }, "FORGET IT")));
+        }
+      }
+      kids.push(h("div", { class: "row", style: "gap:10px" },
+        !isNew && setups.length > 1 ? h("button", { class: "btn2 danger", onclick: remove }, "DELETE") : null,
+        h("button", { class: "btn2", style: "flex:1", onclick: close }, "Cancel"),
+        h("button", { class: "btn2", style: "flex:1;background:var(--goldFill);color:var(--goldInk);border-color:var(--goldFill)", onclick: save }, "SAVE")));
+      const top = body.scrollTop;
+      body.replaceChildren(...kids.filter((k): k is HTMLElement => !!k));
+      body.scrollTop = top;
     }
     draw();
     host.append(sheet);
@@ -356,23 +496,38 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     if (phase !== "ready") return;
     const s = setup();
     const now = Date.now();
-    const torchSecs = s.style === "cold" ? s.cold : s.torch;
-    run = { style: s.style, startAt: now, torchEnd: now + torchSecs * 1000, torchPlan: torchSecs * 1000, coolSecs: s.style === "cold" ? 0 : s.cool,
-      torchMs: 0, coolStart: 0, coolEnd: 0, heatOff: 1, lastTick: 99, dabAt: 0 };
+    const cold = s.style === "cold";
+    const steps = cold ? [] : s.steps.map(x => ({ ...x }));
+    const stepEnds: number[] = [];
+    let t = now;
+    for (const x of steps) { t += x.secs * 1000; stepEnds.push(t); }
+    const torchEnd = cold ? now + COLD_CAP * 1000 : t;
+    run = { style: s.style, setupIdx: sel, startAt: now, steps, stepEnds, torchEnd, torchPlan: torchEnd - now, coldRef: cold ? s.cold : undefined,
+      coolSecs: cold ? 0 : s.cool, torchMs: 0, coolStart: 0, coolEnd: 0, heatOff: 1, lastTick: 99, dabAt: 0, step: 0,
+      warnedTorch: torchEnd - now <= (WARN_AT + 2) * 1000, warnedCool: false, passedRef: false, capped: false, next: null };
     pending = null;
-    awayMsg = null;
+    note = null;
     phase = "torch";
     fx.reset();
     deps.keepAwake(true);
     heatSound.unlock();
     heatSound.play("start", theme());
     buzz(12);
-    say(`Torch on. ${torchSecs} seconds.`);
+    if (cold) say("Torch on. Torch until it bubbles, then tap done torching.");
+    else say(steps.length > 1 ? `Torch on. ${steps[0].cue.toLowerCase()}, ${steps[0].secs} seconds.` : `Torch on. ${steps[0].secs} seconds.`);
     setTimer(true);
     tick();
   }
 
-  /** The torch phase is over at `at` (the planned end, or now for TORCH OFF NOW). */
+  /** The heads-up 10 s before the torch or the cool-down ends: a rising sweep, not a tick. */
+  function warnCue(text: string) {
+    heatSound.play("sweep", theme());
+    buzz([30, 60, 30, 60, 30]);
+    fx.pulse(true);
+    say(text);
+  }
+
+  /** The torch phase is over at `at` (the planned end, the cap, or now for TORCH OFF NOW / DONE TORCHING). */
   function torchOff(at: number, late: number, now: number) {
     const r = run!;
     r.torchMs = Math.max(0, at - r.startAt);
@@ -382,8 +537,9 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     r.coolStart = at;
     r.coolEnd = at + r.coolSecs * 1000;
     r.lastTick = 99;
+    r.warnedCool = r.coolSecs <= WARN_AT + 2;
     if (now >= r.coolEnd) return;   // the cool-down ran out while away too: tick() goes straight on to DAB IT
-    if (late > 1500) awayMsg = `Torch time ended ${ago(late)}. Cool-down is running.`;
+    if (late > FRESH) away(`Torch time ended ${ago(late)}. Cool-down is running.`);
     heatSound.play("ready", theme());
     buzz([220, 90, 220]);
     say(`Torch off. Cool-down, ${r.coolSecs} seconds.`);
@@ -394,21 +550,49 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     phase = "dab";
     r.dabAt = Date.now();
     const cooled = r.coolStart ? Math.max(0, Math.round((at - r.coolStart) / 1000)) : undefined;
-    if (late > 1500) awayMsg = `${r.coolStart ? "Cool-down" : "Torch time"} ended ${ago(late)}.`;
+    const ran = Math.max(1, Math.round(r.torchMs / 1000));
+    const s = setups[r.setupIdx];
+    if (r.capped) note = { tag: "SAFETY CAP", text: late > FRESH ? `Stopped at ${COLD_CAP} s, ${ago(late)}. Torch off.` : `Stopped at ${COLD_CAP} s. Torch off.` };
+    else if (late > FRESH) away(`${r.coolStart ? "Cool-down" : "Torch time"} ended ${ago(late)}.`);
+    // Cold start: the time they tapped is the guide mark for next time. A run that hit the cap isn't a time they chose.
+    if (r.style === "cold" && !r.capped && s) { s.cold = clamp(ran, ...LIMITS.cold); saveSetups(); }
+    if (s) {
+      const orig = r.style === "cold" ? s.cold : s.cool;
+      if (orig !== undefined) r.next = { orig, pick: null, note: "" };
+    }
     deps.keepAwake(false);
     heatSound.torch(theme(), 0, 0, false);
-    heatSound.play("done", theme());
-    buzz([40, 70, 40, 70, 160]);
-    say("Dab it.");
+    if (r.capped) { heatSound.play("cut", theme()); buzz([200, 100, 200, 100, 200]); say(`Stopped at ${COLD_CAP} seconds. Torch off.`); }
+    else { heatSound.play("done", theme()); buzz([40, 70, 40, 70, 160]); say("Dab it. Cap it."); }
     fx.celebrate();
 
     // One dab for the current jar. No temps: the app never saw the glass.
-    const dab: JarDab = { id: uid(), at: new Date(r.startAt).toISOString(), seconds: Math.max(1, Math.round(r.torchMs / 1000)), unit: "F", profile: "Torch", medium: "torch" };
+    const dab: JarDab = { id: uid(), at: new Date(r.startAt).toISOString(), seconds: ran, unit: "F", profile: "Torch", medium: "torch" };
     if (cooled !== undefined) dab.cooledIn = cooled;
     let jarID: string | null = null;
     const c = deps.jars.currentID;
     if (c && deps.jars.addDab(dab, c)) jarID = c;
     pending = { jarID, dab, at: r.dabAt + PROMPT_DELAY };
+  }
+
+  /** TOO HOT, JUST RIGHT, TOO COOL: sets the saved setup from what it was before this run, so a change of mind just re-picks. */
+  function pickNext(k: -1 | 0 | 1) {
+    const r = run, nx = r?.next, s = r ? setups[r.setupIdx] : undefined;
+    if (phase !== "dab" || !r || !nx || !s) return;
+    nx.pick = k;
+    if (r.style === "cold") {
+      const v = clamp(nx.orig - k * 3, ...LIMITS.cold);
+      s.cold = v;
+      nx.note = k === 0 ? `Kept: aim for about ${v} s.` : v === nx.orig ? `Already at the limit: ${v} s.` : `Next time: aim for about ${v} s (was ${nx.orig} s).`;
+    } else {
+      const v = clamp(nx.orig + k * 10, ...LIMITS.cool);
+      s.cool = v;
+      nx.note = k === 0 ? `Kept: ${v} s cool-down.` : v === nx.orig ? `Cool-down is already at its limit: ${v} s.` : `Next time: ${v} s cool-down (was ${nx.orig} s).`;
+    }
+    saveSetups();
+    buzz(10);
+    say(nx.note);
+    paint();
   }
 
   /** Shows the rating pop-up for the dab just logged (marks it asked first, as DabWatcher does). */
@@ -435,7 +619,7 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     buzz(45);
     toReady();
     fx.settle();
-    awayMsg = null;
+    note = null;
     say("Stopped.");
     paint();
   }
@@ -453,6 +637,7 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     const now = Date.now();
     r.coolEnd = clamp(r.coolEnd + by * 1000, now, now + 300_000);
     if (by > 0) r.lastTick = 99;
+    if (r.coolEnd - now > WARN_AT * 1000 + 500) r.warnedCool = false;   // pushed back past the heads-up: give it again
     buzz(10);
     tick();
   }
@@ -460,7 +645,7 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
   function done() {
     if (phase !== "dab") return;
     toReady();
-    awayMsg = null;
+    note = null;
     offerRating();
     paint();
   }
@@ -470,10 +655,39 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     const now = Date.now();
     const r = run;
     if (r) {
-      if (phase === "torch" && now >= r.torchEnd) torchOff(r.torchEnd, now - r.torchEnd, now);
+      if (phase === "torch" && now >= r.torchEnd) {
+        if (r.style === "cold") r.capped = true;
+        torchOff(r.torchEnd, now - r.torchEnd, now);
+      }
       if (phase === "cool" && now >= r.coolEnd) reachDab(r.coolEnd, now - r.coolEnd);
+      if (phase === "torch") {
+        // Next step: tell them where to move the torch (only when it just happened, not on coming back)
+        const i = r.stepEnds.findIndex(e => now < e);
+        if (i > r.step) {
+          r.step = i;
+          if (now - r.stepEnds[i - 1] < FRESH) {
+            heatSound.play("start", theme());
+            buzz([60, 50, 60]);
+            fx.pulse(true);
+            say(`Now ${r.steps[i].cue.toLowerCase()}. ${r.steps[i].secs} seconds.`);
+          }
+        }
+        if (r.style === "cold" && r.coldRef !== undefined && !r.passedRef && now - r.startAt >= r.coldRef * 1000) {
+          r.passedRef = true;
+          if (now - r.startAt - r.coldRef * 1000 < FRESH) { heatSound.play("tick", theme()); buzz(20); fx.pulse(true); say("Your last time."); }
+        }
+        if (!r.warnedTorch && r.torchEnd - now <= WARN_AT * 1000) {
+          r.warnedTorch = true;
+          const stepJust = r.stepEnds.slice(0, -1).some(e => now >= e && now - e < FRESH);   // a step cue just went off: one ping is enough
+          if (r.torchEnd - now > WARN_AT * 1000 - FRESH && !stepJust) warnCue(r.style === "cold" ? `${WARN_AT} seconds to the ${COLD_CAP} second cap.` : `Torch off in ${WARN_AT} seconds.`);
+        }
+      }
       if (phase === "cool") {
         const left = Math.ceil((r.coolEnd - now) / 1000);
+        if (!r.warnedCool && r.coolEnd - now <= WARN_AT * 1000) {
+          r.warnedCool = true;
+          if (r.coolEnd - now > WARN_AT * 1000 - FRESH) warnCue(`Dab in ${WARN_AT} seconds. Get your dab ready.`);
+        }
         if (left >= 1 && left <= 5 && left < r.lastTick) {
           r.lastTick = left;
           heatSound.play("tick", theme());
@@ -481,7 +695,7 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
           fx.pulse();
         }
       }
-      if (phase === "torch") heatSound.torch(theme(), 1, clamp((now - r.startAt) / r.torchPlan, 0, 1), false);
+      if (phase === "torch") heatSound.torch(theme(), 1, heatAt(now), false);
       else if (phase === "cool") heatSound.torch(theme(), 3, 0, r.coolEnd - now <= 5000);
       else if (phase === "dab" && pending && now >= pending.at && document.visibilityState !== "hidden" && shown) {
         // The moment has had its 15 seconds: back to Ready, and ask for the rating.
@@ -496,7 +710,10 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
   function heatAt(now: number): number {
     const r = run;
     if (!r) return 0;
-    if (phase === "torch") return 0.14 + 0.86 * Math.pow(clamp((now - r.startAt) / r.torchPlan, 0, 1), 0.8);
+    if (phase === "torch") {
+      const span = r.style === "cold" ? (r.coldRef ?? 30) * 1000 : r.torchPlan;
+      return 0.14 + 0.86 * Math.pow(clamp((now - r.startAt) / span, 0, 1), 0.8);
+    }
     if (phase === "cool") {
       const span = Math.max(1, r.coolEnd - r.coolStart);
       return r.heatOff * Math.pow(clamp((r.coolEnd - now) / span, 0, 1), 1.25);
@@ -527,6 +744,28 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
   const heatRGB = (x: number): RGB => x >= 0.6 ? mix(pal.gold, pal.fire, Math.min(1, (x - 0.6) / 0.4))
     : x >= 0.3 ? mix(pal.sub, pal.gold, (x - 0.3) / 0.3) : mix(pal.live, pal.sub, Math.max(0, x) / 0.3);
 
+  /** Marks on the ring: where each torch step ends, and the cold-start "last time" guide. */
+  function paintMarks() {
+    const r = run, s = setup();
+    const style = r ? r.style : s.style;
+    const show = phase === "ready" || phase === "torch";
+    const list: { at: number; ref: boolean }[] = [];
+    if (show && style === "cold") {
+      const ref = r ? r.coldRef : s.cold;
+      if (ref !== undefined) list.push({ at: ref / COLD_CAP, ref: true });
+    } else if (show) {
+      const steps = r ? r.steps : s.steps, total = torchTotal({ steps });
+      let t = 0;
+      for (const x of steps.slice(0, -1)) { t += x.secs; list.push({ at: t / total, ref: false }); }
+    }
+    const key = list.map(m => `${m.at.toFixed(4)}${m.ref}`).join();
+    if (key === marksKey) return;
+    marksKey = key;
+    marks.innerHTML = list.map(m => m.ref
+      ? `<g transform="rotate(${(m.at * 360).toFixed(2)} 130 130)"><line x1="130" y1="14" x2="130" y2="34" class="tm-refMark"/><path d="M125 13 L135 13 L130 20 Z" class="tm-refTip"/></g>`
+      : `<line x1="130" y1="17" x2="130" y2="31" class="tm-stepMark" transform="rotate(${(m.at * 360).toFixed(2)} 130 130)"/>`).join("");
+  }
+
   function paintDial(now: number) {
     const heat = heatAt(now), ring = ringAt(now);
     const col = phase === "dab" ? pal.live : phase === "torch" ? pal.fire : heatRGB(heat);
@@ -549,46 +788,84 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     readPal();
     const now = Date.now();
     const r = run, s = setup();
+    const style = r ? r.style : s.style;
+    const cold = style === "cold";
     root.classList.toggle("tm-on", phase === "torch");
     root.classList.toggle("tm-dab", phase === "dab");
     readyBox.hidden = phase !== "ready";
     goBtn.hidden = phase !== "ready";
-    torchRow.hidden = phase !== "torch";
+    torchRow.hidden = !(phase === "torch" && !cold);
+    coldRow.hidden = !(phase === "torch" && cold);
     coolRow.hidden = phase !== "cool";
     doneBtn.hidden = phase !== "dab";
-    away.hidden = !awayMsg;
-    if (awayMsg) awayText.textContent = awayMsg;
+    noteBox.hidden = !note;
+    if (note) { noteTag.textContent = note.tag; noteText.textContent = note.text; }
 
-    const style = r ? r.style : s.style;
-    const torchSecs = r ? Math.round((phase === "torch" ? r.torchPlan : r.torchMs) / 1000) : s.style === "cold" ? s.cold : s.torch;
+    // Corners
+    const ref = r ? r.coldRef : s.cold;
+    const planTorch = r ? (cold ? 0 : Math.round(r.torchPlan / 1000)) : torchTotal(s);
+    const torchSecs = r && phase !== "torch" ? Math.round(r.torchMs / 1000) : planTorch;
     const coolSecs = r ? (phase === "dab" || phase === "cool" ? Math.round((r.coolEnd - r.coolStart) / 1000) : r.coolSecs) : s.cool;
-    cTorch.b.textContent = secs(torchSecs);
-    cCool.b.textContent = style === "cold" ? "NONE" : secs(coolSecs);
-    cStyle.b.textContent = style === "cold" ? "COLD" : "HOT";
+    if (cold && (phase === "ready" || phase === "torch")) {
+      cTorch.t.textContent = "LAST TIME";
+      cTorch.b.textContent = ref !== undefined ? secs(ref) : "—";
+    } else {
+      cTorch.t.textContent = "TORCH";
+      cTorch.b.textContent = secs(torchSecs);
+    }
+    cCool.b.textContent = cold ? "NONE" : secs(coolSecs);
+    cStyle.b.textContent = cold ? "COLD" : (r ? r.steps : s.steps).length > 1 ? `HOT · ${(r ? r.steps : s.steps).length}` : "HOT";
     cTotal.el.hidden = phase === "torch";   // the torch comes in from this corner
-    cTotal.t.textContent = phase === "ready" ? "TOTAL" : "ELAPSED";
-    cTotal.b.textContent = phase === "ready" ? clock(torchSecs + (style === "cold" ? 0 : coolSecs))
+    cTotal.t.textContent = phase === "ready" ? (cold ? "STOPS AT" : "TOTAL") : "ELAPSED";
+    cTotal.b.textContent = phase === "ready" ? (cold ? `${COLD_CAP}s` : clock(torchSecs + coolSecs))
       : r ? clock(Math.max(0, Math.round(((phase === "dab" ? Math.max(r.coolEnd, r.startAt + r.torchMs) : now) - r.startAt) / 1000))) : "";
 
     let big = "", top = "", status = "", word = false;
     if (phase === "ready") {
-      big = clock(torchSecs); top = "TORCH TIME"; status = "READY";
+      if (cold) { big = ref !== undefined ? clock(ref) : "0"; top = ref !== undefined ? "LAST TIME" : "COUNTS UP"; }
+      else { big = clock(torchSecs); top = "TORCH TIME"; }
+      status = !cold && s.steps.length > 1 ? `READY · ${s.steps.length} STEPS` : "READY";
       segHot.classList.toggle("on", s.style === "hot"); segCold.classList.toggle("on", s.style === "cold");
       segHot.setAttribute("aria-pressed", String(s.style === "hot")); segCold.setAttribute("aria-pressed", String(s.style === "cold"));
-      styleSay.textContent = s.style === "hot" ? "Torch it. Let it cool. Then dab." : "Load first. A short torch. Dab right away.";
+      styleSay.textContent = s.style === "hot" ? "Torch it. Let it cool. Then dab." : "Load first. Torch till it bubbles. Dab right away.";
       renderKeys();
-      hint.textContent = theme() === "off" ? "SOUND IS OFF · WATCH THE DIAL" : style === "cold" ? "LOAD IT FIRST · SOUND WHEN IT'S TIME" : "SOUND WHEN IT'S TIME TO PULL THE TORCH";
+      hint.textContent = theme() === "off" ? "SOUND IS OFF · WATCH THE DIAL" : cold ? "LOAD IT FIRST · IT COUNTS UP" : "SOUND WHEN IT'S TIME TO PULL THE TORCH";
+    } else if (r && phase === "torch" && cold) {
+      const el = Math.max(0, Math.floor((now - r.startAt) / 1000));
+      big = clock(el); status = "TORCH ON";
+      top = r.coldRef === undefined ? "COUNTING UP" : r.passedRef ? "PAST LAST TIME" : `LAST TIME ${r.coldRef} S`;
+      hint.textContent = "TORCH UNTIL IT BUBBLES, THEN TAP DONE TORCHING";
     } else if (r && phase === "torch") {
-      big = clock(Math.max(0, Math.ceil((r.torchEnd - now) / 1000))); top = "KEEP TORCHING"; status = "TORCH ON";
-      hint.textContent = style === "cold" ? "THEN DAB RIGHT AWAY" : `THEN ${r.coolSecs} S OF COOL-DOWN`;
+      const i = Math.max(0, r.stepEnds.findIndex(e => now < e));
+      const multi = r.steps.length > 1;
+      big = clock(Math.max(0, Math.ceil(((multi ? r.stepEnds[i] : r.torchEnd) - now) / 1000)));
+      top = multi ? `STEP ${i + 1}/${r.steps.length} · ${r.steps[i].cue}` : "KEEP TORCHING";
+      status = "TORCH ON";
+      const nx = r.steps[i + 1];
+      hint.textContent = nx ? `NEXT: ${nx.cue} · ${nx.secs} S` : `THEN ${r.coolSecs} S OF COOL-DOWN`;
     } else if (r && phase === "cool") {
       big = clock(Math.max(0, Math.ceil((r.coolEnd - now) / 1000))); top = "LET IT COOL"; status = "COOLING DOWN";
       hint.textContent = "TICKS IN THE LAST FIVE SECONDS";
     } else if (r) {
-      big = "DAB IT"; word = true; top = r.coolStart ? "COOL-DOWN DONE" : "TORCH OFF";
-      status = r.coolStart ? `${torchSecs} S TORCH · ${coolSecs} S COOL` : `${torchSecs} S TORCH`;
+      big = "DAB IT"; word = true; top = r.coolStart ? "COOL-DOWN DONE" : r.capped ? `${COLD_CAP} S CAP` : "TORCH OFF";
+      status = "CAP IT";
       hint.textContent = pending ? (pending.jarID ? "LOGGED TO YOUR JAR · RATE IT NEXT" : "RATE IT NEXT") : "";
     }
+    // Next-time nudge (DAB IT only)
+    const nx = phase === "dab" ? r?.next : null;
+    nextBox.hidden = !nx;
+    if (nx) {
+      for (const b of nextKeys) {
+        const on = String(nx.pick) === b.dataset.k;
+        b.classList.toggle("on", on);
+        b.setAttribute("aria-pressed", String(on));
+        const k = Number(b.dataset.k);
+        b.setAttribute("aria-label", k === 0 ? "Just right: keep it" : cold ? `${k > 0 ? "Too hot: aim 3 seconds shorter" : "Too cool: aim 3 seconds longer"} next time`
+          : `${k > 0 ? "Too hot: 10 seconds more cool-down" : "Too cool: 10 seconds less cool-down"} next time`);
+      }
+      nextSay.textContent = nx.note || (cold ? "Tap one to tune your guide time." : "Tap one to tune the cool-down for next time.");
+    }
+
     if (numEl.textContent !== big) numEl.textContent = big;
     numEl.classList.toggle("tm-word", word);
     numEl.classList.toggle("tm-long", !word && big.length >= 4);
@@ -598,8 +875,11 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     topEl.textContent = top;
     topEl.style.color = phase === "torch" ? "var(--warn)" : phase === "dab" ? "var(--live)" : "";
     statusEl.textContent = status;
-    statusEl.style.color = phase === "torch" || phase === "cool" ? "var(--gold)" : phase === "dab" ? "var(--sub)" : "";
-    read.setAttribute("aria-label", phase === "dab" ? "Dab it" : `${top}: ${big}${phase === "ready" ? " seconds" : " left"}`);
+    statusEl.classList.toggle("tm-capIt", phase === "dab");
+    statusEl.style.color = phase === "torch" || phase === "cool" ? "var(--gold)" : "";
+    const unit = phase === "ready" ? " seconds" : phase === "torch" && cold ? " seconds so far" : " left";
+    read.setAttribute("aria-label", phase === "dab" ? "Dab it. Cap it." : `${top}: ${big}${unit}`);
+    paintMarks();
     paintDial(now);
     fx.kick();
   }
@@ -607,7 +887,7 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
   // MARK: Motion (canvas over the dial; original drawing, fire colours only)
   const fx = (() => {
     let raf = 0, last: number | null = null;
-    let glow = 0, fire = 0, party = -1, pulseAge = -1, snap = false;
+    let glow = 0, fire = 0, party = -1, pulseAge = -1, pulseGold = false, snap = false;
     let flames: Mote[] = [], embers: Mote[] = [], wisps: Mote[] = [], sparks: Mote[] = [];
     let spr: { hot: HTMLCanvasElement; f: HTMLCanvasElement[]; smoke: HTMLCanvasElement; light: boolean } | null = null;
     const rnd = Math.random;
@@ -769,7 +1049,7 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
       if (pulseAge >= 0) {
         pulseAge += dt;
         if (pulseAge > 0.45) pulseAge = -1;
-        else if (!still) ring(106 * 252 / 260, 0, TAU, rgba(pal.live, 0.5 * (1 - pulseAge / 0.45)), 6 + 12 * (pulseAge / 0.45));
+        else if (!still) ring(106 * 252 / 260, 0, TAU, rgba(pulseGold ? pal.gold : pal.live, 0.5 * (1 - pulseAge / 0.45)), 6 + 12 * (pulseAge / 0.45));
       }
 
       // the torch: a plain nozzle in the corner and a blue jet into the rim
@@ -864,7 +1144,7 @@ export function mountTorch(root: HTMLElement, deps: TorchDeps): TorchUI {
     return {
       kick, halt,
       reset() { glow = 0; fire = 0; party = -1; pulseAge = -1; flames = []; embers = []; wisps = []; sparks = []; },
-      pulse() { pulseAge = 0; kick(); },
+      pulse(gold = false) { pulseAge = 0; pulseGold = gold; kick(); },
       /** Back from being away: drop what was mid-air and show the state as it is now. */
       settle() { flames = []; embers = []; wisps = []; snap = true; },
       celebrate() {
