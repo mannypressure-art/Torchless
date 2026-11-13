@@ -312,7 +312,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         h("b", { class: "jarName" }, j.strain),
         j.category ? h("small", { class: "mono sub" }, j.category) : null,
         h("div", { class: "row", style: "margin-top:4px" }, tag("YOURS", "font-size:8px"),
-          h("b", { class: "cond", style: `font-size:20px;color:${j.rating === undefined ? "var(--dim)" : "var(--gold)"}` }, Jars.ratingText(j.rating)),
+          h("b", { class: "cond", style: `font-size:20px;color:${Jars.effective(j) === undefined ? "var(--dim)" : "var(--gold)"}` }, Jars.ratingText(Jars.effective(j))),
           statusTag(j.finished)),
         j.globalScore !== undefined ? h("div", { class: "row", style: "margin-top:2px" }, tag("GLOBAL", "font-size:8px;color:var(--glob)"),
           h("b", { class: "cond", style: "font-size:17px;color:var(--glob)" }, Jars.ratingText(j.globalScore))) : null));
@@ -321,7 +321,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
   }
 
   // MARK: Global shelf: jars other people logged (approved ones only). Reading needs no sign-in.
-  let globalRows: { id: string; producer: string; strain: string; category?: string; avg?: number; count: number }[] | null = null;
+  let globalRows: { id: string; producer: string; strain: string; category?: string; avg?: number; count: number; flavors: string[] }[] | null = null;
   let globalFailed = false;
   async function loadGlobal(): Promise<void> {
     const get = async (path: string) => {
@@ -335,7 +335,13 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
       const stats: { product_id: string; rating_count: number; avg_score: number }[] = prods.length
         ? await get(`product_stats?select=product_id,rating_count,avg_score&product_id=in.(${prods.map(p => p.id).join(",")})`) : [];
       const by = new Map(stats.map(x => [x.product_id, x]));
-      globalRows = prods.map(p => ({ ...p, avg: by.get(p.id)?.avg_score, count: by.get(p.id)?.rating_count ?? 0 }))
+      const fl = new Map<string, string[]>();
+      try {
+        const rows: { product_id: string; flavor: string }[] = prods.length
+          ? await get(`product_flavor_stats?select=product_id,flavor,votes&votes=gt.0&order=votes.desc&product_id=in.(${prods.map(p => p.id).join(",")})`) : [];
+        for (const r of rows) { const l = fl.get(r.product_id) ?? []; if (l.length < 4) l.push(r.flavor); fl.set(r.product_id, l); }
+      } catch { /* flavors are extra */ }
+      globalRows = prods.map(p => ({ ...p, avg: by.get(p.id)?.avg_score, count: by.get(p.id)?.rating_count ?? 0, flavors: fl.get(p.id) ?? [] }))
         .sort((a, b) => (b.count - a.count) || a.strain.localeCompare(b.strain));
       globalFailed = false;
     } catch { globalFailed = true; }
@@ -363,6 +369,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
           h("div", { class: "center" }, tag("GLOBAL", "font-size:8px;color:var(--glob)"),
             h("b", { class: "cond", style: `font-size:26px;display:block;color:${r.avg === undefined ? "var(--dim)" : "var(--glob)"}` }, Jars.ratingText(r.avg)),
             h("small", { class: "mono dim", style: "font-size:9px" }, r.count === 1 ? "1 rating" : `${r.count} ratings`))),
+        r.flavors.length ? h("div", { class: "flavors", style: "margin-top:8px" }, ...r.flavors.slice(0, 3).map(f => h("span", { class: "flavor on" }, f))) : null,
         photoStrip(r.id),
         have ? h("p", { class: "mono dim", style: "font-size:10px;margin:8px 0 0" }, "Already on your shelf.") :
           h("div", { class: "row", style: "gap:8px;margin-top:10px" },
@@ -520,7 +527,8 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         h("div", { class: "bigName" }, j.strain),
         j.category ? h("div", { class: "mono sub" }, j.category) : null,
         tag("LOGGED " + new Date(j.added).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }).toUpperCase(), "font-size:8.5px")),
-      ratingDial(j.rating, 112)));
+      h("div", { class: "center" }, ratingDial(Jars.effective(j), 112),
+        j.rating === undefined && Jars.dabAverage(j) !== undefined ? tag("DAB AVG", "font-size:8px;display:block;margin-top:4px") : null)));
     out.push(h("div", { class: "panel pad" }, tag("REVIEW", "font-size:9.5px"),
       h("p", { class: "mono review", style: j.review ? "" : "color:var(--dim)" }, j.review || "No words yet. Tap Edit to say how it hit.")));
     if (cloud) out.push(globalCard(j));
@@ -1108,8 +1116,8 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     const status = !CatalogKey.usable(j) ? "Add a producer to share this jar's rating."
       : a.state !== "ready" ? "Sign in to add your rating to GLOBAL."
       : j.shareRating === false ? "Your rating stays on this device."
-      : j.rating === undefined ? "Rate this jar to add it to GLOBAL."
-      : j.sentScore === j.rating && j.sentProductID ? "Your rating is in GLOBAL."
+      : Jars.effective(j) === undefined ? "Rate this jar or a dab to add it to GLOBAL."
+      : j.sentScore === Jars.effective(j) && j.sentProductID ? (j.rating === undefined ? "Your dab average is in GLOBAL." : "Your rating is in GLOBAL.")
       : cloud!.sync.lastProblem ?? "Sending your rating…";
     const box = h("input", { type: "checkbox", checked: j.shareRating !== false,
       onchange: (e: Event) => { const v = (e.target as HTMLInputElement).checked; void store.setServer(j.id, x => { if (v) delete x.shareRating; else x.shareRating = false; }); } });
@@ -1119,6 +1127,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
         h("b", { class: "cond", style: `font-size:40px;color:${j.globalScore === undefined ? "var(--dim)" : "var(--live)"}` }, Jars.ratingText(j.globalScore)),
         h("span", { class: "cond dim", style: "font-size:18px" }, "/ 10")),
       j.globalScore === undefined ? h("p", { class: "mono dim", style: "margin:0" }, "No ratings from anyone yet.") : null,
+      j.globalFlavors?.length ? h("div", { class: "flavors" }, ...j.globalFlavors.slice(0, 4).map(f => h("span", { class: "flavor on" }, f))) : null,
       h("label", { class: "switchRow" }, h("b", { class: "cond", style: "font-size:20px;font-weight:500" }, "Share my rating"), box),
       j.shareRating !== false && j.photo ? h("label", { class: "switchRow" }, h("b", { class: "cond", style: "font-size:20px;font-weight:500" }, "Share my cover photo"),
         h("input", { type: "checkbox", checked: j.shareCover !== false,

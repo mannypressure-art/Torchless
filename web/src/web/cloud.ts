@@ -5,7 +5,7 @@
 
 import { AuthClient, Session } from "@supabase/auth-js";
 import { PostgrestClient } from "@supabase/postgrest-js";
-import { JarStore, Jar, Takedown } from "./jars";
+import { JarStore, Jar, Jars, Takedown } from "./jars";
 import { PhotoShelf } from "./shared-photos";
 
 export const SERVER_URL = "https://jaxwybhjvrqxsihcnxev.supabase.co";
@@ -138,7 +138,7 @@ export class Account {
     this.busy = false;
     if (error) { this.say("Couldn't delete your account. Try again in a bit."); return false; }
     for (const j of store.jars) {
-      if (j.sentProductID || j.sentScore !== undefined) await store.setServer(j.id, x => { delete x.sentProductID; delete x.sentScore; });
+      if (j.sentProductID || j.sentScore !== undefined) await store.setServer(j.id, x => { delete x.sentProductID; delete x.sentScore; delete x.sentFlavors; });
     }
     await this.signOut();
     return true;
@@ -180,7 +180,8 @@ export class JarSync {
     for (const j of [...this.store.jars]) {
       if (!CatalogKey.usable(j)) continue;
       const key = CatalogKey.key(j.producer, j.strain, j.category);
-      const wantShare = uid !== null && j.shareRating !== false && j.rating !== undefined;
+      const score = Jars.effective(j);
+      const wantShare = uid !== null && j.shareRating !== false && score !== undefined;
 
       let pid: string | null = j.productKey === key ? j.productID ?? null : null;
       if (!pid) {
@@ -197,12 +198,12 @@ export class JarSync {
 
       // A rating sent earlier for a product this jar no longer matches: take it back.
       if (uid && j.sentProductID && j.sentProductID !== pid) {
-        if (await this.deleteRating(uid, j.sentProductID)) await this.store.setServer(j.id, x => { delete x.sentProductID; delete x.sentScore; });
+        if (await this.deleteRating(uid, j.sentProductID)) await this.store.setServer(j.id, x => { delete x.sentProductID; delete x.sentScore; delete x.sentFlavors; });
       }
       if (!uid || !pid) continue;
-      if (wantShare && j.rating !== undefined) {
-        if (j.sentProductID !== pid || j.sentScore !== j.rating) {
-          const r = j.rating;
+      if (wantShare && score !== undefined) {
+        if (j.sentProductID !== pid || j.sentScore !== score) {
+          const r = score;
           let ok = false;
           try { ok = await this.upsertRating(uid, pid, r); }
           catch (e) { if (!(e instanceof SyncStop)) throw e; problem = e.message; break; }
@@ -212,9 +213,18 @@ export class JarSync {
             uploaded = true;
           } else problem = "Couldn't send a rating. It'll retry next time.";
         }
+        // Flavor tags ride with the shared rating (Manny 2026-11-13, same as Jar Journal): no names, own rows only.
+        const fl = [...new Set(j.flavors ?? [])].sort();
+        const cur = this.store.jars.find(x => x.id === j.id);
+        if (cur && cur.sentProductID === pid && (cur.sentFlavors ?? "") !== fl.join(",")) {
+          if (await this.sendFlavors(uid, pid, fl)) {
+            await this.store.setServer(j.id, x => { x.sentFlavors = fl.join(","); });
+            uploaded = true;
+          }
+        }
       } else if (j.sentProductID === pid) {
         if (await this.deleteRating(uid, pid)) {
-          await this.store.setServer(j.id, x => { delete x.sentProductID; delete x.sentScore; });
+          await this.store.setServer(j.id, x => { delete x.sentProductID; delete x.sentScore; delete x.sentFlavors; });
           uploaded = true;
         }
       }
@@ -251,7 +261,7 @@ export class JarSync {
     this.shelf ??= new PhotoShelf(this.account.db.fetch, () => (this.account.state === "ready" ? this.account.userID : null));
     for (const j of [...this.store.jars]) {
       const pid = j.sentProductID;
-      const want = !!pid && j.shareRating !== false && j.rating !== undefined && j.shareCover !== false && !!j.photo;
+      const want = !!pid && j.shareRating !== false && Jars.effective(j) !== undefined && j.shareCover !== false && !!j.photo;
       const stem = want ? `${pid}|${j.photo}` : null;
       const sent = j.sentCover?.split("|");
       if (sent && sent.length === 4 && `${sent[0]}|${sent[1]}` !== stem) {
@@ -329,6 +339,16 @@ export class JarSync {
 
   private async deleteRating(uid: string, product: string): Promise<boolean> {
     const { error } = await this.db.from("ratings").delete().eq("user_id", uid).eq("product_id", product);
+    const f = await this.db.from("flavor_tags").delete().eq("user_id", uid).eq("product_id", product);
+    return !error && !f.error;
+  }
+
+  /** Replaces this account's flavor tags for a product: delete, then insert the current set. */
+  private async sendFlavors(uid: string, product: string, flavors: string[]): Promise<boolean> {
+    const d = await this.db.from("flavor_tags").delete().eq("user_id", uid).eq("product_id", product);
+    if (d.error) return false;
+    if (!flavors.length) return true;
+    const { error } = await this.db.from("flavor_tags").insert(flavors.map(f => ({ user_id: uid, product_id: product, flavor: f })));
     return !error;
   }
 
@@ -339,6 +359,11 @@ export class JarSync {
     if (error || !data) return;
     this.lastStats = Date.now();
     const byID = new Map((data as Stat[]).map(s => [s.product_id, s]));
+    const tops = new Map<string, string[]>();
+    const fv = await this.db.from("product_flavor_stats").select("product_id,flavor,votes").in("product_id", ids).gt("votes", 0).order("votes", { ascending: false });
+    if (!fv.error && fv.data) for (const r of fv.data as { product_id: string; flavor: string }[]) {
+      const l = tops.get(r.product_id) ?? []; if (l.length < 4) l.push(r.flavor); tops.set(r.product_id, l);
+    }
     for (const j of [...this.store.jars]) {
       const p = j.productID;
       if (!p) continue;
@@ -349,8 +374,10 @@ export class JarSync {
       const s = byID.get(p);
       const count = s?.rating_count ?? 0;
       const avg = count > 0 && s?.avg_score !== null && s?.avg_score !== undefined ? Number(s.avg_score) : undefined;
-      if (j.globalScore !== avg || (j.globalCount ?? 0) !== count) {
-        await this.store.setServer(j.id, x => { if (avg === undefined) delete x.globalScore; else x.globalScore = avg; x.globalCount = count; });
+      const top = tops.get(p) ?? [];
+      if (j.globalScore !== avg || (j.globalCount ?? 0) !== count || (j.globalFlavors ?? []).join(",") !== top.join(",")) {
+        await this.store.setServer(j.id, x => { if (avg === undefined) delete x.globalScore; else x.globalScore = avg; x.globalCount = count;
+          if (top.length) x.globalFlavors = top; else delete x.globalFlavors; });
       }
     }
   }

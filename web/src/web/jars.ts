@@ -58,6 +58,10 @@ export interface Jar {
   productKey?: string;
   sentProductID?: string;
   sentScore?: number;
+  /** Flavor tags sent with the shared rating, sorted and joined ("" = none sent). */
+  sentFlavors?: string;
+  /** GLOBAL's most-picked flavors for this product, most first (up to 4). */
+  globalFlavors?: string[];
   /** undefined or true = the cover photo goes up with the shared rating (default). false = it doesn't. */
   shareCover?: boolean;
   /** The cover that is up: "productID|photoKey|rowID|path". */
@@ -97,6 +101,13 @@ const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), h
 export const Jars = {
   clampRating: (r: number) => round1(clamp(r, 0, 10)),
   ratingText: (r?: number | null) => (r === undefined || r === null ? "—" : r.toFixed(1)),
+  /** Manny 2026-11-13 (same as Jar Journal): until the jar is rated by hand, it uses the average of its rated dabs.
+   *  A hand rating always wins. */
+  dabAverage(j: { dabs?: { rating?: number }[] }): number | undefined {
+    const r = (j.dabs ?? []).map(d => d.rating).filter((x): x is number => typeof x === "number");
+    return r.length ? Math.round(r.reduce((a, b) => a + b, 0) / r.length * 10) / 10 : undefined;
+  },
+  effective(j: { rating?: number; dabs?: { rating?: number }[] }): number | undefined { return j.rating ?? Jars.dabAverage(j); },
   money(v?: number | null): string {
     if (v === undefined || v === null) return "—";
     return v >= 100 || Math.round(v) === v ? `$${Math.round(v)}` : `$${v.toFixed(2)}`;
