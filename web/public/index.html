@@ -95,8 +95,8 @@
   .btmsg { color: var(--warn); font: 600 18px/1.2 var(--cond); }
 
   /* Gauge card */
-  .gaugeCard { position: relative; height: 264px; border-radius: 28px; overflow: hidden; display: grid; place-items: center; }
-  #gauge { width: 252px; height: 252px; overflow: visible; }
+  .gaugeCard { position: relative; height: 304px; border-radius: 28px; overflow: hidden; display: grid; place-items: center; }
+  #gauge { width: 220px; height: 220px; overflow: visible; }
   .bezelEdge { fill: var(--bezelEdge); } .bezel { fill: var(--bezel); }
   .tickMinor { stroke: var(--tickMinor); stroke-width: 1; } .tickMajor { stroke: var(--tickMajor); stroke-width: 2; }
   .gLabel { fill: var(--dim); font: 500 10.5px var(--mono); text-anchor: middle; transition: opacity .25s; }
@@ -107,7 +107,7 @@
   body.heating #gNeedle rect { fill: var(--live); filter: drop-shadow(0 0 6px var(--live)); }
   #gNeedle { transition: transform .45s ease-out; }
   .hub text { fill: var(--goldFill); font: 700 15px var(--cond); text-anchor: middle; }
-  .readout { position: absolute; left: 50%; top: calc(50% + 62px); transform: translate(-50%, -50%); text-align: center; width: 160px; pointer-events: none; }
+  .readout { position: absolute; left: 50%; top: calc(50% + 56px); transform: translate(-50%, -50%); text-align: center; width: 160px; pointer-events: none; }
   #gTemp { font: 600 44px/1 var(--cond); }
   body.heating #gTemp { color: var(--live); }
   #gStatus { margin-top: 4px; font: 500 9.5px/1.2 var(--mono); letter-spacing: 2px; color: var(--dim); white-space: nowrap; }

@@ -484,7 +484,7 @@ export class HeatFX {
     const look = theme !== "off" && theme !== "chimes" ? theme : "clean";
     const n = (v: number) => Number.isFinite(v) ? Math.round(v * 1000) / 1000 : 0;
     this.state({
-      look, reduce: this.reduce.matches, R: this.face() === "gauge" ? 126 : 114,
+      look, reduce: this.reduce.matches, R: this.face() === "gauge" ? 110 : 114,  // gauge ring is 220 px wide: motion drawn at its own 1:1 scale, fits the 304 px card
       phase: this.phase, energy: n(this.energyGoal), temp: n(this.tempNow), target: n(this.targetNow),
       tempFrac: n(this.tempFracGoal), holdFrac: n(this.holdFrac), holdDur: Math.max(1, this.startRemaining),
       secondsLeft: Math.max(0, this.lastRemaining), coolFrac: n(this.coolFrac), lastFive: this.lastFive,
