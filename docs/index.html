@@ -23,6 +23,7 @@
     --tickMinor: #4A525C; --tickMajor: #C9D1DB; --needleIdle: #C9D1DB; --selFill: #0B2F38;
     --warn: #FF8A3D; --warnFill: #24130A; --noteFill: #1A1508; --bar: #0A0C0E;
     --liveFill: #19E3FF; --liveInk: #031015; --goldFill: #E8B24A; --goldInk: #1A1004;
+    --ember: #FF8A3D; --coll: #5BD68A; --glob: #A88BFF; --grave: #FF5C6C;
     --cond: "Barlow Condensed", "SF Pro Display", -apple-system, system-ui, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, monospace;
     color-scheme: dark;
@@ -32,7 +33,7 @@
     --ink: #0C1014; --dim: #5B6570; --sub: #4A525C; --live: #00718A; --gold: #855A08; --zoneYou: #0B7A4B; --zoneAll: #6D4BD0;
     --faceTop: #FFFFFF; --faceBottom: #E9EDF0; --bezel: #DFE3E8; --bezelEdge: #B9C0C9;
     --tickMinor: #9AA3AF; --tickMajor: #1A2026; --needleIdle: #1A2026; --selFill: #D9F8FD;
-    --warn: #B04A08; --warnFill: #FFF1E6; --noteFill: #FFF7E3; --bar: #FFFFFF;
+    --warn: #B04A08; --warnFill: #FFF1E6; --noteFill: #FFF7E3; --bar: #FFFFFF; --ember: #B8500F; --coll: #1E7F45; --glob: #6A4FD0; --grave: #C02A3A;
     color-scheme: light;
   }
   @media (prefers-color-scheme: light) {
@@ -41,7 +42,7 @@
       --ink: #0C1014; --dim: #5B6570; --sub: #4A525C; --live: #00718A; --gold: #855A08; --zoneYou: #0B7A4B; --zoneAll: #6D4BD0;
       --faceTop: #FFFFFF; --faceBottom: #E9EDF0; --bezel: #DFE3E8; --bezelEdge: #B9C0C9;
       --tickMinor: #9AA3AF; --tickMajor: #1A2026; --needleIdle: #1A2026; --selFill: #D9F8FD;
-      --warn: #B04A08; --warnFill: #FFF1E6; --noteFill: #FFF7E3; --bar: #FFFFFF;
+      --warn: #B04A08; --warnFill: #FFF1E6; --noteFill: #FFF7E3; --bar: #FFFFFF; --ember: #B8500F; --coll: #1E7F45; --glob: #6A4FD0; --grave: #C02A3A;
       color-scheme: light;
     }
   }
@@ -175,6 +176,97 @@
   .curveTitle { font: 700 22px/1 var(--cond); letter-spacing: 2px; color: var(--ink); margin-top: 5px; }
   .curveHero { font: 700 30px/0.9 var(--cond); letter-spacing: 1px; color: var(--ink); white-space: nowrap; }
   .curveHero small { font: 600 10px/1 var(--mono); letter-spacing: 1.6px; color: var(--dim); display: block; text-align: right; margin-bottom: 5px; }
+  .curveHead { cursor: pointer; }
+  .curveChev { align-self: center; transform: rotate(90deg); transition: transform .2s; color: var(--dim); }
+  .curveCard.folded .curveChev { transform: rotate(0deg); }
+  .curveCard.folded svg, .curveCard.folded .curveStats { display: none; }
+  .curveCard.folded .curveHero span { font-size: 22px; }
+  .jarTabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .jarTab { min-height: 44px; border-radius: 12px; border: 1px solid var(--edge); font: 700 11px var(--mono); letter-spacing: 1.5px; color: var(--dim); }
+  .jarTab.tMine.on { color: var(--coll); border-color: var(--coll); background: color-mix(in srgb, var(--coll) 13%, transparent); }
+  .jarTab.tGrave.on { color: var(--grave); border-color: var(--grave); background: color-mix(in srgb, var(--grave) 13%, transparent); }
+  .jarTab.tGlob.on { color: var(--glob); border-color: var(--glob); background: color-mix(in srgb, var(--glob) 13%, transparent); }
+  .globCard { padding: 14px; border-color: color-mix(in srgb, var(--glob) 45%, var(--edge)); }
+  .globPhotos { display: flex; gap: 6px; overflow-x: auto; margin-top: 10px; scrollbar-width: none; }
+  .globPhotos:empty { margin-top: 0; }
+  .gph { position: relative; flex: 0 0 64px; height: 64px; padding: 0; border-radius: 10px; overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--glob) 35%, var(--edge)); background: color-mix(in srgb, var(--glob) 10%, var(--bg)); }
+  .gph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gph.wait img { opacity: .5; }
+  .gph.add { color: var(--glob); font-size: 26px; border-style: dashed; }
+  .gphLikes { position: absolute; left: 3px; bottom: 3px; font: 9px/1 var(--mono, monospace); padding: 2px 4px; border-radius: 6px;
+    background: rgba(0,0,0,.6); color: #fff; }
+  .thumbIco { display: inline-block; width: 1.05em; height: 1.05em; vertical-align: -0.15em; margin-right: 3px; }
+  .thumbIco svg { width: 100%; height: 100%; display: block; }
+  .gphView { padding: 0 16px 24px; }
+  .gphBig { border-radius: 14px; overflow: hidden; background: #000; min-height: 200px; display: flex; align-items: center; justify-content: center; }
+  .gphBig img { max-width: 100%; max-height: 70vh; display: block; }
+  .likeBtn.on { color: var(--glob); border-color: var(--glob); background: color-mix(in srgb, var(--glob) 14%, transparent); }
+  .tCollBtn { color: var(--coll); border-color: var(--coll) !important; background: color-mix(in srgb, var(--coll) 12%, transparent); }
+  .tGraveBtn { color: var(--grave); border-color: var(--grave) !important; background: color-mix(in srgb, var(--grave) 12%, transparent); }
+  .photoSlots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .photoSlots .slot { position: relative; aspect-ratio: 1; border-radius: 12px; border: 1px dashed var(--edge); background: var(--cardBottom) center/cover no-repeat; display: flex; align-items: center; justify-content: center; font: 600 26px var(--cond); color: var(--dim); }
+  .photoSlots .slot.cover { border-style: solid; border-color: var(--gold); }
+  .photoSlots .slot.add:disabled { opacity: .35; }
+  .photoSlots .slotX { position: absolute; top: 4px; right: 4px; width: 28px; height: 28px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 18px; }
+  .askAfter { color: var(--live); }
+  .askAfter.on { border-color: var(--live); background: color-mix(in srgb, var(--live) 13%, transparent); }
+  .jarCard.done { border-color: color-mix(in srgb, var(--grave) 35%, var(--edge)); }
+  .tut { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,.6); padding: 16px 16px calc(24px + env(safe-area-inset-bottom)); touch-action: pan-y; }
+  .tutCard { width: 100%; max-width: 440px; padding: 20px; border-radius: 22px; border: 1px solid var(--tc); background: linear-gradient(color-mix(in srgb, var(--tc) 12%, var(--cardTop)), var(--cardBottom)); }
+  .tutCard h2 { font: 700 34px/1.05 var(--cond); letter-spacing: 1px; margin: 14px 0 8px; }
+  .tutCard p { margin: 0 0 18px; color: var(--sub); font-size: 17px; }
+  .tutDots { display: flex; gap: 8px; justify-content: center; margin-bottom: 16px; }
+  .tutDots button { width: 10px; height: 10px; border-radius: 50%; background: var(--edge); padding: 0; }
+  .tutDots button.on { background: var(--tc); width: 26px; border-radius: 5px; }
+  .planBtn { width: 100%; min-height: 52px; margin-top: 12px; border-radius: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--goldFill); color: var(--goldInk); font: 700 20px/1 var(--cond); letter-spacing: 3px; }
+  .planBtn .ico { font-size: 20px; }
+  .curJar.slim { position: sticky; top: calc(4px + env(safe-area-inset-top)); z-index: 4; min-height: 56px; padding: 0 10px; border-color: color-mix(in srgb, var(--live) 45%, var(--edge)); background: color-mix(in srgb, var(--live) 8%, var(--cardBottom)); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  .curJar.slim .jarPhoto, .curJar.slim .curIcon { width: 38px !important; height: 38px !important; }
+  .curJar.slim .curText b { font-size: 18px; }
+  .curJar.slim .curText small, .curJar.slim .twoLine + .twoLine { display: none; }
+  .curJar.slim .plusKey { width: 40px; height: 40px; font-size: 22px; }
+  .heatBlock { position: sticky; bottom: calc(70px + env(safe-area-inset-bottom)); z-index: 4; }
+  .heatBlock .bigBtn { min-height: 64px; font-size: 32px; box-shadow: 0 8px 22px rgba(0,0,0,.45); }
+  .planPill { margin-left: auto; margin-right: 8px; min-height: 34px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; background: var(--live); color: var(--bg, #06090c); font: 700 11px var(--mono); letter-spacing: 1.2px; box-shadow: 0 0 14px color-mix(in srgb, var(--live) 45%, transparent); }
+  .planPill .ico { font-size: 15px; }
+  .foldHead { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 4px; border-bottom: 1px solid var(--edge); text-align: left; }
+  .foldHead .foldSub { flex: 1; font-size: 10px; color: var(--dim); }
+  .foldHead .chev { transform: rotate(90deg); transition: transform .2s; }
+  .foldHead[aria-expanded="false"] .chev { transform: rotate(0deg); }
+  .lookGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .lookCard { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 10px; border-radius: 14px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); text-align: left; min-height: 44px; }
+  .lookCard.on { border-color: var(--live); background: color-mix(in srgb, var(--live) 12%, var(--cardBottom)); }
+  .lookCard b { font-size: 18px; } .lookCard small { font: 10px/1.3 var(--mono); color: var(--dim); }
+  .lookCard .lookSw { width: 100%; height: 56px; margin: 0; }
+  .lookSw { flex: none; width: 38px; height: 38px; border-radius: 10px; position: relative; overflow: hidden; background: #0b0f13; border: 1px solid var(--edge); margin-right: 12px; }
+  .lookSw::before, .lookSw::after { animation-play-state: paused !important; }
+  .lookSw.play::before, .lookSw.play::after { animation-play-state: running !important; }
+  .lookSw::before, .lookSw::after { content: ""; position: absolute; inset: 0; }
+  .sw-off::before { background: none; }
+  .sw-chimes::before { border: 2px solid #9fe7ff; border-radius: 50%; inset: 9px; animation: swPulse 1.6s ease-in-out infinite; }
+  .sw-ember::before { background: radial-gradient(circle at 50% 70%, #ff7a1a, #7a1d00 55%, transparent 70%); animation: swGlow 1.8s ease-in-out infinite; }
+  .sw-ignition::before { background: radial-gradient(circle, #fff6b0 0 8%, transparent 9%); animation: swSpark .9s steps(3) infinite; }
+  .sw-ignition::after { background: conic-gradient(from 0deg, transparent 0 80%, #ffd23a 85%, transparent 90%); animation: swSpin 1s linear infinite; border-radius: 50%; inset: 6px; }
+  .sw-torch::before { background: radial-gradient(ellipse 30% 55% at 50% 78%, #fffbe0, #ffb21a 35%, #ff4d00 60%, transparent 75%); transform-origin: 50% 90%; animation: swFlame .35s ease-in-out infinite alternate; }
+  .sw-torch::after { background: radial-gradient(ellipse 18% 35% at 50% 82%, #9fd8ff, transparent 70%); }
+  .sw-arcade::before { background: radial-gradient(circle at 30% 50%, #ffd23a 0 22%, transparent 23%); animation: swChomp .5s steps(2) infinite; }
+  .sw-arcade::after { background: radial-gradient(circle at 60% 50%, #ffd23a 0 5%, transparent 6%), radial-gradient(circle at 80% 50%, #ffd23a 0 5%, transparent 6%); animation: swDots 1s linear infinite; }
+  .sw-reactor::before { border-radius: 50%; inset: 6px; border: 3px solid transparent; border-top-color: #39ffb0; border-bottom-color: #39ffb0; animation: swSpin .8s linear infinite; }
+  .sw-reactor::after { background: radial-gradient(circle, #39ffb0 0 14%, transparent 30%); animation: swGlow 1s ease-in-out infinite; }
+  .sw-kettle::before { background: radial-gradient(circle at 40% 70%, rgba(255,255,255,.55) 0 12%, transparent 13%), radial-gradient(circle at 60% 55%, rgba(255,255,255,.4) 0 10%, transparent 11%); animation: swSteam 1.4s ease-in infinite; }
+  .sw-storm::before { background: linear-gradient(180deg, #2a3550, #0b0f13); }
+  .sw-storm::after { background: linear-gradient(115deg, transparent 45%, #e8f2ff 47%, transparent 50%); animation: swFlash 1.7s steps(1) infinite; }
+  @keyframes swPulse { 50% { transform: scale(1.25); opacity: .4; } }
+  @keyframes swGlow { 50% { opacity: .45; } }
+  @keyframes swSpark { 33% { transform: translate(-8px, 5px); } 66% { transform: translate(7px, -6px); } }
+  @keyframes swSpin { to { transform: rotate(360deg); } }
+  @keyframes swFlame { from { transform: scale(.92, .95); } to { transform: scale(1.06, 1.12); } }
+  @keyframes swChomp { 50% { clip-path: polygon(0 0, 100% 0, 30% 50%, 100% 100%, 0 100%); } }
+  @keyframes swDots { to { transform: translateX(-12px); } }
+  @keyframes swSteam { from { transform: translateY(6px); opacity: 1; } to { transform: translateY(-12px); opacity: 0; } }
+  @keyframes swFlash { 0%, 80% { opacity: 0; } 82%, 86% { opacity: 1; } 84% { opacity: .2; } }
+  @media (prefers-reduced-motion: reduce) { .lookSw::before, .lookSw::after { animation: none !important; } }
   .curveCard svg { display: block; width: 100%; height: auto; margin-top: 6px; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
   .curveStats { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 8px; border-top: 1px solid var(--edge); }
   .curveStats div { padding: 9px 0 0; text-align: center; border-left: 1px solid var(--edge); }
@@ -198,6 +290,16 @@
   .plHalo { fill: var(--live); opacity: 0; } .plHalo.on { opacity: .16; }
   .plSel { fill: var(--gold); }
   .plProblem { font-size: 10.5px; color: var(--warn); margin: 8px 0 0; }
+  .plWrap { position: relative; }
+  .plPill { position: absolute; transform: translate(-50%, calc(-100% - 16px)); display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 999px; background: color-mix(in srgb, var(--live) 14%, var(--cardBottom)); border: 1px solid var(--live); box-shadow: 0 6px 18px rgba(0,0,0,.45); z-index: 2; white-space: nowrap; }
+  .plPill.below { transform: translate(-50%, 16px); }
+  .plPill button { width: 44px; height: 44px; border-radius: 50%; font: 700 24px/1 var(--cond); color: var(--live); }
+  .plPill button:active { background: color-mix(in srgb, var(--live) 22%, transparent); }
+  .plPill b { min-width: 44px; text-align: center; font-size: 18px; }
+  .plPill i { width: 1px; height: 26px; background: var(--edge); margin: 0 2px; }
+  .plTools { position: absolute; top: 0; right: 0; display: flex; gap: 6px; }
+  .plTools button { min-width: 44px; height: 32px; padding: 0 8px; border-radius: 10px; border: 1px solid var(--edge); background: var(--cardBottom); font: 700 11px var(--mono); letter-spacing: 1px; color: var(--ink); }
+  .plTools button:disabled { opacity: .35; }
   .plPointRow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .plStep { display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; gap: 4px 6px; padding: 10px; border: 1px solid var(--edge); border-radius: 14px; background: var(--cardBottom); }
   .plStep .tag { grid-column: 1 / -1; }
@@ -253,9 +355,9 @@
   .bigBtn { width: 100%; min-height: 84px; border-radius: 20px; font: 700 38px/1 var(--cond); letter-spacing: 5px; display: flex; align-items: center; justify-content: center; gap: 12px; }
   .bigBtn .ico { font-size: 34px; stroke-width: 2; margin-left: -6px; }
   .ico { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -.14em; }
-  #heat { position: relative; overflow: hidden; color: var(--liveInk); background: linear-gradient(#5FF0FF, var(--liveFill), #10B9D0); box-shadow: 0 0 16px color-mix(in srgb, var(--liveFill) 35%, transparent); }
+  #heat { position: relative; overflow: hidden; color: var(--goldInk); background: linear-gradient(#F5C76A, var(--goldFill), #C9932E); box-shadow: 0 0 16px color-mix(in srgb, var(--goldFill) 35%, transparent); }
   #heat:disabled { opacity: .4; box-shadow: none; }
-  #cut { color: var(--goldInk); background: linear-gradient(#FFD27A, var(--goldFill), #C98F25); box-shadow: 0 0 16px color-mix(in srgb, var(--goldFill) 35%, transparent); flex: 1; }
+  #cut { color: #1A0800; background: linear-gradient(#FFB27A, var(--ember), #D9601C); box-shadow: 0 0 16px color-mix(in srgb, var(--ember) 35%, transparent); flex: 1; }
   #extend { width: 78px; flex: none; min-height: 84px; text-align: center; }
   #extend b { display: block; font: 700 30px/1 var(--cond); color: var(--live); margin-bottom: 4px; }
   #extend:disabled { opacity: .4; }
@@ -644,6 +746,7 @@
 
     <!-- Home -->
     <section data-panel="home" class="stack" style="margin-top:16px">
+      <div id="curJar" class="curJar slim panel"></div>
       <div class="gaugeCard panel" id="faceCard">
         <svg id="gauge" viewBox="0 0 260 260">
           <circle cx="130" cy="130" r="138" class="bezelEdge"/>
@@ -663,7 +766,7 @@
       </div>
 
       <div>
-        <div class="row"><span id="presetTag" class="tag" style="font-size:9.5px">PRESETS</span><span style="flex:1"></span><button id="planBtn" class="edit" style="color:var(--live);border-color:color-mix(in srgb, var(--live) 55%, transparent)">PLAN</button><button id="editBtn" class="edit" hidden>EDIT</button></div>
+        <div class="row"><span id="presetTag" class="tag" style="font-size:9.5px">PRESETS</span><button id="editBtn" class="edit" hidden>EDIT</button></div>
         <div class="presets">
           <button id="p1" class="key"><small>1</small><span id="p1t">—</span></button>
           <button id="p2" class="key"><small>2</small><span id="p2t">—</span></button>
@@ -671,10 +774,12 @@
           <button id="p4" class="key"><small>4</small><span id="p4t">—</span></button>
           <button id="p5" class="key"><small>5</small><span id="p5t">—</span></button>
         </div>
+        <button id="planBtn" class="planBtn"><svg class="ico" aria-hidden="true"><use href="#i-dial"/></svg>PLAN A CURVE</button>
         <div id="curveCard" class="curveCard" hidden>
-          <div class="curveHead">
+          <div class="curveHead" id="curveHead" role="button" tabindex="0" aria-expanded="false">
             <div><span id="curveTag" class="tag" style="font-size:9.5px">HEAT CURVE</span><div id="curveTitle" class="curveTitle"></div></div>
             <div class="curveHero"><small id="curveHeroTag">RANGE</small><span id="curveRange"></span></div>
+            <span class="chev curveChev" aria-hidden="true">›</span>
           </div>
           <svg id="curveSvg" viewBox="0 0 340 168" role="img" aria-label="Heat curve for the selected preset"></svg>
           <div class="curveStats">
@@ -683,7 +788,6 @@
             <div><span class="tag" style="font-size:8.5px">LOW</span><b id="cvLow"></b></div>
             <div><span class="tag" style="font-size:8.5px">HOLD</span><b id="cvHold"></b></div>
           </div>
-          <div class="curveNote"><i></i><span id="curveNote"></span></div>
         </div>
       </div>
 
@@ -707,7 +811,6 @@
         <p id="dialSay" class="mono sub" style="font-size:10.5px;margin:0"></p>
       </div>
 
-      <div id="curJar" class="curJar panel"></div>
 
       <div id="againStrip" class="careRow panel" hidden>
         <div style="flex:1;min-width:0"><span class="tag" style="font-size:9px;color:var(--gold)">DO THAT AGAIN</span><b id="againTitle" class="cond"></b><small id="againLine" class="mono"></small></div>
@@ -724,7 +827,7 @@
         <button id="cleanedBtn" class="btn2" style="flex:none">DONE</button>
       </div>
 
-      <button class="strip panel" data-tab="lights">
+      <button class="strip panel" data-tab="lights" hidden>
         <span id="stripOrb" class="orb" style="width:40px;height:40px"></span>
         <div><span class="tag" style="font-size:9px">LIGHTS</span><b id="stripName">Calm</b><small id="stripDetail">Link the rig to set lights</small></div>
         <span id="stripShow" class="tag showPill"></span>
@@ -739,7 +842,11 @@
 
     <!-- Lights (as LightsView on iPhone) -->
     <section data-panel="lights" hidden style="margin-top:16px" class="stack">
-      <h2>LIGHTS</h2>
+      <h2>STYLE</h2>
+      <button class="foldHead" id="lookFoldBtn" aria-expanded="true"><span class="tag" style="font-size:10px;color:var(--live)">LOOK</span><span class="foldSub mono">Mode, face, heat-up look</span><span class="chev">›</span></button>
+      <div id="lookFold" class="stackS"></div>
+      <button class="foldHead" id="lightsFoldBtn" aria-expanded="true"><span class="tag" style="font-size:10px;color:var(--gold)">LIGHTS</span><span class="foldSub mono">Colour, brightness, light show</span><span class="chev">›</span></button>
+      <div id="lightsFold" class="stack">
       <div class="panel nowCard">
         <div class="row" style="gap:16px"><span id="nowOrb" class="orb" style="width:76px;height:76px"></span>
           <div><span class="tag" style="font-size:9px">NOW</span><b id="lightNow" class="cond" style="display:block;font-size:30px">---</b><span id="lightKind" class="mono sub" style="font-size:10.5px">Link the rig first</span></div></div>
@@ -753,6 +860,7 @@
         <span id="showTag" class="tag"></span><span class="chev">›</span>
       </button>
       <div id="lightGrid"></div>
+      </div>
     </section>
 
     <!-- Rig (built by rig-ui.ts) -->
@@ -763,7 +871,7 @@
     <button data-tab="home" data-for="rig"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 13 L16 9"/></svg>HOME</button>
     <button data-tab="torch" data-for="torch"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><use href="#i-torch"/></svg>TORCH</button>
     <button data-tab="jars"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v11c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"/></svg>JARS</button>
-    <button data-tab="lights" data-for="rig"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>LIGHTS</button>
+    <button data-tab="lights" data-for="rig"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>STYLE</button>
     <button data-tab="rig" data-for="rig"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="18" rx="3"/><path d="M12 7v4"/></svg>RIG</button>
     <button id="tabMode" data-for="torch" aria-label="Switch mode: back to the front page"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><use href="#i-swap"/></svg>MODE</button>
   </nav>
