@@ -330,7 +330,7 @@ export function openPlanner(hooks: PlannerHooks, start: CurveStep[]): () => void
     };
 
     body.append(
-      topBar(textBtn("Done", () => { closeIt(); }), h("b", { class: "cond", style: "font-size:20px;letter-spacing:2px" }, "RIDE PLANNER"), null),
+      topBar(textBtn("Done", () => { closeIt(); }), h("b", { class: "cond", style: "font-size:20px;letter-spacing:2px" }, "CURVE PLANNER"), null),
       h("div", { class: "curveCard", style: "margin-top:4px" }, head, wrap, stats, problemLine,
         h("p", { class: "mono dim", style: "font-size:10px;margin:8px 0 0" }, "Tap a point, then − or +. Or drag it.")),
       tag("START FROM", "font-size:9.5px;margin-top:4px"), tmplRow,

@@ -248,7 +248,11 @@ function renderCurve(sel: number, celsius: boolean, heating: boolean) {
   $("curveTag").textContent = `PRESET ${sel}`;
   $("curveTitle").textContent = p.profile !== undefined ? HeatProfile.name(p.profile).toUpperCase() : "—";
   $("curveHeroTag").textContent = view.low === view.peak ? "HOLDS AT" : "RANGE";
-  $("curveRange").textContent = view.low === view.peak ? deg(view.peak) : `${Math.round(view.low)}–${deg(view.peak)}`;
+  // Fable review 2026-11-13: a flat preset is one line (temp · hold); the four stats only for real curves.
+  const flat = view.low === view.peak && view.start === view.peak;
+  $("curveRange").replaceChildren(view.low === view.peak ? deg(view.peak) : `${Math.round(view.low)}–${deg(view.peak)}`);
+  if (flat) { const sub = document.createElement("span"); sub.className = "cvSub"; sub.textContent = `· ${view.seconds}s`; $("curveRange").append(sub); }
+  $("curveStats").hidden = flat;
   $("cvStart").textContent = deg(view.start);
   $("cvPeak").textContent = deg(view.peak);
   $("cvLow").textContent = deg(view.low);

@@ -82,7 +82,7 @@
   .btmsg { color: var(--warn); font: 600 18px/1.2 var(--cond); }
 
   /* Gauge card */
-  .gaugeCard { position: relative; height: 300px; border-radius: 28px; overflow: hidden; display: grid; place-items: center; }
+  .gaugeCard { position: relative; height: 264px; border-radius: 28px; overflow: hidden; display: grid; place-items: center; }
   #gauge { width: 252px; height: 252px; overflow: visible; }
   .bezelEdge { fill: var(--bezelEdge); } .bezel { fill: var(--bezel); }
   .tickMinor { stroke: var(--tickMinor); stroke-width: 1; } .tickMajor { stroke: var(--tickMajor); stroke-width: 2; }
@@ -233,15 +233,20 @@
   .curJar.slim .plusKey { width: 40px; height: 40px; font-size: 22px; }
   .curJar .jarSide { display: flex; align-items: center; gap: 4px; flex: none; }
   .curJar .addKey { display: flex; flex-direction: column; align-items: center; gap: 1px; }
-  .curJar .addKey small { font: 600 8px/1 var(--mono); letter-spacing: 1px; color: var(--gold); }
+  .curJar .addKey small { font: 600 11px/1 var(--mono); letter-spacing: 1px; color: var(--gold); }
   .curJar .switchLink { font: 700 10px var(--mono); letter-spacing: 1.2px; color: var(--live); padding: 6px 6px; min-height: 44px; }
   .curJar .dockBtn { width: 32px; min-height: 44px; display: flex; align-items: center; justify-content: center; color: var(--dim); }
   .curJar .dockBtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .curJar.docked { position: static; }
+  .sessKey .x { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; background: var(--edge); color: var(--ink); font: 700 12px/18px var(--mono); }
+  .curJar .plusKey { width: 36px; height: 36px; border-radius: 10px; background: transparent; border: 1px solid var(--gold); color: var(--gold); font-size: 22px; }
+  .heatBlock::before { content: ""; position: absolute; left: -16px; right: -16px; top: -28px; bottom: -12px; z-index: -1; pointer-events: none; background: linear-gradient(to bottom, transparent, var(--bg) 26px); }
+  .curveStats[hidden] { display: none !important; }
+  .cvBig .cvSub { font-size: .55em; color: var(--ink); opacity: .75; margin-left: 4px; }
   .curJar .curText .tag { white-space: nowrap; }
-  .sessKey { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 52px; height: 52px; border-radius: 14px; border: 1px solid var(--edge); background: rgba(0,0,0,.25); }
+  .sessKey { position: relative; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 52px; height: 48px; border-radius: 14px; border: 1px solid var(--edge); background: rgba(0,0,0,.25); }
   .sessKey b { font: 700 24px/1 var(--cond); color: var(--live); }
-  .sessKey small { font: 600 8px var(--mono); letter-spacing: .18em; color: var(--dim); margin-top: 3px; }
+  .sessKey small { font: 600 11px var(--mono); letter-spacing: .1em; color: var(--dim); margin-top: 3px; }
   .switchRow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; margin-top: 8px; padding: 8px 12px 8px 8px; border-radius: 14px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); text-align: left; }
   .switchRow.on { border-color: var(--live); background: color-mix(in srgb, var(--live) 10%, var(--cardBottom)); }
   .switchRow .jarPhoto { flex: none; }
@@ -395,20 +400,21 @@
   .cvTipText { fill: var(--cardTop); font: 700 11px var(--mono); }
   .presetHead { margin: 0 0 6px; }
   .presets { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
-  .key.custom span { font: 700 12px/1 var(--cond); letter-spacing: 1px; color: var(--gold); }
-  .planRow { display: flex; gap: 8px; margin-top: 8px; }
-  .planRow .planBtn { margin-top: 0; flex: 1; min-width: 0; font-size: 17px; letter-spacing: 2px; }
-  .runBack { flex: none; width: 116px; min-height: 48px; border-radius: 14px; border: 1px solid var(--gold); background: transparent; color: var(--gold); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+  .key.custom span { font: 700 14px/1 var(--cond); letter-spacing: 1px; color: var(--gold); }
+  .planRow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .planRow .planBtn { margin-top: 0; min-width: 0; min-height: 44px; background: transparent; border: 1px solid var(--gold); color: var(--gold); font-size: 15px; letter-spacing: 1.5px; gap: 6px; }
+  .planRow .planBtn .ico { font-size: 16px; }
+  .runBack { min-width: 0; min-height: 44px; border-radius: 14px; border: 1px solid var(--gold); background: transparent; color: var(--gold); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
   .runBack b { font: 700 15px/1 var(--cond); letter-spacing: 1.5px; }
-  .runBack small { font: 500 8px/1 var(--mono); letter-spacing: .08em; opacity: .8; white-space: nowrap; }
+  .runBack small { font: 500 11px/1 var(--mono); letter-spacing: .08em; opacity: .8; white-space: nowrap; }
   .runBack:disabled { border-color: var(--edge); color: var(--dim); }
   .key { min-height: 44px; border-radius: 12px; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); text-align: center; }
-  .key small { display: block; font: 500 8.5px/1 var(--mono); color: var(--dim); margin-bottom: 1px; }
+  .key small { display: block; font: 500 11px/1 var(--mono); color: var(--dim); margin-bottom: 1px; }
   .key span { font: 600 20px/1 var(--cond); }
   .key.on { background: var(--selFill); border-color: var(--live); }
   .key.on small { color: var(--live); }
   .key:disabled { opacity: .45; }
-  .edit { margin-left: auto; min-height: 32px; padding: 0 10px; border: 1px solid color-mix(in srgb, var(--gold) 60%, transparent); border-radius: 8px; color: var(--gold); font: 700 10px var(--mono); letter-spacing: 1.5px; }
+  .edit { margin-left: auto; min-height: 32px; padding: 0 2px 0 10px; border: 0; background: none; color: var(--gold); font: 700 11px var(--mono); letter-spacing: 1.5px; }
   .edit:disabled { opacity: .4; }
 
   /* Heat */
@@ -532,8 +538,8 @@
   .ellipsis { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
   hr { border: 0; border-top: 1px solid var(--edge); margin: 4px 0; width: 100%; }
   .stackS { display: flex; flex-direction: column; gap: 12px; }
-  .curJar { display: flex; align-items: center; gap: 12px; padding: 0 14px; min-height: 84px; }
-  .curMain { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; text-align: left; min-height: 84px; }
+  .curJar { display: flex; align-items: center; gap: 10px; padding: 0 12px; min-height: 64px; }
+  .curMain { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; text-align: left; min-height: 64px; }
   .curText { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .curText b { font: 700 22px/1.05 var(--cond); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .curText b.twoLine, .curText small.twoLine { white-space: normal; }
@@ -833,7 +839,7 @@
           <button id="p3" class="key"><small>3</small><span id="p3t">—</span></button>
           <button id="p4" class="key"><small>4</small><span id="p4t">—</span></button>
           <button id="p5" class="key"><small>5</small><span id="p5t">—</span></button>
-          <button id="pCustom" class="key custom" aria-label="Custom curve"><small>DRAW</small><span>CUSTOM</span></button>
+          <button id="pCustom" class="key custom" aria-label="Draw a curve"><small>MY</small><span>CURVE</span></button>
         </div>
         <div class="planRow">
           <button id="planBtn" class="planBtn"><svg class="ico" aria-hidden="true"><use href="#i-dial"/></svg>PLAN A CURVE</button>
@@ -848,7 +854,7 @@
           <button class="graphHead" id="graphHead" aria-expanded="true" aria-controls="curveSvg"><span class="cvLbl">GRAPH</span>
             <svg class="graphChev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
           <svg id="curveSvg" viewBox="0 0 340 168" role="img" aria-label="Heat curve for the selected preset"></svg>
-          <div class="curveStats">
+          <div class="curveStats" id="curveStats">
             <div><span class="tag" style="font-size:8.5px">START</span><b id="cvStart"></b></div>
             <div><span class="tag" style="font-size:8.5px">PEAK</span><b id="cvPeak"></b></div>
             <div><span class="tag" style="font-size:8.5px">LOW</span><b id="cvLow"></b></div>

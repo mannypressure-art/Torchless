@@ -217,13 +217,15 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     if (home) { if (docked && home.lastElementChild !== box) home.append(box); else if (!docked && home.firstElementChild !== box) home.prepend(box); }
     const dock = h("button", { class: "dockBtn", "aria-label": docked ? "Pin the jar to the top" : "Move the jar to the bottom",
       onclick: () => { prefSet("jarDock", docked ? "no" : "yes"); renderHome(); } });
-    dock.innerHTML = docked ? '<svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"/></svg>';
+    dock.innerHTML = docked ? '<svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
     // Manny 2026-11-13: session counter. A session is the run of dabs (any jar) with under 2 hours between
     // them, still open if the last dab was under 2 hours ago. Tap to start a new count.
     const sess = sessionDabs();
-    const counter = h("button", { class: "sessKey", "aria-label": `${sess} dabs this session. Tap to reset.`,
-      onclick: () => { prefSet("sessionReset", new Date().toISOString()); renderHome(); } },
-      h("b", {}, String(sess)), h("small", {}, "SESSION"));
+    // Fable review: says what it counts; reset is the small ×, not the whole key.
+    const counter = h("div", { class: "sessKey", "aria-label": `${sess} dabs this session` },
+      h("b", {}, String(sess)), h("small", {}, sess === 1 ? "DAB" : "DABS"),
+      sess ? h("button", { class: "x", "aria-label": "Reset the session count",
+        onclick: () => { prefSet("sessionReset", new Date().toISOString()); renderHome(); } }, "×") : "");
     box.replaceChildren(main, counter, h("div", { class: "jarSide" },
       j && open.length > 1 ? h("button", { class: "switchLink", onclick: () => quickSwitch() }, "SWITCH") : "",
       h("div", { class: "addKey" }, plus, h("small", {}, "ADD")), dock));
