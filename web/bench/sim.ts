@@ -178,7 +178,12 @@ export class SimRig {
   preset = 1; lightMode = 3; session = 0; autoOff = 10; unit = 15; remaining = 0; haptics = 170;
   extend = 0; battery = 80; brightness = 50; temp = 80.0;
   presetTemp = [480, 450, 500, 520, 550, 600];
-  curve: Record<number, Record<number, number[]>> = { 186: {}, 187: {} };
+  curveA: Record<number, number[]> = {};
+  curveB: Record<number, number[]> = {};
+  /** The real rig (Log of 2026-11-12) refuses a temp write to the preset it is heating from. */
+  locksActiveTempMidDab = true;
+  /** A rig that loses the second curve frame. */
+  ignoreCurveB = false;
   hold = [30, 12, 30, 10, 45, 60];
   profile = [161, 161, 161, 161, 161, 161];
 
@@ -238,6 +243,27 @@ export class SimRig {
     this.note(`STOP by ${cause}`);
   }
 
+  /** Where a saved Custom curve says the temp should be `el` seconds into the hold. */
+  private curveTarget(slot: number, el: number): number | null {
+    const pts: { t: number; f: number }[] = [];
+    for (const part of [this.curveA[slot], this.curveB[slot]]) {
+      if (!part || part.length !== 15) continue;
+      for (let i = 0; i < 3; i++) {
+        const f = (part[i * 5] << 8) | part[i * 5 + 1];
+        if (f > 0) pts.push({ t: part[i * 5 + 4], f });
+      }
+    }
+    if (pts.length === 0) return null;
+    if (el <= pts[0].t) return pts[0].f;
+    for (let i = 1; i < pts.length; i++) {
+      if (el <= pts[i].t) {
+        const a = pts[i - 1], b = pts[i];
+        return a.f + (b.f - a.f) * (el - a.t) / Math.max(0.001, b.t - a.t);
+      }
+    }
+    return pts[pts.length - 1].f;
+  }
+
   private tick() {
     const now = this.now();
     if (this.session !== 0) {
@@ -254,6 +280,11 @@ export class SimRig {
       // Ascent preset climbs 1 F a second from its set temp, and +10 s keeps the climb going. One dab's
       // worth of evidence; whether the rig stops climbing at set temp + 50 was not seen.
       if (this.profile[slot] === 177 && now >= this.countdownStart) target += Math.min(this.total, now - this.countdownStart);
+      // Custom: ramp between the saved waypoints (a guess; never seen on the real rig).
+      if (this.profile[slot] === 241 && now >= this.countdownStart) {
+        const w = this.curveTarget(slot, now - this.countdownStart);
+        if (w !== null) target = w;
+      }
       this.temp = Math.min(target, this.temp + 60);
     } else {
       this.temp = Math.max(80, this.temp - 8);
@@ -325,8 +356,12 @@ export class SimRig {
       }
       case 179: {
         if (b.length !== 8 || b[2] > 5) return;
-        this.presetTemp[b[2]] = (b[3] << 8) | b[4];
-        this.note(`TEMP slot ${b[2]} = ${this.presetTemp[b[2]]}`);
+        if (this.locksActiveTempMidDab && this.session !== 0 && b[2] === this.preset) {
+          this.note(`TEMP slot ${b[2]} refused (heating from it), still ${this.presetTemp[b[2]]}`);
+        } else {
+          this.presetTemp[b[2]] = (b[3] << 8) | b[4];
+          this.note(`TEMP slot ${b[2]} = ${this.presetTemp[b[2]]}`);
+        }
         const f = this.presetTemp[b[2]];
         const c = Math.round((f - 32) * 5 / 9);
         this.report([163, 8, b[2], f >> 8, f & 255, c >> 8, c & 255, 163]);
@@ -344,13 +379,21 @@ export class SimRig {
         break;
       case 186:
       case 187: {
-        // Custom curve halves (DRAFT). Stored and echoed back as 0xAA / 0xAB, the way the real rig
-        // reports a slot's curve. Refused while a dab runs, like the real rig refuses preset writes then.
-        if (b.length !== 19 || b[1] !== 19 || b[2] < 1 || b[2] > 5 || b[18] !== cmd) { this.note("BAD curve frame"); return; }
-        if (this.session !== 0) { this.note(`CURVE write refused mid-dab (slot ${b[2]})`); return; }
-        this.curve[cmd][b[2]] = b.slice(3, 18);
-        this.note(`CURVE part ${cmd - 185} slot ${b[2]}`);
-        this.report([cmd - 16, 19, b[2], ...b.slice(3, 18), cmd - 16]);
+        // Custom curve halves, stored and echoed back as 0xAA / 0xAB. Never seen on a real rig.
+        if (b.length !== 19 || b[1] !== 19 || b[18] !== cmd || b[2] < 1 || b[2] > 5) { this.note(`BAD curve frame ${cmd}`); return; }
+        if (this.session !== 0) { this.note(`CURVE frame ${cmd} refused (heating)`); return; }
+        const slot = b[2], payload = b.slice(3, 18);
+        if (cmd === 186) {
+          this.curveA[slot] = payload;
+          this.note(`CURVE A slot ${slot}`);
+          this.report([170, 19, slot, ...payload, 170]);
+        } else if (this.ignoreCurveB) {
+          this.note(`CURVE B slot ${slot} lost`);
+        } else {
+          this.curveB[slot] = payload;
+          this.note(`CURVE B slot ${slot}`);
+          this.report([171, 19, slot, ...payload, 171]);
+        }
         break;
       }
       case 178:
