@@ -5,7 +5,7 @@
 import { BLEManager } from "../rig/ble-manager";
 import { RigController } from "../rig/rig-controller";
 import { chargingOf, unitText, sessionOnOf, hapticsOf } from "../rig/frames";
-import { h, openSheet, topBar, textBtn, tag } from "./jar-ui";
+import { h, openSheet, topBar, textBtn, tag, icon } from "./jar-ui";
 
 export interface RigUIHooks {
   build: string;
@@ -22,7 +22,7 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
   const linked = () => ble.isConnected || ble.reconnecting;
 
   // Link card
-  const linkIcon = h("span", { class: "rigIcon" }, "📡");
+  const linkIcon = h("span", { class: "rigIcon" }, icon("signal"));
   const linkName = h("b", { class: "cond", style: "font-size:26px;display:block" });
   const linkText = h("span", { class: "mono sub", style: "font-size:10px" });
   const linkCard = h("div", { class: "linkCard" }, linkIcon, h("div", { style: "min-width:0" }, linkName, linkText));
@@ -34,15 +34,15 @@ export function mountRig(ble: BLEManager, rig: RigController, hooks: RigUIHooks)
   const unlinkNote = h("p", { class: "mono sub", style: "font-size:10.5px;margin:0" }, "Dab's still going. It finishes first, then the app lets go of the rig.");
   const findRig = h("button", { class: "findRig", onclick: hooks.onFindRig }, "FIND YOUR RIG");
 
-  const row = (title: string, icon: string, note: () => string, noteColor: string, open: () => void) => {
+  const row = (title: string, ico: string, note: () => string, noteColor: string, open: () => void) => {
     const n = h("span", { class: "tag", style: `color:${noteColor}` });
-    const b = h("button", { class: "toolRow", onclick: open }, h("span", { class: "toolIcon" }, icon), h("span", { class: "cond", style: "font-size:20px" }, title), h("span", { style: "flex:1" }), n, h("span", { class: "chev" }, "›"));
+    const b = h("button", { class: "toolRow", onclick: open }, h("span", { class: "toolIcon" }, icon(ico)), h("span", { class: "cond", style: "font-size:20px" }, title), h("span", { style: "flex:1" }), n, h("span", { class: "chev" }, "›"));
     return { b, upd: () => set(n, note()) };
   };
-  const look = row("Look", "🎨", () => hooks.lookLabel(), "var(--dim)", openLook);
-  const log = row("Log", "≡", () => "SHARE IT", "var(--dim)", openLog);
-  const dial = row("Ride the dial", "◐", () => "TEST", "var(--gold)", openDial);
-  const raw = row("Raw status", "∿", () => "", "var(--dim)", openRaw);
+  const look = row("Look", "look", () => hooks.lookLabel(), "var(--dim)", openLook);
+  const log = row("Log", "list", () => "SHARE IT", "var(--dim)", openLog);
+  const dial = row("Ride the dial", "dial", () => "TEST", "var(--gold)", openDial);
+  const raw = row("Raw status", "pulse", () => "", "var(--dim)", openRaw);
 
   panel.replaceChildren(
     h("h2", {}, "RIG"),

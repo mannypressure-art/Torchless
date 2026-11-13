@@ -29,7 +29,7 @@
   }
   :root[data-theme="light"] {
     --bgTop: #FFFFFF; --bg: #EEF0F2; --cardTop: #FFFFFF; --cardBottom: #F6F7F8; --edge: #D9DDE2;
-    --ink: #0C1014; --dim: #5B6570; --sub: #4A525C; --live: #007F96; --gold: #8F610A;
+    --ink: #0C1014; --dim: #5B6570; --sub: #4A525C; --live: #00718A; --gold: #855A08;
     --faceTop: #FFFFFF; --faceBottom: #E9EDF0; --bezel: #DFE3E8; --bezelEdge: #B9C0C9;
     --tickMinor: #9AA3AF; --tickMajor: #1A2026; --needleIdle: #1A2026; --selFill: #D9F8FD;
     --warn: #B04A08; --warnFill: #FFF1E6; --noteFill: #FFF7E3; --bar: #FFFFFF;
@@ -38,7 +38,7 @@
   @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
       --bgTop: #FFFFFF; --bg: #EEF0F2; --cardTop: #FFFFFF; --cardBottom: #F6F7F8; --edge: #D9DDE2;
-      --ink: #0C1014; --dim: #5B6570; --sub: #4A525C; --live: #007F96; --gold: #8F610A;
+      --ink: #0C1014; --dim: #5B6570; --sub: #4A525C; --live: #00718A; --gold: #855A08;
       --faceTop: #FFFFFF; --faceBottom: #E9EDF0; --bezel: #DFE3E8; --bezelEdge: #B9C0C9;
       --tickMinor: #9AA3AF; --tickMajor: #1A2026; --needleIdle: #1A2026; --selFill: #D9F8FD;
       --warn: #B04A08; --warnFill: #FFF1E6; --noteFill: #FFF7E3; --bar: #FFFFFF;
@@ -57,7 +57,7 @@
   .tag { font: 600 10px/1 var(--mono); letter-spacing: 1.8px; color: var(--dim); text-transform: uppercase; }
   .cond { font-family: var(--cond); font-weight: 600; }
   .panel { background: linear-gradient(var(--cardTop), var(--cardBottom)); border: 1px solid var(--edge); border-radius: 20px; }
-  .stack > * + * { margin-top: 14px; }
+  .stack > * + * { margin-top: 16px; }
 
   /* Header */
   .head { display: flex; align-items: center; gap: 11px; min-height: 52px; }
@@ -70,22 +70,23 @@
   .bat b { display: block; font: 600 20px/1 var(--cond); }
 
   /* Notices */
-  .notice { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 18px; }
+  .notice { display: flex; gap: 12px; align-items: flex-start; padding: 16px; border-radius: 20px; }
   .notice.warn { background: var(--warnFill); border: 1px solid var(--warn); }
   .notice.warn .tag { color: var(--warn); }
   .notice.note { background: var(--noteFill); border: 1px solid color-mix(in srgb, var(--gold) 70%, transparent); align-items: center; }
   .notice.note .tag { color: var(--gold); }
   .notice p { margin: 4px 0 0; font: 600 19px/1.15 var(--cond); }
-  .notice .icon { font-size: 22px; line-height: 1; }
+  .notice .icon { font-size: 24px; line-height: 1; flex: none; display: flex; }
   .gotIt { margin-left: auto; flex: none; min-height: 44px; padding: 0 12px; border: 1px solid var(--gold); border-radius: 11px; color: var(--gold); font: 700 15px/1 var(--cond); letter-spacing: 1.5px; }
   .btmsg { color: var(--warn); font: 600 18px/1.2 var(--cond); }
 
   /* Gauge card */
-  .gaugeCard { position: relative; height: 300px; border-radius: 30px; overflow: hidden; display: grid; place-items: center; }
+  .gaugeCard { position: relative; height: 300px; border-radius: 28px; overflow: hidden; display: grid; place-items: center; }
   #gauge { width: 252px; height: 252px; overflow: visible; }
   .bezelEdge { fill: var(--bezelEdge); } .bezel { fill: var(--bezel); }
   .tickMinor { stroke: var(--tickMinor); stroke-width: 1; } .tickMajor { stroke: var(--tickMajor); stroke-width: 2; }
-  .gLabel { fill: var(--dim); font: 500 10.5px var(--mono); text-anchor: middle; }
+  .gLabel { fill: var(--dim); font: 500 10.5px var(--mono); text-anchor: middle; transition: opacity .25s; }
+  .gLabel.under { opacity: 0; }
   #gArc { fill: none; stroke: var(--live); stroke-width: 3; stroke-linecap: round; filter: drop-shadow(0 0 4px var(--live)); }
   #gMarker path { fill: var(--gold); }
   #gNeedle rect { fill: var(--needleIdle); transition: fill .3s; }
@@ -148,20 +149,21 @@
 
   /* Link screen header, Rig tab */
   .linkHead { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; }
-  #linkGauge { display: grid; place-items: center; opacity: .75; margin-top: 14px; } #linkGauge svg { width: 230px; height: 230px; overflow: visible; }
+  #linkGauge { position: relative; flex: 1 1 0; min-height: 104px; max-height: 248px; margin: 8px 0 0; opacity: .8; }
+  #linkGauge svg { position: absolute; left: 0; top: 5%; width: 100%; height: 90%; overflow: visible; }
   #linkGauge .m-gNeedle rect { fill: var(--dim); }
-  .jarsPill { margin-left: auto; min-height: 44px; padding: 0 16px; border: 1px solid color-mix(in srgb, var(--gold) 70%, transparent); border-radius: 14px; color: var(--gold); font: 700 18px var(--cond); letter-spacing: 2px; }
-  .miniLink { flex: 1; min-height: 44px; font: 700 10px var(--mono); letter-spacing: 1.4px; color: var(--sub); }
+  .modePill { margin-left: auto; flex: none; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 12px; border: 1px solid var(--edge); border-radius: 12px; color: var(--sub); font: 700 15px/1 var(--cond); letter-spacing: 2px; }
+  .modePill .ico { font-size: 18px; }
   .linkCard { display: flex; align-items: center; gap: 14px; padding: 16px; border-radius: 20px; background: var(--cardBottom); border: 1px solid var(--edge); }
   .linkCard.on { background: var(--selFill); border-color: color-mix(in srgb, var(--live) 60%, transparent); }
-  .rigIcon { font-size: 24px; filter: grayscale(1); } .linkCard.on .rigIcon { filter: none; }
-  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .tile { padding: 14px; border-radius: 16px; min-width: 0; } .tile b { display: block; margin-top: 6px; font: 600 26px/1 var(--cond); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rigIcon { font-size: 28px; flex: none; display: flex; color: var(--dim); } .linkCard.on .rigIcon { color: var(--live); }
+  .tiles { display: grid; grid-template-columns: 1fr 1.4fr .8fr; gap: 8px; }
+  .tile { padding: 16px 14px; border-radius: 16px; min-width: 0; } .tile b { display: block; margin-top: 6px; font: 600 26px/1 var(--cond); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .unlink { width: 100%; min-height: 56px; border-radius: 16px; border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); color: var(--warn); font: 700 20px var(--cond); letter-spacing: 3px; }
   .findRig { width: 100%; min-height: 56px; border-radius: 16px; background: var(--liveFill); color: var(--liveInk); font: 700 20px var(--cond); letter-spacing: 3px; }
-  .toolList { padding: 0 14px; border-radius: 16px; } .toolList hr { border: 0; border-top: 1px solid var(--edge); margin: 0; }
+  .toolList { padding: 0 16px; border-radius: 20px; } .toolList hr { border: 0; border-top: 1px solid var(--edge); margin: 0; }
   .toolRow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; text-align: left; }
-  .toolIcon { width: 24px; color: var(--sub); text-align: center; }
+  .toolIcon { width: 24px; flex: none; display: flex; justify-content: center; font-size: 22px; color: var(--sub); }
   .logLines { font: 11px/1.45 var(--mono); white-space: pre-wrap; word-break: break-word; color: var(--sub); margin: 0; }
   .btn2.nudge { flex: 1; min-height: 56px; font-size: 24px; color: var(--gold); border-color: var(--gold); }
   .center { text-align: center; }
@@ -180,7 +182,9 @@
 
   /* Heat */
   .bigBtn { width: 100%; min-height: 84px; border-radius: 20px; font: 700 38px/1 var(--cond); letter-spacing: 5px; display: flex; align-items: center; justify-content: center; gap: 12px; }
-  #heat { color: var(--liveInk); background: linear-gradient(#5FF0FF, var(--liveFill), #10B9D0); box-shadow: 0 0 16px color-mix(in srgb, var(--liveFill) 35%, transparent); }
+  .bigBtn .ico { font-size: 34px; stroke-width: 2; margin-left: -6px; }
+  .ico { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; vertical-align: -.14em; }
+  #heat { position: relative; overflow: hidden; color: var(--liveInk); background: linear-gradient(#5FF0FF, var(--liveFill), #10B9D0); box-shadow: 0 0 16px color-mix(in srgb, var(--liveFill) 35%, transparent); }
   #heat:disabled { opacity: .4; box-shadow: none; }
   #cut { color: var(--goldInk); background: linear-gradient(#FFD27A, var(--goldFill), #C98F25); box-shadow: 0 0 16px color-mix(in srgb, var(--goldFill) 35%, transparent); flex: 1; }
   #extend { width: 92px; flex: none; min-height: 84px; text-align: center; }
@@ -189,40 +193,66 @@
   .hint { text-align: center; color: var(--sub); font: 500 11px var(--mono); min-height: 14px; margin-top: 6px; }
 
   /* Strips */
-  .linkJarsStrip { margin-top: 12px; min-height: 76px; border-color: color-mix(in srgb, var(--gold) 55%, var(--edge)); color: var(--ink); }
-  .linkJarsStrip .jarIcon { font-size: 30px; width: 40px; text-align: center; }
-  .strip { display: flex; align-items: center; gap: 14px; padding: 0 16px; min-height: 84px; width: 100%; text-align: left; }
+  .strip { display: flex; align-items: center; gap: 16px; padding: 0 16px; min-height: 88px; width: 100%; text-align: left; }
   .strip b { display: block; font: 600 24px/1.1 var(--cond); margin: 5px 0 3px; }
   .strip small { font: 500 10.5px var(--mono); color: var(--sub); }
   .chev { margin-left: auto; color: var(--dim); font-size: 20px; }
 
   /* Tab bar */
   .tabs { position: fixed; left: 0; right: 0; bottom: 0; display: flex; justify-content: center; gap: 4px; background: var(--bar); border-top: 1px solid var(--edge); padding: 6px 12px calc(6px + env(safe-area-inset-bottom)); z-index: 5; }
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .tabs { background: color-mix(in srgb, var(--bar) 70%, transparent); -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5); }
+  }
+  body:not([data-mode="torch"]) [data-for="torch"], body[data-mode="torch"] [data-for="rig"] { display: none !important; }
   .tabs button { flex: 1; max-width: 140px; min-height: 52px; border-radius: 12px; font: 600 15px var(--cond); letter-spacing: 2px; color: var(--dim); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
   .tabs button svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; }
   .tabs button.on { color: var(--live); }
+  body[data-mode="torch"] .tabs button.on { color: var(--gold); }
+  .dot.torch { background: var(--gold); box-shadow: 0 0 6px color-mix(in srgb, var(--gold) 70%, transparent); }
 
   /* Link screen */
-  #linkScreen { min-height: 100vh; display: flex; flex-direction: column; padding: calc(24px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom)); max-width: 480px; margin: 0 auto; }
-  .hero { margin: auto 0; text-align: center; }
-  .hero .mark { width: 96px; height: 96px; }
-  .hero h1 { font: 700 40px/1 var(--cond); letter-spacing: 1px; margin: 18px 0 8px; }
-  .hero p { color: var(--sub); margin: 0 auto; max-width: 300px; }
-  #linkIt { margin-top: 28px; }
+  #linkScreen { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; padding: calc(8px + env(safe-area-inset-top)) 16px calc(12px + env(safe-area-inset-bottom)); max-width: 480px; margin: 0 auto; }
+  .ask { font: 700 32px/1 var(--cond); letter-spacing: 2px; margin: 8px 0 16px; text-align: center; }
+  .modes { display: flex; flex-direction: column; gap: 8px; }
+  .modeCard { display: flex; align-items: center; gap: 16px; width: 100%; padding: 0 16px; min-height: 80px; border-radius: 20px; text-align: left; border: 1px solid var(--edge); background: linear-gradient(var(--cardTop), var(--cardBottom)); }
+  .modeCard b { display: block; font: 700 24px/1 var(--cond); letter-spacing: 3px; }
+  .modeCard small { display: block; margin-top: 6px; font: 400 13px/1.3 -apple-system, system-ui, sans-serif; color: var(--sub); text-wrap: balance; }
+  .modeCard .chev { font-size: 24px; }
+  .modeIco { flex: none; width: 48px; height: 48px; padding: 9px; border-radius: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .rigMode { display: block; padding: 16px; border-color: color-mix(in srgb, var(--live) 55%, var(--edge)); background: linear-gradient(color-mix(in srgb, var(--live) 9%, var(--cardTop)), var(--cardBottom)); box-shadow: 0 0 24px color-mix(in srgb, var(--live) 8%, transparent); }
+  .rigMode .modeTop { display: flex; align-items: center; gap: 16px; }
+  .rigMode .modeIco { color: var(--live); background: color-mix(in srgb, var(--live) 12%, transparent); }
+  .rigMode b { font-size: 28px; }
+  .rigMode .bigBtn { margin-top: 16px; min-height: 64px; font-size: 32px; text-decoration: none; color: var(--liveInk); background: linear-gradient(#5FF0FF, var(--liveFill), #10B9D0); box-shadow: 0 0 16px color-mix(in srgb, var(--liveFill) 30%, transparent); }
+  .rigMode .btmsg { margin-top: 12px; }
+  .linkState { margin-top: 8px; min-height: 16px; text-align: center; color: var(--dim); font: 500 10.5px/16px var(--mono); letter-spacing: .4px; }
+  .getBluefy { display: flex; align-items: center; justify-content: center; min-height: 44px; margin-top: 4px; color: var(--sub); font: 600 17px var(--cond); letter-spacing: 1px; text-decoration: underline; text-underline-offset: 3px; }
+  .torchMode { --torch: #FF9A3D; border-color: color-mix(in srgb, var(--torch) 50%, var(--edge)); background: linear-gradient(color-mix(in srgb, var(--torch) 10%, var(--cardTop)), var(--cardBottom)); }
+  :root[data-theme="light"] .torchMode { --torch: #B04A08; }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .torchMode { --torch: #B04A08; } }
+  .torchMode .modeIco { color: var(--torch); background: color-mix(in srgb, var(--torch) 13%, transparent); }
+  .torchMode .chev { color: var(--torch); }
+  .jarsMode { background: none; border-color: color-mix(in srgb, var(--gold) 60%, transparent); }
+  .jarsMode .modeIco { color: var(--gold); }
+  .jarsMode .chev { color: var(--gold); }
+  .quietRow { display: flex; justify-content: center; gap: 4px; margin-top: 4px; }
+  .quietRow button { min-height: 44px; padding: 0 10px; font: 600 10px/1 var(--mono); letter-spacing: 1.2px; color: var(--dim); }
+  .legal { margin-top: auto; padding-top: 4px; text-align: center; color: var(--dim); font: 500 10px/1.5 var(--mono); }
+  #bluefyNote { margin: 0 0 8px; font: 400 12px/1.35 -apple-system, system-ui, sans-serif; }
   .ghost { width: 100%; min-height: 52px; border: 1px solid var(--edge); border-radius: 14px; margin-top: 10px; color: var(--sub); font: 600 18px var(--cond); letter-spacing: 1px; }
   .small { color: var(--dim); font-size: 13px; text-align: center; margin-top: 14px; }
 
   /* Lights */
   .showPill { margin-left: auto; padding: 6px 9px; border: 1px solid var(--edge); border-radius: 7px; font-size: 9.5px; }
-  .nowCard { padding: 18px; border-radius: 24px; }
-  .showRow { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 0 16px; border-radius: 18px; background: var(--cardBottom); border: 1px solid color-mix(in srgb, var(--gold) 55%, transparent); }
-  .chips2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0 20px; }
+  .nowCard { padding: 16px; border-radius: 20px; }
+  .showRow { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 0 16px; border-radius: 20px; background: var(--cardBottom); border: 1px solid color-mix(in srgb, var(--gold) 55%, transparent); }
+  .chips2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 24px; }
   .lchip { min-height: 44px; padding: 0 8px; border-radius: 12px; border: 1px solid var(--edge); background: var(--cardBottom); font: 600 17px var(--cond); color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .lchip.on { background: var(--selFill); border-color: var(--live); color: var(--ink); }
   .lchip:disabled { opacity: .45; }
   .stepCard { padding: 14px; border-radius: 16px; }
   .showStrip { display: flex; height: 16px; border-radius: 5px; overflow: hidden; }
-  .orbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 10px 0 18px; }
+  .orbs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 8px 0 24px; }
   .orbBtn { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 2px; border-radius: 14px; border: 1px solid transparent; }
   .orbBtn.on { border-color: var(--live); background: var(--selFill); }
   .orbBtn:disabled { opacity: .45; }
@@ -269,6 +299,7 @@
   .curMain { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; text-align: left; min-height: 84px; }
   .curText { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
   .curText b { font: 700 22px/1.05 var(--cond); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .curText b.twoLine, .curText small.twoLine { white-space: normal; }
   .curText small { font: 500 10.5px var(--mono); color: var(--sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .curIcon { width: 56px; height: 56px; display: grid; place-items: center; flex: none; }
   .jarIcon { width: 28px; height: 28px; fill: none; stroke: var(--gold); stroke-width: 1.6; }
@@ -375,9 +406,42 @@
   .pickJar.on { border-color: var(--gold); }
   .pickJar span { width: 70px; text-align: center; }
   .bar { flex: 1; height: 22px; display: flex; align-items: center; } .bar i { display: block; height: 12px; border-radius: 4px; background: var(--gold); }
-  .tabs button { max-width: 120px; }
   [hidden] { display: none !important; }
-  @media (prefers-reduced-motion: reduce) { #gNeedle { transition: none; } }
+
+  /* Feel: press states, focus rings, short entrances. HEAT IT and CUT IT never move and never wait. */
+  :root { --press: brightness(1.18); } :root[data-theme="light"] { --press: brightness(.93); }
+  @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) { --press: brightness(.93); } }
+  button, a.bigBtn, a.btn2 { transition: transform .09s ease-out, filter .09s ease-out; touch-action: manipulation; }
+  button:active:not(:disabled), a.bigBtn:active, a.btn2:active { transform: scale(.97); filter: var(--press); }
+  .strip:active:not(:disabled), .modeCard:active, .jarCard:active, .curMain:active, .toolRow:active, .faceKey:active, .soundRow:active, .showRow:active, .spendStrip:active { transform: scale(.985); }
+  #heat, #cut, #extend { transition: none; }
+  #heat:active:not(:disabled), #cut:active:not(:disabled), #extend:active:not(:disabled) { transform: none; filter: var(--press); }
+  :focus-visible { outline: 2px solid var(--live); outline-offset: 2px; }
+  input:focus-visible, textarea:focus-visible, select:focus-visible { outline-offset: 0; }
+  .search input:focus-visible, .inBox input:focus-visible { outline: 0; }
+  .search:focus-within, .inBox:focus-within { border-color: var(--live); }
+  @keyframes riseIn { from { opacity: 0; transform: translateY(8px); } }
+  @keyframes fadeIn { from { opacity: 0; } }
+  @keyframes sheetUp { from { transform: translateY(32px); opacity: 0; } }
+  @keyframes popIn { from { transform: scale(.96); opacity: 0; } }
+  @keyframes sheen { 0%, 78% { transform: translateX(-140%) skewX(-18deg); } 100% { transform: translateX(340%) skewX(-18deg); } }
+  @media (prefers-reduced-motion: no-preference) {
+    [data-panel]:not([hidden]):not([data-panel="home"]) { animation: riseIn .18s ease-out; }
+    [data-panel="home"]:not([hidden]) > :not(.heatBlock) { animation: riseIn .18s ease-out; }
+    #linkScreen:not([hidden]) > * { animation: fadeIn .2s ease-out; }
+    .page { animation: riseIn .2s ease-out; }
+    .cardSheet, .sheet:not([hidden]) { animation: fadeIn .18s ease-out; }
+    .cardSheet .cardBody { animation: popIn .18s ease-out; }
+    .sheet:not([hidden]) .sheetBody { animation: sheetUp .2s ease-out; }
+    .page.closing, .cardSheet.closing, .sheet.closing { opacity: 0; pointer-events: none; transition: opacity .16s ease-in, transform .16s ease-in; }
+    .page.closing { transform: translateY(8px); }
+    .sheet.closing .sheetBody { transform: translateY(32px); transition: transform .16s ease-in; }
+    .notice:not([hidden]) { animation: fadeIn .2s ease-out; }
+    #heat:not(:disabled)::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 34%; pointer-events: none;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.26), transparent); animation: sheen 7s ease-in-out infinite; }
+  }
+  @media (prefers-reduced-motion: reduce) { #gNeedle, .gLabel, button, a.bigBtn, a.btn2 { transition: none; } button:active:not(:disabled), a.bigBtn:active, a.btn2:active { transform: none; } }
+  @media (max-height: 700px) { .ask { font-size: 28px; margin: 4px 0 12px; } .modeCard { min-height: 72px; } .rigMode .bigBtn { margin-top: 12px; min-height: 56px; } }
 </style>
 </head>
 <body>
@@ -388,6 +452,26 @@
       <path d="M 18 5 A 13 13 0 1 1 6.7 11.5" fill="none" stroke="#E8B24A" stroke-width="1.6" stroke-linecap="round" transform="rotate(30 18 18)"/>
       <text x="18" y="24.5" text-anchor="middle" font-family="Barlow Condensed, -apple-system, sans-serif" font-weight="700" font-size="17" fill="#E8B24A">T</text>
     </symbol>
+    <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12.4 2.8c.6 3.6 5.1 5.6 5.1 10.6a5.5 5.5 0 0 1-11 0c0-2 .9-3.6 2.3-4.8.1 1.7.8 2.8 1.9 3.2-.5-3.2.4-6.4 1.7-9z"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-jar" viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v11c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"/></symbol>
+    <symbol id="i-rig" viewBox="0 0 24 24"><path d="M6 21.5h11V15a1.5 1.5 0 0 0-1.5-1.5h-8A1.5 1.5 0 0 0 6 15z"/><path d="M10 17.5h3"/><path d="M9 13.5V7h5v6.5"/><path d="M8 7h7"/><path d="M14 10.5l5-3.5V3"/></symbol>
+    <symbol id="i-torch" viewBox="0 0 24 24"><rect x="4" y="11" width="8" height="10.5" rx="2"/><path d="M6.5 11V6.5h3V11"/><path d="M9.5 7.5h4.5"/><path d="M14 5.5v4"/><path d="M12 13.5h2.5v2.5"/><path d="M16 7.5c1.3-2.3 3.7-2.6 6 0-2.3 2.6-4.7 2.3-6 0z"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 21 19.5H3z"/><path d="M12 10v4.5M12 17v.1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></symbol>
+    <symbol id="i-wave" viewBox="0 0 24 24"><path d="M2.5 12c2-5.5 4.3-5.5 6.3 0s4.4 5.5 6.4 0 4.3-5.5 6.3 0"/></symbol>
+    <symbol id="i-signal" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"/></symbol>
+    <symbol id="i-look" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h9"/></symbol>
+    <symbol id="i-dial" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 12l3.5-5"/><path d="M12 3.5v2M3.5 12h2M18.5 12h2"/></symbol>
+    <symbol id="i-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2.5-6 4 12 2.5-6h5"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M4 8h15M15.5 4.5 19 8l-3.5 3.5M20 16H5M8.5 12.5 5 16l3.5 3.5"/></symbol>
+    <symbol id="i-camera" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2.5h7L17 8h3v11H4z"/><circle cx="12" cy="13.2" r="3.2"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.5"/><path d="M4 17l5-4 3.5 3 3-2.5 4.5 3.5"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4.5h4V7M7 7l1 12.5h8L17 7M10.5 10.5v6M13.5 10.5v6"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M15.5 15.5 20 20"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
     <radialGradient id="faceGrad" cx="50%" cy="38%" r="70%">
       <stop offset="0" style="stop-color:var(--faceTop)"/><stop offset="1" style="stop-color:var(--faceBottom)"/>
     </radialGradient>
@@ -402,35 +486,53 @@
     <svg class="mark" style="width:72px;height:72px"><use href="#markSym"/></svg>
     <h1>TORCHLESS</h1>
     <p>Torchless is for adults 21 and older where cannabis use is legal.</p>
-    <button id="ageYes" class="bigBtn" style="background:var(--goldFill);color:var(--goldInk);font-size:30px;min-height:64px">I'M 21 OR OLDER</button>
-    <button id="ageNo" class="ghost">I'm not</button>
+    <button id="ageYes" class="bigBtn" style="background:linear-gradient(#FFD27A,var(--goldFill),#C98F25);color:var(--goldInk);font-size:30px;letter-spacing:3px;min-height:64px">I'M 21 OR OLDER</button>
+    <button id="ageNo" class="ghost" style="margin-top:8px">I'm not</button>
     <p id="ageMsg" hidden style="margin-top:16px">Sorry, Torchless is only for adults 21 and older.</p>
   </div>
 </div>
 
-<!-- Link it -->
+<!-- Front page: how do you dab? -->
 <section id="linkScreen">
-  <div class="linkHead">
+  <div class="linkHead head">
     <svg class="mark"><use href="#markSym"/></svg>
-    <div><div class="brand">TORCHLESS</div><span class="tag" style="font-size:9.5px">NOT LINKED</span></div>
-    <button id="linkJars" class="jarsPill">◎ JARS</button>
+    <div class="brand">TORCHLESS</div>
   </div>
-  <div class="hero">
-    <div id="linkGauge"></div>
-    <h1>FIND YOUR RIG</h1>
-    <p>Wake the Switch 2 and hold it close. Then tap LINK IT and pick it from the list.</p>
-    <div id="btMsg" class="btmsg" style="margin-top:16px" hidden></div>
-    <button id="linkIt" class="bigBtn" style="color:var(--liveInk);background:linear-gradient(#5FF0FF,var(--liveFill),#10B9D0)">LINK IT</button>
-    <button id="linkAll" class="ghost">Can't find it? Show all devices</button>
-    <button id="linkJarsBig" class="strip panel linkJarsStrip"><span class="jarIcon">🫙</span><div><span class="tag" style="font-size:9px;color:var(--gold)">JARS</span><b>Your jars</b><small>Log it. Rate it. No rig needed.</small></div><span class="chev" style="margin-left:auto;color:var(--gold);font-size:26px">›</span></button>
-    <div id="noBt" hidden>
-      <a id="openBluefy" class="bigBtn" style="margin-top:12px;text-decoration:none;color:var(--goldInk);background:linear-gradient(#FFD27A,var(--goldFill),#C98F25);font-size:30px">OPEN IN BLUEFY</a>
-      <a class="ghost" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="https://apps.apple.com/app/id1492822055">Get Bluefy (free) from the App Store</a>
+  <div id="linkGauge" aria-hidden="true"></div>
+  <h1 class="ask">HOW DO YOU DAB?</h1>
+  <div class="modes">
+    <div class="modeCard rigMode">
+      <div class="modeTop">
+        <svg class="modeIco" aria-hidden="true"><use href="#i-rig"/></svg>
+        <div><b>E-RIG</b><small>Switch 2. Link it and heat from your phone.</small></div>
+      </div>
+      <div id="btMsg" class="btmsg" hidden></div>
+      <button id="linkIt" class="bigBtn">LINK IT</button>
+      <div id="noBt" hidden>
+        <a id="openBluefy" class="bigBtn">OPEN IN BLUEFY</a>
+        <a class="getBluefy" href="https://apps.apple.com/app/id1492822055">Get Bluefy (free) from the App Store</a>
+      </div>
+      <div id="linkState" class="linkState"></div>
     </div>
-    <div id="linkState" class="small"></div>
-    <div class="small">On iPhone, open this page in Bluefy. Keep the page open during a dab.</div>
-    <div class="row" style="gap:10px;margin-top:8px"><button id="lookAround" class="miniLink">LOOK AROUND FIRST</button><button id="linkLog" class="miniLink">LOG</button></div>
-    <div class="small" style="font:500 10px/1.5 var(--mono)">Compatible with Dr. Dabber Switch 2.<br>Not an official Dr. Dabber app.</div>
+    <button id="modeTorch" class="modeCard torchMode">
+      <svg class="modeIco" aria-hidden="true"><use href="#i-torch"/></svg>
+      <div><b>TORCH</b><small>Glass and a torch. Heat‑up and cool‑down timer.</small></div>
+      <span class="chev" aria-hidden="true">›</span>
+    </button>
+    <button id="linkJarsBig" class="modeCard jarsMode">
+      <svg class="modeIco" aria-hidden="true"><use href="#i-jar"/></svg>
+      <div><b>JARS</b><small>Log it. Rate it. No rig needed.</small></div>
+      <span class="chev" aria-hidden="true">›</span>
+    </button>
+  </div>
+  <div class="quietRow">
+    <button id="linkAll" title="Can't find it? Show all devices" aria-label="Can't find it? Show all devices">SHOW ALL DEVICES</button>
+    <button id="lookAround">LOOK AROUND FIRST</button>
+    <button id="linkLog">LOG</button>
+  </div>
+  <div class="legal">
+    <p id="bluefyNote">On iPhone, open this page in Bluefy. Keep the page open during a dab.</p>
+    Compatible with Dr. Dabber Switch 2.<br>Not an official Dr. Dabber app.
   </div>
 </section>
 
@@ -442,21 +544,22 @@
         <div class="brand">TORCHLESS</div>
         <div class="linkRow"><span id="linkDot" class="dot"></span><span id="linkTag" class="tag" style="font-size:9.5px"></span></div>
       </div>
-      <div class="bat"><b id="battery"></b><span id="batteryTag" class="tag" style="font-size:8.5px"></span></div>
+      <div class="bat" id="batBox"><b id="battery"></b><span id="batteryTag" class="tag" style="font-size:8.5px"></span></div>
+      <button id="modeBtn" class="modePill" aria-label="Back to the front page to switch mode" hidden><svg class="ico" aria-hidden="true"><use href="#i-swap"/></svg>MODES</button>
     </header>
 
     <div class="stack" style="margin-top:8px">
       <div id="notice" class="notice warn" hidden>
-        <span class="icon" style="color:var(--warn)">⚠</span>
+        <span class="icon" style="color:var(--warn)"><svg class="ico" aria-hidden="true"><use href="#i-warn"/></svg></span>
         <div><span id="noticeTag" class="tag"></span><p id="noticeText"></p></div>
       </div>
       <div id="away" class="notice note" hidden>
-        <span class="icon" style="color:var(--gold)">✓</span>
+        <span class="icon" style="color:var(--gold)"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg></span>
         <div><span class="tag">WHILE YOU WERE AWAY</span><p id="awayText"></p></div>
         <button id="gotIt" class="gotIt">GOT IT</button>
       </div>
       <div id="fsTip" class="notice note" hidden>
-        <span class="icon" style="color:var(--gold)">⤢</span>
+        <span class="icon" style="color:var(--gold)"><svg class="ico" aria-hidden="true"><use href="#i-expand"/></svg></span>
         <div><span class="tag">FULL SCREEN</span><p>Open Bluefy's menu and turn on Full-screen Mode to hide the address bar.</p>
           <button id="fsNever" class="tag" style="background:none;border:0;padding:8px 0 0;color:var(--gold);text-decoration:underline">DON'T SHOW AGAIN</button></div>
         <button id="fsGotIt" class="gotIt">GOT IT</button>
@@ -465,7 +568,7 @@
     </div>
 
     <!-- Home -->
-    <section data-panel="home" class="stack" style="margin-top:14px">
+    <section data-panel="home" class="stack" style="margin-top:16px">
       <div class="gaugeCard panel" id="faceCard">
         <svg id="gauge" viewBox="0 0 260 260">
           <circle cx="130" cy="130" r="138" class="bezelEdge"/>
@@ -494,10 +597,10 @@
         </div>
       </div>
 
-      <div>
-        <div id="heatRow"><button id="heat" class="bigBtn" disabled>🔥 HEAT IT</button></div>
-        <div id="cutRow" class="row" style="gap:10px" hidden>
-          <button id="cut" class="bigBtn">■ CUT IT</button>
+      <div class="heatBlock">
+        <div id="heatRow"><button id="heat" class="bigBtn" disabled><svg class="ico" aria-hidden="true"><use href="#i-flame"/></svg>HEAT IT</button></div>
+        <div id="cutRow" class="row" style="gap:8px" hidden>
+          <button id="cut" class="bigBtn"><svg class="ico" aria-hidden="true"><use href="#i-stop"/></svg>CUT IT</button>
           <button id="extend" class="panel"><b>+10s</b><span class="tag" style="font-size:8.5px">MORE TIME</span></button>
         </div>
         <div id="heatHint" class="hint"></div>
@@ -505,11 +608,11 @@
 
       <div id="dialStrip" class="stackS" hidden>
         <div class="row" style="justify-content:space-between"><span class="tag" style="font-size:9.5px">RIDE THE DIAL · TEST</span><span id="dialGoal" class="tag" style="font-size:9.5px;color:var(--gold)">GOAL ---</span></div>
-        <div class="row" style="gap:10px">
+        <div class="row" style="gap:8px">
           <button id="dialDown" class="panel dialKey" aria-label="Goal down 5 degrees">−5°</button>
           <button id="dialUp" class="panel dialKey" aria-label="Goal up 5 degrees">+5°</button>
         </div>
-        <div class="seg" style="grid-template-columns:1fr 1fr"><button id="dialA">A: Live slot</button><button id="dialB">B: Active preset</button></div>
+        <div class="seg" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:0"><button id="dialA">A: Live slot</button><button id="dialB">B: Active preset</button></div>
         <p id="dialSay" class="mono sub" style="font-size:10.5px;margin:0"></p>
       </div>
 
@@ -525,8 +628,11 @@
     <!-- Jars -->
     <section data-panel="jars" id="jarsPanel" hidden style="margin-top:0" class="stack"></section>
 
+    <!-- Torch mode (built by torch.ts) -->
+    <section data-panel="torch" id="torchPanel" hidden style="margin-top:16px"></section>
+
     <!-- Lights (as LightsView on iPhone) -->
-    <section data-panel="lights" hidden style="margin-top:14px" class="stack">
+    <section data-panel="lights" hidden style="margin-top:16px" class="stack">
       <h2>LIGHTS</h2>
       <div class="panel nowCard">
         <div class="row" style="gap:16px"><span id="nowOrb" class="orb" style="width:76px;height:76px"></span>
@@ -536,7 +642,7 @@
         <label class="switchRow"><b class="cond" style="font-size:20px;font-weight:500">Haptics</b><input id="hapticsOn" type="checkbox"></label>
       </div>
       <button id="showRow" class="showRow">
-        <span style="color:var(--gold);font-size:22px">∿</span>
+        <span style="color:var(--gold);font-size:24px;display:flex"><svg class="ico" aria-hidden="true"><use href="#i-wave"/></svg></span>
         <span style="flex:1;text-align:left"><b class="cond" style="display:block;font-size:22px;font-weight:500">Light show</b><span id="showSub" class="mono sub" style="font-size:10px"></span></span>
         <span id="showTag" class="tag"></span><span class="chev">›</span>
       </button>
@@ -544,14 +650,16 @@
     </section>
 
     <!-- Rig (built by rig-ui.ts) -->
-    <section data-panel="rig" id="rigPanel" hidden style="margin-top:14px" class="stack"></section>
+    <section data-panel="rig" id="rigPanel" hidden style="margin-top:16px" class="stack"></section>
   </div>
 
   <nav class="tabs">
-    <button data-tab="home"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 13 L16 9"/></svg>HOME</button>
+    <button data-tab="home" data-for="rig"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 13 L16 9"/></svg>HOME</button>
+    <button data-tab="torch" data-for="torch"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><use href="#i-torch"/></svg>TORCH</button>
     <button data-tab="jars"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="2.5"/><path d="M5 6v11c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V6"/></svg>JARS</button>
-    <button data-tab="lights"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>LIGHTS</button>
-    <button data-tab="rig"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="18" rx="3"/><path d="M12 7v4"/></svg>RIG</button>
+    <button data-tab="lights" data-for="rig"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>LIGHTS</button>
+    <button data-tab="rig" data-for="rig"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="18" rx="3"/><path d="M12 7v4"/></svg>RIG</button>
+    <button id="tabMode" data-for="torch" aria-label="Switch mode: back to the front page"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><use href="#i-swap"/></svg>MODE</button>
   </nav>
 </div>
 

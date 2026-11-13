@@ -1,6 +1,7 @@
 // The Torchless web app. Same rig logic as the test page (src/rig, unchanged), with the Gauge screens from
 // the iPhone app: Link it, Home (gauge, presets, HEAT IT / CUT IT, current jar), Jars, Lights, Rig.
 // Phase 4b: the jar library, dab rating and price log, kept on this device. Sign-in comes later.
+// The front page asks how you dab: E-RIG (link the Switch 2), TORCH (glass and a butane torch: a timer, no rig) or JARS.
 
 import { RealClock } from "../rig/clock";
 import { LocalStore } from "../rig/storage";
@@ -11,6 +12,8 @@ import { chargingOf } from "../rig/frames";
 import { JarStore, IDBJarBackend, MemoryJarBackend } from "./jars";
 import { DabWatcher } from "./dab-watcher";
 import { mountJars, h, tag, openSheet, topBar, textBtn } from "./jar-ui";
+import { mountTorch, TorchUI } from "./torch";
+import { playTransition } from "./transition";
 import { mountRig } from "./rig-ui";
 import { Account, JarSync } from "./cloud";
 import { FACES, DEMO, DEMO_POINTS, TempTrace, makeFace, Face, Readout } from "./faces";
@@ -45,7 +48,7 @@ const sync = new JarSync(jars, account);
 const jarUI = mountJars(jars, watcher, (t) => showTab(t), CLOUD_LIVE ? { account, sync } : undefined);
 let syncTimer: ReturnType<typeof setTimeout> | null = null;
 const kickSync = () => { if (!CLOUD_LIVE) return; if (syncTimer) clearTimeout(syncTimer); syncTimer = setTimeout(() => sync.kick(), 800); };
-jars.onChange = () => { jarUI.renderHome(); if (tab === "jars") jarUI.renderJars(); jarUI.renderOpen(); kickSync(); };
+jars.onChange = () => { jarUI.renderHome(); if (tab === "jars") jarUI.renderJars(); jarUI.renderOpen(); torchUI.renderJar(); kickSync(); };
 account.onChange = () => { if (tab === "jars") jarUI.renderJars(); jarUI.renderOpen(); jarUI.renderAccount(); kickSync(); };
 // Coming back from Google or Apple: show the account page so a new user can finish their profile.
 if (CLOUD_LIVE && /[?&]code=/.test(location.search)) {
@@ -101,7 +104,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pagehide", () => rig.appMovedToBackground());
 window.addEventListener("pageshow", () => { if (document.visibilityState === "visible") rig.appBecameActive(); });
 // The browser drops the wake lock when the page is hidden; ask again when it comes back mid-dab.
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && rig.sessionOn) void keepAwake(true); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && (rig.sessionOn || torchAwake || (torchHandle?.running ?? false))) void keepAwake(true); });
 
 // Keep the screen on while heating where the browser allows it: a locked phone freezes the page.
 type Lock = { release(): Promise<void> };
@@ -115,23 +118,71 @@ async function keepAwake(on: boolean) {
   } catch { wake = null; }
 }
 
+// Two things can want the screen on: a rig dab and a torch countdown. Neither lets go while the other still needs it.
+let torchAwake = false;
+let torchHandle: TorchUI | null = null;   // set once the Torch tab is mounted (it may ask for the screen while mounting)
+const syncAwake = () => void keepAwake(rig.sessionOn || torchAwake || (torchHandle?.running ?? false));
+
+// MARK: Mode (how you dab): "rig" is the Switch 2 over Bluetooth, "torch" is glass and a butane torch (timer only, no rig).
+
+type Mode = "rig" | "torch";
+let mode: Mode = prefs.get("mode") === "torch" ? "torch" : "rig";
+function setMode(m: Mode) {
+  mode = m;
+  prefs.set("mode", m);
+  document.body.dataset.mode = m;
+}
+document.body.dataset.mode = mode;
+
 // MARK: Tabs
 
 let tab = "home";
 function showTab(t: string) {
+  // Home, Lights and Rig need a rig: torch mode only has Torch and Jars.
+  if (mode === "torch" && t !== "jars") t = "torch";
+  if (mode === "rig" && t === "torch") t = "home";
   tab = t;
   document.querySelectorAll<HTMLElement>("[data-panel]").forEach(el => { el.hidden = el.dataset.panel !== t; });
   document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
   window.scrollTo(0, 0);
   if (t === "jars") jarUI.renderJars();
+  torchUI.setVisible(t === "torch");
   schedule();
 }
 document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach(b => { b.onclick = () => showTab(b.dataset.tab!); });
+
+// MARK: Torch tab (torch.ts)
+
+const torchUI = torchHandle = mountTorch($("torchPanel"), {
+  jars, watcher, prefs,
+  keepAwake: (on) => { torchAwake = on; syncAwake(); },
+  openJars: () => showTab("jars"),
+});
+
+// MARK: Front page (how do you dab?) and getting back to it
+
+let lookAround = false;       // browsing the app without a rig (rig mode)
+let linkTapped = false;       // LINK IT was tapped: the first link after it gets the rig transition
+let holdFront = false;        // the rig transition is covering the screen: keep the front page until it swaps
+/** Back to the front page from torch mode or from looking around without a rig. A linked rig goes to Home instead. */
+function switchMode() {
+  setMode("rig");
+  lookAround = false;
+  showTab("home");
+  render();
+}
+$("modeBtn").onclick = switchMode;
+$("tabMode").onclick = switchMode;
+$("modeTorch").onclick = () => {
+  linkTapped = false;
+  void playTransition("torch", () => { setMode("torch"); showTab("torch"); render(); }, $("modeTorch"));
+};
 
 // MARK: Link it
 
 let connectAfterPick = false;
 function openChooser(all: boolean) {
+  linkTapped = true;
   connectAfterPick = true;
   ble.devices = [];
   ble.showAll = all;
@@ -145,12 +196,16 @@ if (!hasBt) {
   $<HTMLAnchorElement>("openBluefy").href = "bluefy://open?url=" + encodeURIComponent(location.href.split("#")[0]);
   ($("linkIt") as HTMLButtonElement).hidden = true;
   $("linkAll").hidden = true;
+  $("linkState").hidden = true;   // "Not connected" says nothing here: the message above already explains
 }
+// The Bluefy note only helps on an iPhone or iPad (or anywhere Bluetooth is missing).
+if (hasBt && /Android/i.test(navigator.userAgent)) $("bluefyNote").hidden = true;
 $("linkAll").onclick = () => openChooser(true);
 central.onChooserClosed = (why) => {
   ble.log(`Chooser closed without a rig: ${why}`);
   ble.stopScan();
   connectAfterPick = false;
+  linkTapped = false;
   schedule();
 };
 
@@ -200,12 +255,25 @@ $("editBtn").onclick = () => {
   $("edProfileNote").hidden = p.profile !== 241;
   $("edTitle").textContent = `Preset ${n}`;
   edLabels();
+  edClosing++;
+  $("editor").classList.remove("closing");
   $("editor").hidden = false;
 };
-$("edCancel").onclick = () => { $("editor").hidden = true; };
+// Cancel and Save slide the sheet away (CSS .closing); a dab starting still shuts it at once (see render).
+let edClosing = 0;
+function closeEditor() {
+  const ed = $("editor");
+  let still = true;
+  try { still = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { /* close at once */ }
+  if (still) { ed.hidden = true; return; }
+  const mine = ++edClosing;
+  ed.classList.add("closing");
+  setTimeout(() => { if (mine === edClosing) { ed.hidden = true; ed.classList.remove("closing"); } }, 170);
+}
+$("edCancel").onclick = closeEditor;
 $("edSave").onclick = () => {
   rig.savePreset(editing, Number(edTemp.value), Number(edHold.value), Number(profileSel.value));
-  $("editor").hidden = true;
+  closeEditor();
 };
 document.querySelectorAll<HTMLButtonElement>("[data-step]").forEach(b => {
   b.onclick = () => {
@@ -360,7 +428,6 @@ bright.oninput = () => {
 
 // MARK: Rig tab (rig-ui.ts), Link screen extras
 
-let lookAround = false;
 const rigUI = mountRig(ble, rig, {
   build: BUILD,
   onFindRig: () => { lookAround = false; schedule(); },
@@ -397,10 +464,12 @@ function buildSoundPicker(page: HTMLElement) {
   page.append(tag("HEAT-UP SOUND", "font-size:9.5px;margin-top:8px"), box,
     h("p", { class: "mono dim", style: "font-size:10px;margin:0" }, "Tap one to hear a short preview; tapping another cuts it off. Follows the silent switch on iPhone where the browser allows it, and plays over your own music. Phone taps happen with every option on Android."));
 }
-$("lookAround").onclick = () => { lookAround = true; schedule(); };
-$("linkJars").onclick = () => { lookAround = true; showTab("jars"); };
-$("linkJarsBig").onclick = () => { lookAround = true; showTab("jars"); };
-$("linkLog").onclick = () => { lookAround = true; showTab("rig"); schedule(); };
+$("lookAround").onclick = () => { linkTapped = false; lookAround = true; showTab("home"); };
+$("linkJarsBig").onclick = () => {
+  linkTapped = false;
+  void playTransition("jars", () => { lookAround = true; showTab("jars"); render(); }, $("linkJarsBig"));
+};
+$("linkLog").onclick = () => { linkTapped = false; lookAround = true; showTab("rig"); schedule(); };
 
 // MARK: Gauge (SVG). Fractions run 0..1 across a 270 degree sweep starting bottom left, as on iPhone.
 
@@ -439,6 +508,10 @@ function buildGauge() {
   }
 }
 buildGauge();
+/** A scale number fades out while the needle lies across it, so the two never print on top of each other. */
+function fadeLabels(root: ParentNode, frac: number, sel: (i: number) => string) {
+  for (let i = 0; i < 6; i++) root.querySelector(sel(i))?.classList.toggle("under", Math.abs(frac - i / 5) < 0.045);
+}
 
 // MARK: Render
 
@@ -459,25 +532,39 @@ function render() {
   const s = rig.live;
   const linked = ble.isConnected;
   const heating = rig.sessionOn;
-  if (heating !== wasHeating) { wasHeating = heating; void keepAwake(heating); }
+  if (heating !== wasHeating) { wasHeating = heating; syncAwake(); }
   document.querySelectorAll<HTMLButtonElement>(".pvBtn").forEach(b => { if (b.disabled === rig.canPreview) b.disabled = !rig.canPreview; });
 
-  // Link screen until the rig is linked (or coming back).
+  // The first link after a tap on LINK IT plays the rig transition; the front page stays up until it swaps to Home.
+  if (linked && linkTapped && mode === "rig") {
+    linkTapped = false;
+    holdFront = true;
+    void playTransition("rig", () => { holdFront = false; showTab("home"); render(); }, $("linkIt"));
+    if (!holdFront) return;   // swapped at once: that render drew everything
+  }
+
+  // Front page until the rig is linked (or coming back), unless looking around or in torch mode.
   if (linked) lookAround = false;
-  const onLink = !linked && !ble.reconnecting && !lookAround;
+  const torch = mode === "torch";
+  const onLink = holdFront || (!torch && !linked && !ble.reconnecting && !lookAround);
   show("linkScreen", onLink);
   show("main", !onLink);
+  // The rig layer still says the app's old name in its Bluetooth message: show today's name.
+  const btMessage = ble.btMessage ? ble.btMessage.replace(/\bPresh\b/g, "Torchless") : "";
   setText("linkState", connectAfterPick || ble.connectionText === "Scanning" ? "Pick your rig in the list that opened." : ble.connectionText);
-  setText("btMsg", ble.btMessage ?? "");
-  show("btMsg", !!ble.btMessage);
-  show("btMsg2", !!ble.btMessage);
-  setText("btMsg2", ble.btMessage ?? "");
+  setText("btMsg", btMessage);
+  show("btMsg", !!btMessage);
+  show("btMsg2", !!btMessage && !torch);
+  setText("btMsg2", btMessage);
 
   // Header
-  const linkText = linked ? (rig.linkFresh ? "SWITCH 2 · LINKED" : "LINKED · WAITING ON THE RIG")
+  const linkText = torch ? "TORCH MODE" : linked ? (rig.linkFresh ? "SWITCH 2 · LINKED" : "LINKED · WAITING ON THE RIG")
     : ble.reconnecting ? "GETTING THE RIG BACK…" : "NOT LINKED";
   setText("linkTag", linkText);
-  $("linkDot").classList.toggle("live", linked && rig.linkFresh);
+  $("linkDot").classList.toggle("live", !torch && linked && rig.linkFresh);
+  $("linkDot").classList.toggle("torch", torch);
+  show("batBox", !torch);
+  show("modeBtn", !torch && !linked && !ble.reconnecting);
   setText("battery", s ? `${s.battery}%` : "");
   setText("batteryTag", s ? (chargingOf(s) ? "CHARGING" : "BATTERY") : "");
 
@@ -513,6 +600,7 @@ function render() {
   setText("gTemp", s ? `${s.tempRaw}°` : "---");
   setText("gStatus", status);
   $("gNeedle").setAttribute("transform", `rotate(${(225 + 270 * frac).toFixed(1)} ${C} ${C})`);
+  fadeLabels(document, frac, i => `#gL${i}`);
   if (heating && frac > 0.002) { $("gArc").setAttribute("d", arcPath(0, frac, R * 0.985)); }
   else $("gArc").setAttribute("d", "");
   if (targetFrac !== null) {
@@ -647,6 +735,7 @@ function drawFaceGrid(into?: HTMLElement) {
       g.querySelector("#gArc")?.setAttribute("d", arcPath(0, 0.424, R * 0.985));
       const m = g.querySelector<SVGGElement>("#gMarker"); if (m) { m.style.display = ""; m.setAttribute("transform", `rotate(${225 + 270 * 0.6} ${C} ${C})`); }
       g.querySelectorAll("[id]").forEach(e => { e.classList.add("m-" + e.id); e.removeAttribute("id"); });
+      fadeLabels(g, 0.424, i => `.m-gL${i}`);
       g.classList.add("miniGauge");
       const ro = document.createElement("div"); ro.className = "readout";
       ro.innerHTML = '<div style="font:600 44px/1 var(--cond);color:var(--live)">412°</div>';
@@ -683,7 +772,8 @@ setFace(faceID);
   const m = g.querySelector<SVGGElement>(".m-gMarker"); if (m) m.style.display = "none";
   g.querySelector(".m-gNeedle")?.setAttribute("transform", `rotate(225 ${C} ${C})`);
   [200, 300, 400, 500, 600, 700].forEach((v, i) => { const t = g.querySelector(`.m-gL${i}`); if (t) t.textContent = String(v); });
+  fadeLabels(g, 0, i => `.m-gL${i}`);
   $("linkGauge").append(g);
 }
-showTab("home");
+showTab(mode === "torch" ? "torch" : "home");
 render();
