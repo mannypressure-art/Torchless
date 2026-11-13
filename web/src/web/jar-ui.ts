@@ -340,6 +340,12 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     grid.replaceChildren(list);
   }
 
+  /** Plain line thumbs-up in the text colour (no emoji skin tone). */
+  function thumb(): HTMLElement {
+    const i = h("span", { class: "thumbIco", "aria-hidden": "true" });
+    i.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10v11H3V10h4z"/><path d="M7 10l4-8a3 3 0 0 1 3 3v4h5.5a2 2 0 0 1 2 2.3l-1.4 8A2 2 0 0 1 18.1 21H7"/></svg>';
+    return i;
+  }
   function photoStrip(pid: string): HTMLElement {
     const el = h("div", { class: "globPhotos", "data-pid": pid });
     strips.set(pid, el);
@@ -353,7 +359,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
     const kids: HTMLElement[] = list.map((p, i) => h("button", { class: "gph" + (p.mod_status !== "approved" ? " wait" : ""),
       "aria-label": `Photo ${i + 1}, ${p.like_count} likes`, onclick: () => openShared(pid, i) },
       p.url ? h("img", { src: p.url, alt: "", loading: "lazy" }) : h("span"),
-      p.like_count ? h("small", { class: "gphLikes" }, "👍 " + p.like_count) : null));
+      p.like_count ? h("small", { class: "gphLikes" }, thumb(), String(p.like_count)) : null));
     if (shelf.canPost && shelf.mineCount(pid) < SHARE_PER_PERSON) kids.push(addPhotoTile(pid));
     return kids;
   }
@@ -397,7 +403,7 @@ export function mountJars(store: JarStore, watcher: DabWatcher, showTab: (t: str
             h("button", { class: "btn2 likeBtn" + (p.liked ? " on" : ""), style: "flex:1",
               disabled: !signed || p.mine || p.mod_status !== "approved",
               "aria-pressed": p.liked ? "true" : "false",
-              onclick: () => void shelf.like(p, !p.liked) }, `👍 ${p.like_count}`),
+              onclick: () => void shelf.like(p, !p.liked) }, thumb(), " " + p.like_count),
             p.mine
               ? h("button", { class: "btn2 danger", style: "flex:1", onclick: () =>
                   confirmSheet("Delete this photo?", "It comes off the Global shelf for everyone.", "Delete", "Keep", () => void shelf.remove(p)) }, "DELETE")
